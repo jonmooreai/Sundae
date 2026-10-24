@@ -7,7 +7,15 @@ import Foundation
 /// "only follows can tag" rule. Swapping in the live client should not change app behavior.
 actor MockSundaeAPI: SundaeAPI {
     private var clock: SundayClock
-    private let meID = "u_me"
+    private static let meID = "u_me"
+    private let meID = MockSundaeAPI.meID
+
+    private struct SeedData {
+        var users: [ID: User]
+        var follows: [Follow]
+        var dumps: [ID: Dump]
+        var comments: [ID: [Comment]]
+    }
 
     private var users: [ID: User] = [:]
     private var follows: [Follow] = []
@@ -20,15 +28,22 @@ actor MockSundaeAPI: SundaeAPI {
 
     init(clock: SundayClock) {
         self.clock = clock
-        seed()
+        let seed = Self.makeSeed(clock: clock)
+        users = seed.users
+        follows = seed.follows
+        dumps = seed.dumps
+        comments = seed.comments
     }
 
     /// The debug "pretend it's Sunday" switch moves the mock's clock too, so the gate agrees with the UI.
     func setClock(_ clock: SundayClock) {
         self.clock = clock
-        let wasSignedIn = signedInUserID
-        seed()
-        signedInUserID = wasSignedIn
+        let seed = Self.makeSeed(clock: clock)
+        users = seed.users
+        follows = seed.follows
+        dumps = seed.dumps
+        comments = seed.comments
+        blocked = []
     }
 
     // MARK: - Guards
@@ -434,12 +449,13 @@ actor MockSundaeAPI: SundaeAPI {
 
     // MARK: - Seed data
 
-    private func seed() {
-        users = [:]
-        follows = []
-        dumps = [:]
-        comments = [:]
-        blocked = []
+    /// Builds the seed world for a given clock. Static so the actor's init can call it.
+    private static func makeSeed(clock: SundayClock) -> SeedData {
+        var users: [ID: User] = [:]
+        var follows: [Follow] = []
+        var dumps: [ID: Dump] = [:]
+        var comments: [ID: [Comment]] = [:]
+        let meID = Self.meID
 
         let tz = TimeZone.current.identifier
         let me = User(id: meID, username: "jon", name: "Jon", bio: "Sundays only.", avatar: .placeholder(seed: 1), isPublic: false, timezone: tz)
@@ -552,5 +568,6 @@ actor MockSundaeAPI: SundaeAPI {
                                      commentsEnabled: true, likedBy: Array(friends.prefix(2 + w % 3)), likedByMe: false, commentCount: 0)
             }
         }
+        return SeedData(users: users, follows: follows, dumps: dumps, comments: comments)
     }
 }
