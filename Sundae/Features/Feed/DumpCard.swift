@@ -80,10 +80,11 @@ struct DumpCard: View {
                 HStack(spacing: 10) {
                     AvatarView(user: dump.author, size: 36)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(dump.author.displayName).font(.subheadline.weight(.semibold))
+                        Text(dump.author.username).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Text(model.clock.rangeLabel(weekStart: dump.weekStart))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
             }

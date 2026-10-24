@@ -64,8 +64,9 @@ struct TagRequestCard: View {
             HStack(spacing: 10) {
                 AvatarView(user: request.tagger, size: 36)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(request.tagger.displayName) tagged you")
+                    Text("\(request.tagger.username) tagged you")
                         .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
                     Text(model.clock.rangeLabel(weekStart: request.weekStart))
                         .font(.caption)
                         .foregroundStyle(.secondary)

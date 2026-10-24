@@ -12,19 +12,22 @@ struct WeekRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(isCurrent ? "This week" : model.clock.rangeLabel(weekStart: week.weekStart))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
+                    .lineLimit(1)
                 if isCurrent {
                     Text(model.clock.rangeLabel(weekStart: week.weekStart))
-                        .font(.subheadline)
+                        .font(.footnote)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
                 if isOwn, isCurrent, week.dump == nil, model.isSunday {
                     Text("Not posted yet")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
             }
             .padding(.horizontal, Theme.pagePadding)
@@ -33,6 +36,7 @@ struct WeekRow: View {
                 Text(caption)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
                     .padding(.horizontal, Theme.pagePadding)
             }
 
@@ -69,7 +73,6 @@ struct WeekRow: View {
                             }
                         }
                     }
-                    .padding(.horizontal, Theme.pagePadding)
                 }
                 .scrollIndicators(.hidden)
                 .frame(height: Theme.rowHeight)
@@ -77,10 +80,10 @@ struct WeekRow: View {
         }
     }
 
+    /// Square cells edge to edge with a hairline gap, like a grid row.
     private func cell(_ source: PhotoSource, aspect: CGFloat) -> some View {
         PhotoView(source: source)
-            .frame(width: Theme.rowHeight * min(max(aspect, 0.6), 1.8), height: Theme.rowHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .frame(width: Theme.rowHeight, height: Theme.rowHeight)
             .hoverEffect(.lift)
     }
 }

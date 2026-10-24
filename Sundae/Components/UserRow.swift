@@ -8,12 +8,15 @@ struct UserRow: View {
         HStack(spacing: 12) {
             AvatarView(user: user, size: 44)
             VStack(alignment: .leading, spacing: 2) {
-                Text(user.displayName).font(.body.weight(.medium))
-                Text(subtitle ?? "@\(user.username)")
+                Text(user.username)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Text(subtitle ?? user.name)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
         }
         .contentShape(Rectangle())
     }
@@ -27,15 +30,15 @@ struct FollowButton: View {
     var body: some View {
         switch relationship {
         case .notFollowing:
-            Button("Follow", action: action)
+            Button(action: action) { Text("Follow").frame(width: 84) }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
         case .requested:
-            Button("Requested", action: action)
+            Button(action: action) { Text("Requested").frame(width: 84) }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         case .following:
-            Button("Following", action: action)
+            Button(action: action) { Text("Following").frame(width: 84) }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         case .me, .blocked:

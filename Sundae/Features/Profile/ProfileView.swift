@@ -46,7 +46,7 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Theme.background)
-        .navigationTitle(profile.map { "@\($0.user.username)" } ?? "Profile")
+        .navigationTitle(profile?.user.username ?? "Profile")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -185,33 +185,57 @@ struct ProfileHeader: View {
     let onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center, spacing: 16) {
-                AvatarView(user: profile.user, size: 72)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(profile.user.displayName).font(.title3.weight(.semibold))
-                    Text("@\(profile.user.username)").font(.subheadline).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 24) {
+                AvatarView(user: profile.user, size: 86)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(profile.user.displayName)
+                        .font(.headline)
+                        .lineLimit(1)
                     if let followers = profile.followerCount, let following = profile.followingCount {
                         // Visible only to the owner. Never shown publicly.
-                        Text("\(followers) followers · \(following) following")
-                            .font(.caption)
+                        HStack(spacing: 18) {
+                            stat(followers, "followers")
+                            stat(following, "following")
+                        }
+                    } else {
+                        Text("Sundays only")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
-                            .padding(.top, 2)
                     }
                 }
-                Spacer()
-                if profile.relationship == .me {
-                    Button("Edit profile", action: onEdit)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                } else {
-                    FollowButton(relationship: profile.relationship, action: onFollow)
-                }
+                Spacer(minLength: 0)
             }
             if !profile.user.bio.isEmpty {
-                Text(profile.user.bio).font(.subheadline)
+                Text(profile.user.bio)
+                    .font(.subheadline)
+                    .lineLimit(2)
+            }
+            if profile.relationship == .me {
+                Button(action: onEdit) {
+                    Text("Edit profile").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            } else if profile.relationship == .notFollowing {
+                Button(action: onFollow) {
+                    Text("Follow").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+            } else {
+                Button(action: onFollow) {
+                    Text(profile.relationship == .requested ? "Requested" : "Following").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
         }
+    }
+
+    private func stat(_ count: Int, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text("\(count)").font(.subheadline.weight(.semibold))
+            Text(label).font(.subheadline)
+        }
+        .lineLimit(1)
     }
 }
 

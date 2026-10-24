@@ -458,7 +458,11 @@ actor MockSundaeAPI: SundaeAPI {
         let meID = Self.meID
 
         let tz = TimeZone.current.identifier
-        let me = User(id: meID, username: "jon", name: "Jon", bio: "Sundays only.", avatar: .placeholder(seed: 1), isPublic: false, timezone: tz)
+        func avatar(_ n: Int) -> PhotoSource { .remote(URL(string: "https://i.pravatar.cc/300?img=\(n)")!) }
+        func photo(_ seed: Int, _ size: (Int, Int)) -> PhotoSource {
+            .remote(URL(string: "https://picsum.photos/seed/sundae\(seed)/\(size.0 / 2)/\(size.1 / 2)")!)
+        }
+        let me = User(id: meID, username: "jon", name: "Jon Moore", bio: "Sundays only.", avatar: avatar(12), isPublic: false, timezone: tz)
         let friendSpecs: [(ID, String, String, String)] = [
             ("u_maya", "maya", "Maya Chen", "Farmers market regular."),
             ("u_theo", "theo", "Theo Park", "Bikes, bread, bad puns."),
@@ -467,12 +471,13 @@ actor MockSundaeAPI: SundaeAPI {
             ("u_sam", "sam", "Sam Okafor", "Sunset collector."),
             ("u_lena", "lena", "Lena Fischer", "New in town. Show me around."),
         ]
+        let avatarIDs = [47, 59, 32, 68, 25, 16]
         let friends = friendSpecs.enumerated().map { i, s in
-            User(id: s.0, username: s.1, name: s.2, bio: s.3, avatar: .placeholder(seed: 10 + i), isPublic: false, timezone: tz)
+            User(id: s.0, username: s.1, name: s.2, bio: s.3, avatar: avatar(avatarIDs[i]), isPublic: false, timezone: tz)
         }
-        let riley = User(id: "u_riley", username: "riley", name: "Riley Brooks", bio: "", avatar: .placeholder(seed: 31), isPublic: false, timezone: tz)
-        let noor = User(id: "u_noor", username: "noor", name: "Noor Haddad", bio: "Street photos, mostly.", avatar: .placeholder(seed: 32), isPublic: true, timezone: tz)
-        let dev = User(id: "u_dev", username: "dev", name: "Dev Patel", bio: "", avatar: .placeholder(seed: 33), isPublic: false, timezone: tz)
+        let riley = User(id: "u_riley", username: "riley", name: "Riley Brooks", bio: "", avatar: avatar(36), isPublic: false, timezone: tz)
+        let noor = User(id: "u_noor", username: "noor", name: "Noor Haddad", bio: "Street photos, mostly.", avatar: avatar(44), isPublic: true, timezone: tz)
+        let dev = User(id: "u_dev", username: "dev", name: "Dev Patel", bio: "", avatar: avatar(53), isPublic: false, timezone: tz)
         for u in [me] + friends + [riley, noor, dev] { users[u.id] = u }
 
         for f in friends {
@@ -530,7 +535,7 @@ actor MockSundaeAPI: SundaeAPI {
                         tags.append(Tag(id: "t_\(photoID)_\(other.username)", photoID: photoID, taggerID: friend.id, taggedUser: other,
                                         status: .approved, respondedAt: sunday.addingTimeInterval(3600 * 6)))
                     }
-                    photos.append(Photo(id: photoID, dumpID: dumpID, order: n, source: .placeholder(seed: seedCounter),
+                    photos.append(Photo(id: photoID, dumpID: dumpID, order: n, source: photo(seedCounter, size),
                                         width: size.0, height: size.1, altText: nil, tags: tags))
                 }
                 let likers = friends.filter { $0.id != friend.id }.prefix((w + i) % 4 + (w == 0 ? 0 : 1)).map { $0 }
@@ -560,7 +565,7 @@ actor MockSundaeAPI: SundaeAPI {
                         tags.append(Tag(id: "t_\(photoID)_\(f.username)", photoID: photoID, taggerID: me.id, taggedUser: f,
                                         status: .approved, respondedAt: sunday.addingTimeInterval(3600 * 7)))
                     }
-                    return Photo(id: photoID, dumpID: dumpID, order: n, source: .placeholder(seed: seedCounter),
+                    return Photo(id: photoID, dumpID: dumpID, order: n, source: photo(seedCounter, size),
                                  width: size.0, height: size.1, altText: nil, tags: tags)
                 }
                 dumps[dumpID] = Dump(id: dumpID, author: me, weekStart: start, caption: captions[(w + 3) % captions.count],

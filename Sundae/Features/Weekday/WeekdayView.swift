@@ -4,7 +4,6 @@ import SwiftUI
 /// It should look like a nice postcard, not an error state.
 struct WeekdayView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var showApprovals = false
     @State private var showSettings = false
@@ -13,7 +12,7 @@ struct WeekdayView: View {
 
     var body: some View {
         ZStack {
-            background.ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
                 Spacer(minLength: 24)
@@ -152,9 +151,4 @@ struct WeekdayView: View {
         }
     }
 
-    private var background: some View {
-        let seed = store.current.map { $0.id.unicodeScalars.reduce(0) { $0 + Int($1.value) } } ?? 5
-        let tint = SeedColor.color(seed, saturation: colorScheme == .dark ? 0.35 : 0.22, brightness: colorScheme == .dark ? 0.22 : 0.98)
-        return LinearGradient(colors: [tint, Theme.background], startPoint: .top, endPoint: .bottom)
-    }
 }

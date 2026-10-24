@@ -7,9 +7,9 @@ enum Theme {
     static let smallRadius: CGFloat = 10
     static let chipRadius: CGFloat = 8
     /// Height of a profile week strip.
-    static let rowHeight: CGFloat = 160
+    static let rowHeight: CGFloat = 130
     /// Gap between photos in a week strip.
-    static let gap: CGFloat = 4
+    static let gap: CGFloat = 2
     static let pagePadding: CGFloat = 16
 
     static var background: Color { Color(uiColor: .systemBackground) }

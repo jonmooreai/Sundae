@@ -95,11 +95,13 @@ struct PostYourWeekCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(compose.hasPosted ? "Your week is up" : "Post your week")
                     .font(.headline)
+                    .lineLimit(1)
                 Text(compose.hasPosted
                      ? "Edit any time until midnight."
                      : model.clock.rangeLabel(weekStart: model.currentWeekStart))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
             Spacer()
             if compose.hasPosted {

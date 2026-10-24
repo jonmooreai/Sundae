@@ -23,37 +23,49 @@ struct SearchView: View {
     var body: some View {
         List {
             if !requests.isEmpty && query.isEmpty {
-                Section("Follow requests") {
+                Section {
                     ForEach(requests) { user in
-                        HStack {
+                        HStack(spacing: 8) {
                             NavigationLink(value: Route.profile(user.id)) { UserRow(user: user) }
-                            Button("Decline") { Task { await respond(user, accept: false) } }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            Button("Accept") { Task { await respond(user, accept: true) } }
+                            Button("Confirm") { Task { await respond(user, accept: true) } }
                                 .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            Button("Delete") { Task { await respond(user, accept: false) } }
+                                .buttonStyle(.bordered)
                                 .controlSize(.small)
                         }
                         .buttonStyle(.plain)
                     }
+                } header: {
+                    header("Follow requests")
                 }
             }
 
             if query.isEmpty {
                 contactsSection
                 if !suggested.isEmpty {
-                    Section("People your friends follow") {
+                    Section {
                         ForEach(suggested) { user in row(user) }
+                    } header: {
+                        header("Suggested for you")
                     }
                 }
                 Section {
                     ShareLink(item: URL(string: "https://sundae.app/join")!,
                               subject: Text("Join me on Sundae"),
                               message: Text("Sundays only. Come post your week with us.")) {
-                        Label("Invite your group", systemImage: Icon.share)
+                        HStack(spacing: 12) {
+                            Image(systemName: Icon.share)
+                                .font(.title3)
+                                .frame(width: 44, height: 44)
+                                .background(Theme.surface, in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Invite your group").font(.subheadline.weight(.semibold)).lineLimit(1)
+                                Text("Sundae works when the whole group is here.").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
                     }
-                } footer: {
-                    Text("Sundae works when the whole group is here. Friend groups adopt together or not at all.")
+                    .foregroundStyle(.primary)
                 }
             } else {
                 Section {
@@ -64,8 +76,8 @@ struct SearchView: View {
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .searchable(text: $query, prompt: "Name or username")
+        .listStyle(.plain)
+        .searchable(text: $query, prompt: "Search")
         .navigationTitle("Search")
         .task {
             if contacts == nil { contacts = ContactsMatcher(api: model.api) }
@@ -85,6 +97,14 @@ struct SearchView: View {
         }
     }
 
+    private func header(_ title: String) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.primary)
+            .textCase(nil)
+            .padding(.top, 8)
+    }
+
     @ViewBuilder
     private var contactsSection: some View {
         if let contacts {
@@ -94,12 +114,22 @@ struct SearchView: View {
                 } else if contacts.isMatching {
                     HStack { ProgressView(); Text("Checking your contacts").foregroundStyle(.secondary) }
                 } else if contacts.isOptedIn {
-                    Text("Nobody from your contacts is here yet. Invite them below.").foregroundStyle(.secondary)
+                    Text("Nobody from your contacts is here yet.").foregroundStyle(.secondary).lineLimit(1)
                 } else {
                     Button {
                         Task { await contacts.match() }
                     } label: {
-                        Label("Find friends from your contacts", systemImage: Icon.personAdd)
+                        HStack(spacing: 12) {
+                            Image(systemName: Icon.personAdd)
+                                .font(.title3)
+                                .frame(width: 44, height: 44)
+                                .background(Theme.surface, in: Circle())
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Find friends from your contacts").font(.subheadline.weight(.semibold)).lineLimit(1)
+                                Text("Numbers are hashed on your phone, never stored.").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                        .foregroundStyle(.primary)
                     }
                     .disabled(!contacts.canUse)
                 }
@@ -107,11 +137,7 @@ struct SearchView: View {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
                 }
             } header: {
-                Text("From your contacts")
-            } footer: {
-                if !contacts.isOptedIn {
-                    Text("Phone numbers are hashed on your phone with a one-time key. Only the hashes are sent, matched in memory, and thrown away.")
-                }
+                header("From your contacts")
             }
         }
     }

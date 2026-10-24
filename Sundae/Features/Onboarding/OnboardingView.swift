@@ -27,9 +27,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [SeedColor.color(42, saturation: 0.22, brightness: colorScheme == .dark ? 0.2 : 0.98), Theme.background],
-                           startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea()
+            Theme.background.ignoresSafeArea()
             VStack {
                 Spacer(minLength: 0)
                 Group {

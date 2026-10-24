@@ -85,13 +85,13 @@ final class ScreenshotTests: XCTestCase {
     func testSunday() {
         let app = launch(day: "sunday")
         XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
-        snap(app, "02-feed", settle: 2.5)
+        snap(app, "02-feed", settle: 5)
 
         // Open the first friend's profile from a feed header.
         let author = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'author-'")).firstMatch
         if author.waitForExistence(timeout: 8) {
             author.tap()
-            snap(app, "03-profile-friend", settle: 2.5)
+            snap(app, "03-profile-friend", settle: 5)
             let back = app.navigationBars.buttons.element(boundBy: 0)
             if back.waitForExistence(timeout: 3) { back.tap() }
         }
@@ -100,7 +100,7 @@ final class ScreenshotTests: XCTestCase {
         let comments = app.buttons["Comments"].firstMatch
         if comments.waitForExistence(timeout: 5) {
             comments.tap()
-            snap(app, "04-dump-detail", settle: 2)
+            snap(app, "04-dump-detail", settle: 4)
             let back = app.navigationBars.buttons.element(boundBy: 0)
             if back.exists { back.tap() }
         }
@@ -109,10 +109,10 @@ final class ScreenshotTests: XCTestCase {
         snap(app, "06-compose", settle: 2)
 
         tab(app, "Approvals")
-        snap(app, "07-approvals", settle: 2)
+        snap(app, "07-approvals", settle: 4)
 
         tab(app, "Profile")
-        snap(app, "08-profile-own", settle: 2.5)
+        snap(app, "08-profile-own", settle: 5)
 
         let settings = app.descendants(matching: .any)["profile-settings"].firstMatch
         if settings.waitForExistence(timeout: 8) {
@@ -124,12 +124,12 @@ final class ScreenshotTests: XCTestCase {
 
         // Last, because the search tab replaces the tab bar with a search field on iOS 26.
         tab(app, "Search")
-        snap(app, "05-search", settle: 2)
+        snap(app, "05-search", settle: 4)
     }
 
     func testSundayDark() {
         let app = launch(day: "sunday", appearance: "dark")
         XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
-        snap(app, "02-feed-dark", settle: 2.5)
+        snap(app, "02-feed-dark", settle: 5)
     }
 }
