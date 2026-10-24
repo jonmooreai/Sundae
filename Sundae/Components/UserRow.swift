@@ -36,13 +36,13 @@ struct FollowButton: View {
         switch relationship {
         case .notFollowing:
             Button(action: action) {
-                Text("Follow").frame(width: 92)
+                Text("Follow").frame(width: 76)
             }
             .buttonStyle(.borderedProminent)
             .fontWeight(.semibold)
         case .requested:
             Button(action: action) {
-                Text("Requested").frame(width: 92)
+                Text("Requested").frame(width: 76)
             }
             .buttonStyle(.bordered)
             .tint(.gray)
@@ -50,7 +50,7 @@ struct FollowButton: View {
             .fontWeight(.semibold)
         case .following:
             Button(action: action) {
-                Text("Following").frame(width: 92)
+                Text("Following").frame(width: 76)
             }
             .buttonStyle(.bordered)
             .tint(.gray)

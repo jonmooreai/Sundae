@@ -24,6 +24,7 @@ struct DumpCard: View {
                         Image(systemName: dump.likedByMe ? Icon.heartFilled : Icon.heart)
                             .foregroundStyle(dump.likedByMe ? Color.accentColor : .primary)
                             .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.bounce, value: dump.likedByMe)
                     }
                     .accessibilityLabel(dump.likedByMe ? "Unlike" : "Like")
 

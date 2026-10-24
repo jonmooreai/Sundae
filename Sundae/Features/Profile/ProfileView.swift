@@ -107,7 +107,7 @@ struct ProfileView: View {
                                 }
                             })
                 case .gap(let count, let newest):
-                    Text(count == 1 ? model.clock.rangeLabel(weekStart: newest) : "\(count) weeks without a post")
+                    Text(count == 1 ? "\(model.clock.rangeLabel(weekStart: newest)) was a quiet one" : "\(count) quiet weeks")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, Theme.pagePadding)
@@ -216,16 +216,23 @@ struct ProfileHeader: View {
                     Text("Edit profile").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .tint(.gray)
+                .foregroundStyle(.primary)
+                .fontWeight(.semibold)
             } else if profile.relationship == .notFollowing {
                 Button(action: onFollow) {
                     Text("Follow").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .fontWeight(.semibold)
             } else {
                 Button(action: onFollow) {
                     Text(profile.relationship == .requested ? "Requested" : "Following").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .tint(.gray)
+                .foregroundStyle(.primary)
+                .fontWeight(.semibold)
             }
         }
     }

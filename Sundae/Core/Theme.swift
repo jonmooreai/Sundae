@@ -5,11 +5,13 @@ import SwiftUI
 enum Theme {
     static let radius: CGFloat = 16
     static let smallRadius: CGFloat = 10
-    static let chipRadius: CGFloat = 8
-    /// Height of a profile week strip.
-    static let rowHeight: CGFloat = 130
-    /// Gap between photos in a week strip.
-    static let gap: CGFloat = 2
+    static let chipRadius: CGFloat = 12
+    /// Size of a photo card in a profile week row.
+    static let rowHeight: CGFloat = 196
+    /// Corner radius of a photo card in a profile week row.
+    static let rowRadius: CGFloat = 16
+    /// Gap between photo cards in a week row.
+    static let gap: CGFloat = 8
     static let pagePadding: CGFloat = 16
 
     static var background: Color { Color(uiColor: .systemBackground) }

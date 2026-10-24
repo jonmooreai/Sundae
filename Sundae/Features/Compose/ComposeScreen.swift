@@ -123,9 +123,8 @@ struct ComposeScreen: View {
 
     private var emptyPicker: some View {
         VStack(spacing: 14) {
-            Image(systemName: Icon.photos)
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
+            PhotoStackIcon(size: 64)
+                .padding(.bottom, 6)
             Text("Pick 1 to 15 photos from your week")
                 .font(.headline)
             Text(model.clock.rangeLabel(weekStart: weekStart))

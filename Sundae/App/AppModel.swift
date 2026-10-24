@@ -40,6 +40,8 @@ final class AppModel {
     private(set) var accountSettings = AccountSettings()
     private(set) var appearance: Appearance
     private(set) var debugDay: DebugDay
+    /// Set by a view that wants the shell to switch tabs (the profile's "Post your week" card).
+    var requestedTab: SundayTab?
 
     let feed: FeedStore
     let compose: ComposeStore

@@ -50,6 +50,7 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 24) {
+            SundaeMark(size: 72)
             Text("Sundae")
                 .font(Theme.display(44))
             Text("A photo dump app that only opens on Sundays.")

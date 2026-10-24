@@ -5,6 +5,7 @@ import SwiftUI
 struct WeekdayView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showApprovals = false
     @State private var showSettings = false
 
@@ -16,9 +17,12 @@ struct WeekdayView: View {
             VStack(spacing: 0) {
                 topBar
                 Spacer(minLength: 24)
-                suggestionBlock
-                    .frame(maxWidth: 560, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                ZStack(alignment: .leading) {
+                    suggestionBlock
+                }
+                .frame(maxWidth: 560, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipped()
                 Spacer(minLength: 24)
                 actions
                     .frame(maxWidth: 560)
@@ -57,6 +61,8 @@ struct WeekdayView: View {
             .opacity(model.pendingApprovalCount > 0 ? 1 : 0.6)
 
             Spacer()
+            SundaeMark(size: 30)
+            Spacer()
 
             Button {
                 showSettings = true
@@ -74,11 +80,18 @@ struct WeekdayView: View {
     private var suggestionBlock: some View {
         if let suggestion = store.current {
             VStack(alignment: .leading, spacing: 18) {
-                Text(store.justMarkedDone ? "That's one for Sunday" : dayLine)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.8)
+                HStack(spacing: 6) {
+                    if store.justMarkedDone {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.accentColor)
+                            .symbolEffect(.bounce, value: store.justMarkedDone)
+                    }
+                    Text(store.justMarkedDone ? "That's one for Sunday" : dayLine)
+                        .textCase(.uppercase)
+                        .tracking(0.8)
+                }
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
                 Text(suggestion.text)
                     .font(Theme.display(verticalSizeClass == .compact ? 30 : 40))
                     .lineSpacing(2)
@@ -90,6 +103,11 @@ struct WeekdayView: View {
                     .foregroundStyle(.secondary)
             }
             .animation(.default, value: store.justMarkedDone)
+            .id(suggestion.id)
+            .transition(reduceMotion ? .opacity : .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .opacity
+            ))
             .accessibilityElement(children: .combine)
         } else {
             Text("Go make something worth posting.")
@@ -101,7 +119,9 @@ struct WeekdayView: View {
         VStack(spacing: 14) {
             HStack(spacing: 12) {
                 Button {
-                    store.shuffle(clock: model.clock)
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.35)) {
+                        store.shuffle(clock: model.clock)
+                    }
                 } label: {
                     Label(store.justMarkedDone ? "Another idea" : "Shuffle", systemImage: Icon.shuffle)
                         .frame(maxWidth: .infinity)
@@ -146,8 +166,14 @@ struct WeekdayView: View {
     private var countdown: String {
         switch model.phase {
         case .sunday: return "It's Sunday."
-        case .weekday(let days) where days == 1: return "Sunday is tomorrow"
-        case .weekday(let days): return "\(days) days until Sunday"
+        case .weekday(let days):
+            switch days {
+            case 1: return "Sunday is tomorrow. Charge your phone."
+            case 2: return "2 days until Sunday. Make them count."
+            case 4: return "4 days until Sunday. Halfway-ish."
+            case 6: return "6 days until Sunday. No rush."
+            default: return "\(days) days until Sunday"
+            }
         }
     }
 

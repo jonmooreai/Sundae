@@ -53,6 +53,11 @@ struct SundayShell: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .onChange(of: model.requestedTab) { _, requested in
+            guard let requested else { return }
+            tab = requested
+            model.requestedTab = nil
+        }
     }
 }
 

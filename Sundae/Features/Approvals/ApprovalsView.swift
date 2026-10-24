@@ -76,7 +76,7 @@ struct TagRequestCard: View {
 
             PhotoView(source: request.photo.source)
                 .aspectRatio(min(max(request.photo.aspectRatio, 0.8), 1.5), contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous))
                 .accessibilityLabel(request.photo.altText ?? "Photo from \(request.tagger.firstName)'s week")
 
             Text("Approve to add it to your week as \u{201C}from \(request.tagger.firstName)\u{201D}. You can remove it later.")
