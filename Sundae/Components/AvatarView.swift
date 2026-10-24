@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 
 struct AvatarView: View {
     let user: User

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 
 struct SearchScreen: View {
     var body: some View {

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 
 /// Horizontally paged photos with a page indicator. Tag chips appear on tap, not by default,
 /// so photos stay clean. The aspect ratio follows the first photo, clamped so a feed of mixed

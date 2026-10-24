@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 
 /// The app's mark: a line-drawn sundae with a red cherry. Drawn in code so it scales to any
 /// size and follows the text color in light and dark mode.

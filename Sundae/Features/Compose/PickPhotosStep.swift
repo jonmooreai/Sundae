@@ -1,6 +1,7 @@
 import Photos
 import PhotosUI
 import SwiftUI
+import PhosphorSwift
 
 /// Step one: a grid of this week's photos, tap to pick up to 15, in the order you tap.
 /// The Photos picker is always one tap away for anything the grid cannot show.

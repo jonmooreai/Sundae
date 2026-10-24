@@ -1,5 +1,6 @@
 import AuthenticationServices
 import SwiftUI
+import PhosphorSwift
 
 /// Signup is built around inviting a group, not a single person. Four steps: what Sundae is,
 /// sign in, who you are, bring your friends. Sign in with Apple and passkeys are primary;

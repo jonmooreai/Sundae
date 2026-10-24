@@ -1,6 +1,7 @@
 import LocalAuthentication
 import SwiftUI
 import UIKit
+import PhosphorSwift
 
 /// Account, privacy, auto-approve list, notifications. Open every day.
 struct SettingsView: View {

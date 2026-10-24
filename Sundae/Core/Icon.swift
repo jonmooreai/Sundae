@@ -4,35 +4,35 @@ import SwiftUI
 /// Phosphor Icons, the one icon set. Semantic names live here so no screen picks a glyph itself.
 /// Regular weight in chrome, fill when selected, bold for small emphatic marks.
 enum Glyph {
-    static let feed: Ph = .house
-    static let search: Ph = .magnifyingGlass
-    static let post: Ph = .plusSquare
-    static let approvals: Ph = .checkCircle
-    static let profile: Ph = .userCircle
-    static let settings: Ph = .gearSix
-    static let shuffle: Ph = .shuffle
-    static let done: Ph = .check
-    static let heart: Ph = .heart
-    static let comment: Ph = .chatCircle
-    static let tag: Ph = .tag
-    static let more: Ph = .dotsThree
-    static let close: Ph = .x
-    static let back: Ph = .caretLeft
-    static let trash: Ph = .trash
-    static let lock: Ph = .lockSimple
-    static let photos: Ph = .images
-    static let reorder: Ph = .arrowsDownUp
-    static let person: Ph = .user
-    static let personAdd: Ph = .userPlus
-    static let share: Ph = .export
-    static let calendar: Ph = .calendarBlank
-    static let sun: Ph = .sun
-    static let flag: Ph = .flag
-    static let block: Ph = .handPalm
-    static let chevronRight: Ph = .caretRight
-    static let altText: Ph = .textAa
-    static let plus: Ph = .plus
-    static let send: Ph = .arrowUp
+    static var feed: Ph { .house }
+    static var search: Ph { .magnifyingGlass }
+    static var post: Ph { .plusSquare }
+    static var approvals: Ph { .checkCircle }
+    static var profile: Ph { .userCircle }
+    static var settings: Ph { .gearSix }
+    static var shuffle: Ph { .shuffle }
+    static var done: Ph { .check }
+    static var heart: Ph { .heart }
+    static var comment: Ph { .chatCircle }
+    static var tag: Ph { .tag }
+    static var more: Ph { .dotsThree }
+    static var close: Ph { .x }
+    static var back: Ph { .caretLeft }
+    static var trash: Ph { .trash }
+    static var lock: Ph { .lockSimple }
+    static var photos: Ph { .images }
+    static var reorder: Ph { .arrowsDownUp }
+    static var person: Ph { .user }
+    static var personAdd: Ph { .userPlus }
+    static var share: Ph { .export }
+    static var calendar: Ph { .calendarBlank }
+    static var sun: Ph { .sun }
+    static var flag: Ph { .flag }
+    static var block: Ph { .handPalm }
+    static var chevronRight: Ph { .caretRight }
+    static var altText: Ph { .textAa }
+    static var plus: Ph { .plus }
+    static var send: Ph { .arrowUp }
 }
 
 enum IconWeight {

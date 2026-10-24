@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 
 /// One photo, edge to edge, with its caption and tags. Space or a long press opens it;
 /// a swipe down or the close button dismisses.

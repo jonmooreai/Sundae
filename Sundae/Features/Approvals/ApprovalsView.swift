@@ -1,4 +1,5 @@
 import SwiftUI
+import PhosphorSwift
 
 struct ApprovalsScreen: View {
     var body: some View {
