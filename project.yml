@@ -1,0 +1,110 @@
+# XcodeGen spec. Run `xcodegen generate` to produce Sundae.xcodeproj.
+name: Sundae
+options:
+  bundleIdPrefix: com.sundae
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    TARGETED_DEVICE_FAMILY: "1,2"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SUPPORTS_MACCATALYST: NO
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  Sundae:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sundae
+        excludes:
+          - Info.plist
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sundae.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: Sundae/Info.plist
+      properties:
+        CFBundleDisplayName: Sundae
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        NSPhotoLibraryUsageDescription: Sundae uses your library to show this week's photos first when you post on Sunday. Photos stay on your device until you choose to post them.
+        NSContactsUsageDescription: Sundae can match hashed phone numbers to find friends already here. Hashes are discarded after matching.
+        NSFaceIDUsageDescription: Sundae asks for Face ID before sensitive changes like deleting your account.
+        UIBackgroundModes:
+          - remote-notification
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Sundae/Sundae.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+        com.apple.security.application-groups:
+          - group.com.sundae.shared
+        aps-environment: development
+    dependencies:
+      - target: SundaeWidget
+        embed: true
+  SundaeWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SundaeWidget
+        excludes:
+          - Info.plist
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sundae.app.widget
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: SundaeWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Sundae
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: SundaeWidget/SundaeWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.sundae.shared
+  SundaeTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: SundaeTests
+    dependencies:
+      - target: Sundae
+schemes:
+  Sundae:
+    build:
+      targets:
+        Sundae: all
+        SundaeWidget: all
+        SundaeTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - SundaeTests

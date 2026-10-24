@@ -1,0 +1,162 @@
+import LocalAuthentication
+import SwiftUI
+import UIKit
+
+/// Account, privacy, auto-approve list, notifications. Open every day.
+struct SettingsView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var settings = AccountSettings()
+    @State private var loaded = false
+    @State private var taggable: [User] = []
+    @State private var confirmDelete = false
+    @State private var confirmSignOut = false
+
+    var body: some View {
+        Form {
+            Section("Appearance") {
+                Picker("Theme", selection: Binding(get: { model.appearance }, set: { model.setAppearance($0) })) {
+                    ForEach(Appearance.allCases) { Text($0.label).tag($0) }
+                }
+            }
+
+            Section {
+                Toggle("Public account", isOn: $settings.isPublic)
+            } header: {
+                Text("Privacy")
+            } footer: {
+                Text(settings.isPublic
+                     ? "Anyone can follow you without asking and see your weeks."
+                     : "People ask to follow you and you decide. Your weeks are only visible to people you accept.")
+            }
+
+            Section {
+                NavigationLink {
+                    AutoApproveList(settings: $settings, people: taggable)
+                } label: {
+                    HStack {
+                        Text("Auto-approve tags")
+                        Spacer()
+                        Text(settings.autoApproveUserIDs.isEmpty ? "Nobody" : "\(settings.autoApproveUserIDs.count)")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Toggle("Allow comments on my weeks", isOn: $settings.commentsEnabled)
+            } footer: {
+                Text("Tags from auto-approved friends land on your week right away. Everyone else waits for you.")
+            }
+
+            Section {
+                Toggle("Sunday reminder, 9:00 am", isOn: $settings.notifySundayReminder)
+                Toggle("Last call, 8:00 pm if you haven't posted", isOn: $settings.notifyLastCall)
+                Toggle("Someone tagged you", isOn: $settings.notifyTags)
+                Toggle("Follow requests", isOn: $settings.notifyFollowRequests)
+                Toggle("Likes and comments, Sunday only", isOn: $settings.notifyLikesAndComments)
+                Toggle("Your tag was approved", isOn: $settings.notifyTagApproved)
+            } header: {
+                Text("Notifications")
+            } footer: {
+                Text("At most one push per weekday, as a noon digest. Nothing ever tells you what's in the feed. Weekday suggestions are never pushed.")
+            }
+
+            Section("Devices") {
+                LabeledContent("This device", value: UIDevice.current.name)
+                Button("Sign out everywhere", role: .destructive) { confirmSignOut = true }
+            }
+
+            Section {
+                Button("Export my data") { }
+                    .disabled(true)
+                Button("Delete account", role: .destructive) {
+                    Task { if await freshAuthentication() { confirmDelete = true } }
+                }
+            } header: {
+                Text("Your data")
+            } footer: {
+                Text("Export arrives within 24 hours as a zip of your photos, captions, tags and settings. Deletion completes within 30 days.")
+            }
+
+            #if DEBUG
+            Section {
+                Picker("Day", selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) })) {
+                    ForEach(DebugDay.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } header: {
+                Text("Developer")
+            } footer: {
+                Text("Moves the clock so the Sunday screens can be worked on during the week. Debug builds only.")
+            }
+            #endif
+
+            Section {
+                Button("Sign out") { Task { await model.signOut() } }
+            }
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+        }
+        .task {
+            settings = model.accountSettings
+            taggable = (try? await model.api.taggableUsers()) ?? []
+            loaded = true
+        }
+        .onChange(of: settings) { _, new in
+            guard loaded else { return }
+            Task { await model.saveAccountSettings(new) }
+        }
+        .confirmationDialog("Sign out of every device?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            Button("Sign out everywhere", role: .destructive) { Task { await model.signOut() } }
+        }
+        .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { Task { await model.deleteAccount() } }
+        } message: {
+            Text("Your dumps and tags are removed within 30 days. Photos you were tagged in stay in the poster's dump with the tag removed.")
+        }
+    }
+
+    /// Sensitive actions need fresh authentication. Face ID or Touch ID when available, passcode otherwise.
+    private func freshAuthentication() async -> Bool {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else { return true }
+        return (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Confirm it's you before deleting your account.")) ?? false
+    }
+}
+
+struct AutoApproveList: View {
+    @Binding var settings: AccountSettings
+    let people: [User]
+
+    var body: some View {
+        List {
+            if people.isEmpty {
+                Text("Follow some friends first.").foregroundStyle(.secondary)
+            }
+            ForEach(people) { user in
+                let isOn = settings.autoApproveUserIDs.contains(user.id)
+                Button {
+                    if isOn {
+                        settings.autoApproveUserIDs.removeAll { $0 == user.id }
+                    } else {
+                        settings.autoApproveUserIDs.append(user.id)
+                    }
+                } label: {
+                    HStack {
+                        UserRow(user: user)
+                        Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
+                            .font(.title3)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .navigationTitle("Auto-approve")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
