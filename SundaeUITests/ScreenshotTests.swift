@@ -30,7 +30,6 @@ final class ScreenshotTests: XCTestCase {
             "-AppleLocale", "en_US",
         ]
         app.launch()
-        app.tap()
         return app
     }
 
@@ -106,9 +105,6 @@ final class ScreenshotTests: XCTestCase {
             if back.exists { back.tap() }
         }
 
-        tab(app, "Search")
-        snap(app, "05-search", settle: 2)
-
         tab(app, "Post")
         snap(app, "06-compose", settle: 2)
 
@@ -116,13 +112,19 @@ final class ScreenshotTests: XCTestCase {
         snap(app, "07-approvals", settle: 2)
 
         tab(app, "Profile")
-        snap(app, "08-profile-own", settle: 2)
+        snap(app, "08-profile-own", settle: 2.5)
 
         let settings = app.descendants(matching: .any)["profile-settings"].firstMatch
         if settings.waitForExistence(timeout: 8) {
             settings.tap()
             snap(app, "09-settings", settle: 1.5)
+            let done = app.buttons["Done"].firstMatch
+            if done.waitForExistence(timeout: 3) { done.tap() }
         }
+
+        // Last, because the search tab replaces the tab bar with a search field on iOS 26.
+        tab(app, "Search")
+        snap(app, "05-search", settle: 2)
     }
 
     func testSundayDark() {
