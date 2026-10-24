@@ -34,28 +34,27 @@ final class StubURLProtocol: URLProtocol {
 
 @Suite(.serialized)
 struct HTTPClientTests {
-    private func makeClient() -> HTTPClient {
+    private func makeClient() -> (HTTPClient, TokenStore) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
-        let tokens = TokenStore()
+        let tokens = TokenStore(storage: InMemorySecretStorage())
         tokens.store(accessToken: "access-1", refreshToken: "refresh-1", expiresIn: 3600)
-        return HTTPClient(baseURL: URL(string: "https://api.sundae.test")!, tokens: tokens,
-                          session: URLSession(configuration: configuration))
+        let client = HTTPClient(baseURL: URL(string: "https://api.sundae.test")!, tokens: tokens,
+                                session: URLSession(configuration: configuration))
+        return (client, tokens)
     }
 
     @Test func serverErrorCodesBecomeSundaeErrors() async throws {
-        defer { TokenStore().clear() }
         StubURLProtocol.reset { _ in
             (423, Data(#"{"error":{"code":"sunday_closed","message":"Come back Sunday."}}"#.utf8))
         }
-        let client = makeClient()
+        let (client, _) = makeClient()
         await #expect(throws: SundaeError.sundayClosed) {
             let _: [DTO.Dump] = try await client.get("v1/feed")
         }
     }
 
     @Test func aRejectedAccessTokenIsRefreshedOnceAndRetried() async throws {
-        defer { TokenStore().clear() }
         StubURLProtocol.reset { request in
             let path = request.url?.path() ?? ""
             let auth = request.value(forHTTPHeaderField: "Authorization") ?? ""
@@ -67,30 +66,29 @@ struct HTTPClientTests {
             }
             return (200, Data("[]".utf8))
         }
-        let client = makeClient()
+        let (client, tokens) = makeClient()
         let dumps: [DTO.Dump] = try await client.get("v1/feed")
         #expect(dumps.isEmpty)
 
         let paths = StubURLProtocol.requests.withLock { $0.map { $0.url?.path() ?? "" } }
         #expect(paths.filter { $0.hasSuffix("auth/refresh") }.count == 1)
         #expect(paths.filter { $0.hasSuffix("v1/feed") }.count == 2)
-        #expect(TokenStore().accessToken == "access-2")
-        #expect(TokenStore().refreshToken == "refresh-2")
+        #expect(tokens.accessToken == "access-2")
+        #expect(tokens.refreshToken == "refresh-2")
     }
 
     @Test func aRejectedRefreshEndsTheSession() async throws {
-        defer { TokenStore().clear() }
         StubURLProtocol.reset { request in
             if (request.url?.path() ?? "").hasSuffix("auth/refresh") {
                 return (401, Data(#"{"error":{"code":"token_reused"}}"#.utf8))
             }
             return (401, Data())
         }
-        let client = makeClient()
+        let (client, tokens) = makeClient()
         await #expect(throws: SundaeError.notAuthorized) {
             let _: DTO.User = try await client.get("v1/me")
         }
-        #expect(TokenStore().refreshToken == nil)
+        #expect(tokens.refreshToken == nil)
     }
 }
 

@@ -1,4 +1,27 @@
 import Foundation
+import Synchronization
+
+/// Where tokens are kept. The Keychain in the app; memory in tests and unsigned CI builds,
+/// where the Keychain refuses writes.
+protocol SecretStorage: Sendable {
+    func set(_ value: String, for key: String)
+    func string(for key: String) -> String?
+    func delete(_ key: String)
+}
+
+struct KeychainStorage: SecretStorage {
+    func set(_ value: String, for key: String) { Keychain.set(value, for: key) }
+    func string(for key: String) -> String? { Keychain.string(for: key) }
+    func delete(_ key: String) { Keychain.delete(key) }
+}
+
+final class InMemorySecretStorage: SecretStorage {
+    private let values = Mutex<[String: String]>([:])
+    init() {}
+    func set(_ value: String, for key: String) { values.withLock { $0[key] = value } }
+    func string(for key: String) -> String? { values.withLock { $0[key] } }
+    func delete(_ key: String) { _ = values.withLock { $0.removeValue(forKey: key) } }
+}
 
 /// Access and refresh tokens, in the Keychain with the this-device-only class.
 ///
@@ -12,23 +35,29 @@ struct TokenStore: Sendable {
         static let expiry = "auth.expiry"
     }
 
-    var accessToken: String? { Keychain.string(for: Key.access) }
-    var refreshToken: String? { Keychain.string(for: Key.refresh) }
+    private let storage: any SecretStorage
+
+    init(storage: any SecretStorage = KeychainStorage()) {
+        self.storage = storage
+    }
+
+    var accessToken: String? { storage.string(for: Key.access) }
+    var refreshToken: String? { storage.string(for: Key.refresh) }
     var accessExpiry: Date? {
-        Keychain.string(for: Key.expiry).flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
+        storage.string(for: Key.expiry).flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
     }
 
     var hasSession: Bool { refreshToken != nil }
 
     func store(accessToken: String, refreshToken: String, expiresIn: TimeInterval) {
-        Keychain.set(accessToken, for: Key.access)
-        Keychain.set(refreshToken, for: Key.refresh)
-        Keychain.set(String(Date().addingTimeInterval(expiresIn).timeIntervalSince1970), for: Key.expiry)
+        storage.set(accessToken, for: Key.access)
+        storage.set(refreshToken, for: Key.refresh)
+        storage.set(String(Date().addingTimeInterval(expiresIn).timeIntervalSince1970), for: Key.expiry)
     }
 
     func clear() {
-        Keychain.delete(Key.access)
-        Keychain.delete(Key.refresh)
-        Keychain.delete(Key.expiry)
+        storage.delete(Key.access)
+        storage.delete(Key.refresh)
+        storage.delete(Key.expiry)
     }
 }

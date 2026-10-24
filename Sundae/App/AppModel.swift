@@ -183,11 +183,13 @@ final class AppModel {
     private func didSignIn() async {
         accountSettings = (try? await api.accountSettings()) ?? AccountSettings()
         await refreshPendingCount()
-        await NotificationScheduler.requestAuthorizationIfNeeded()
-        NotificationScheduler.scheduleSundayReminders(
-            reminder: accountSettings.notifySundayReminder,
-            lastCall: accountSettings.notifyLastCall
-        )
+        // The permission prompt must never hold up the first screen, and UI tests skip it entirely.
+        guard !ProcessInfo.processInfo.arguments.contains("-uiTestSignedIn") else { return }
+        let settings = accountSettings
+        Task {
+            await NotificationScheduler.requestAuthorizationIfNeeded()
+            NotificationScheduler.scheduleSundayReminders(reminder: settings.notifySundayReminder, lastCall: settings.notifyLastCall)
+        }
     }
 
     func signOut() async {

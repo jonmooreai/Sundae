@@ -10,6 +10,13 @@ final class ScreenshotTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = true
+        addUIInterruptionMonitor(withDescription: "System alert") { alert in
+            for label in ["Allow", "Allow Full Access", "OK", "Don\u{2019}t Allow"] where alert.buttons[label].exists {
+                alert.buttons[label].tap()
+                return true
+            }
+            return false
+        }
     }
 
     private func launch(day: String, signedIn: Bool = true, appearance: String = "light") -> XCUIApplication {
@@ -23,6 +30,7 @@ final class ScreenshotTests: XCTestCase {
             "-AppleLocale", "en_US",
         ]
         app.launch()
+        app.tap()
         return app
     }
 

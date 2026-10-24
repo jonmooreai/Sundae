@@ -123,7 +123,6 @@ jobs:
           name: sundae-${{ github.run_number }}
           path: |
             docs/screenshots
-            results
             build.log
             test-*.log
           if-no-files-found: ignore
