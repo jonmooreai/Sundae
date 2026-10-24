@@ -1,20 +1,25 @@
 import SwiftUI
 
+/// A person in a list: round avatar, bold username, one gray line of context. Never wraps.
 struct UserRow: View {
     let user: User
     var subtitle: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
-            AvatarView(user: user, size: 44)
-            VStack(alignment: .leading, spacing: 2) {
+            AvatarView(user: user, size: 54)
+            VStack(alignment: .leading, spacing: 3) {
                 Text(user.username)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.body.weight(.semibold))
                     .lineLimit(1)
-                Text(subtitle ?? user.name)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                let line = subtitle ?? user.searchSubtitle
+                if !line.isEmpty {
+                    Text(line)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
             Spacer(minLength: 8)
         }
@@ -22,7 +27,7 @@ struct UserRow: View {
     }
 }
 
-/// Follow, Requested, Following. Private accounts hold at Requested until the owner accepts.
+/// Follow, Requested, Following. A fixed-width pill so rows line up.
 struct FollowButton: View {
     let relationship: Relationship
     let action: () -> Void
@@ -30,17 +35,27 @@ struct FollowButton: View {
     var body: some View {
         switch relationship {
         case .notFollowing:
-            Button(action: action) { Text("Follow").frame(width: 84) }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+            Button(action: action) {
+                Text("Follow").frame(width: 92)
+            }
+            .buttonStyle(.borderedProminent)
+            .fontWeight(.semibold)
         case .requested:
-            Button(action: action) { Text("Requested").frame(width: 84) }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Button(action: action) {
+                Text("Requested").frame(width: 92)
+            }
+            .buttonStyle(.bordered)
+            .tint(.gray)
+            .foregroundStyle(.primary)
+            .fontWeight(.semibold)
         case .following:
-            Button(action: action) { Text("Following").frame(width: 84) }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Button(action: action) {
+                Text("Following").frame(width: 92)
+            }
+            .buttonStyle(.bordered)
+            .tint(.gray)
+            .foregroundStyle(.primary)
+            .fontWeight(.semibold)
         case .me, .blocked:
             EmptyView()
         }

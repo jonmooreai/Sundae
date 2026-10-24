@@ -293,6 +293,19 @@ actor MockSundaeAPI: SundaeAPI {
             .filter { $0.id != me.id && !blocked.contains($0.id) }
             .filter { $0.username.lowercased().contains(q) || $0.name.lowercased().contains(q) }
             .sorted { $0.username < $1.username }
+            .map { withContext($0, viewer: me.id) }
+    }
+
+    /// Fills in "followed by" with the viewer's follows who follow this user.
+    private func withContext(_ user: User, viewer: ID) -> User {
+        let mine = Set(follows.filter { $0.followerID == viewer && $0.status == .accepted }.map(\.followeeID))
+        let names = follows
+            .filter { $0.followeeID == user.id && $0.status == .accepted && mine.contains($0.followerID) }
+            .compactMap { users[$0.followerID]?.username }
+            .sorted()
+        var copy = user
+        copy.followedBy = names
+        return copy
     }
 
     func suggestedUsers() async throws -> [User] {
@@ -306,6 +319,7 @@ actor MockSundaeAPI: SundaeAPI {
         return friendsOfFriends
             .filter { $0 != me.id && !myFollows.contains($0) && !blocked.contains($0) && seen.insert($0).inserted }
             .compactMap { users[$0] }
+            .map { withContext($0, viewer: me.id) }
     }
 
     func follow(userID: ID) async throws -> Relationship {
@@ -361,7 +375,7 @@ actor MockSundaeAPI: SundaeAPI {
         try await latency()
         guard !hashes.isEmpty else { return [] }
         // The mock cannot know real numbers; pretend two people from the address book are here.
-        return ["u_riley", "u_dev"].compactMap { users[$0] }.filter { $0.id != me.id && !blocked.contains($0.id) }
+        return ["u_riley", "u_dev"].compactMap { users[$0] }.filter { $0.id != me.id && !blocked.contains($0.id) }.map { withContext($0, viewer: me.id) }
     }
 
     // MARK: - Tags (every day)

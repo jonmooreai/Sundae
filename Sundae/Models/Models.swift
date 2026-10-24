@@ -19,8 +19,19 @@ struct User: Identifiable, Hashable, Codable, Sendable {
     var avatar: PhotoSource?
     var isPublic: Bool
     var timezone: String
+    /// Usernames of people the viewer follows who follow this user. Search and suggestions only.
+    var followedBy: [String]? = nil
 
     var displayName: String { name.isEmpty ? username : name }
+    /// "Bob Ewing • Followed by parker + 2", one line.
+    var searchSubtitle: String {
+        var parts: [String] = []
+        if !name.isEmpty { parts.append(name) }
+        if let followedBy, let first = followedBy.first {
+            parts.append(followedBy.count > 1 ? "Followed by \(first) + \(followedBy.count - 1)" : "Followed by \(first)")
+        }
+        return parts.joined(separator: " \u{2022} ")
+    }
     var firstName: String { displayName.split(separator: " ").first.map(String.init) ?? displayName }
     var initials: String {
         let parts = displayName.split(separator: " ").prefix(2)

@@ -26,15 +26,19 @@ struct SearchView: View {
                 Section {
                     ForEach(requests) { user in
                         HStack(spacing: 8) {
-                            NavigationLink(value: Route.profile(user.id)) { UserRow(user: user) }
+                            UserRow(user: user, subtitle: user.name)
                             Button("Confirm") { Task { await respond(user, accept: true) } }
                                 .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
+                                .fontWeight(.semibold)
                             Button("Delete") { Task { await respond(user, accept: false) } }
                                 .buttonStyle(.bordered)
-                                .controlSize(.small)
+                                .tint(.gray)
+                                .foregroundStyle(.primary)
+                                .fontWeight(.semibold)
                         }
-                        .buttonStyle(.plain)
+                        .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
+                        .listRowInsets(rowInsets)
+                        .listRowSeparator(.hidden)
                     }
                 } header: {
                     header("Follow requests")
@@ -66,6 +70,8 @@ struct SearchView: View {
                         }
                     }
                     .foregroundStyle(.primary)
+                    .listRowInsets(rowInsets)
+                    .listRowSeparator(.hidden)
                 }
             } else {
                 Section {
@@ -77,6 +83,7 @@ struct SearchView: View {
             }
         }
         .listStyle(.plain)
+        .environment(\.defaultMinListRowHeight, 70)
         .searchable(text: $query, prompt: "Search")
         .navigationTitle("Search")
         .task {
@@ -99,10 +106,10 @@ struct SearchView: View {
 
     private func header(_ title: String) -> some View {
         Text(title)
-            .font(.subheadline.weight(.semibold))
+            .font(.body.weight(.semibold))
             .foregroundStyle(.primary)
             .textCase(nil)
-            .padding(.top, 8)
+            .listRowInsets(EdgeInsets(top: 12, leading: Theme.pagePadding, bottom: 4, trailing: Theme.pagePadding))
     }
 
     @ViewBuilder
@@ -132,6 +139,8 @@ struct SearchView: View {
                         .foregroundStyle(.primary)
                     }
                     .disabled(!contacts.canUse)
+                    .listRowInsets(rowInsets)
+                    .listRowSeparator(.hidden)
                 }
                 if let message = contacts.errorMessage {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
@@ -142,14 +151,21 @@ struct SearchView: View {
         }
     }
 
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(top: 8, leading: Theme.pagePadding, bottom: 8, trailing: Theme.pagePadding)
+    }
+
+    /// Row content with an invisible navigation link behind it, so there is no chevron.
     private func row(_ user: User) -> some View {
-        HStack {
-            NavigationLink(value: Route.profile(user.id)) { UserRow(user: user) }
+        HStack(spacing: 8) {
+            UserRow(user: user)
             FollowButton(relationship: relationships[user.id] ?? .notFollowing) {
                 Task { await toggleFollow(user) }
             }
         }
-        .buttonStyle(.plain)
+        .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
+        .listRowInsets(rowInsets)
+        .listRowSeparator(.hidden)
     }
 
     private func loadInitial() async {
