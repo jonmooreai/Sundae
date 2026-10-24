@@ -94,7 +94,9 @@ final class ScreenshotTests: XCTestCase {
         if allow.waitForExistence(timeout: 4) {
             allow.tap()
             Thread.sleep(forTimeInterval: 1.5)
-            app.navigationBars.firstMatch.tap()   // gives the interruption monitor a chance to answer the system alert
+            // Any interaction lets the interruption monitor answer the system alert.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.12)).tap()
+            Thread.sleep(forTimeInterval: 1)
         }
         let all = app.buttons["All photos"].firstMatch
         if all.waitForExistence(timeout: 8) { all.tap() }

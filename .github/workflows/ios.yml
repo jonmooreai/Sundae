@@ -80,6 +80,9 @@ jobs:
           set -o pipefail
           mkdir -p screenshots
           xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$IPHONE_UDID" -b || true
+          APP=$(find build/Build/Products -maxdepth 2 -name "Sundae.app" | head -1)
+          [ -n "$APP" ] && xcrun simctl install "$IPHONE_UDID" "$APP" || true
           xcrun simctl privacy "$IPHONE_UDID" grant photos com.sundae.app || true
           xcrun simctl privacy "$IPHONE_UDID" grant contacts com.sundae.app || true
           xcodebuild test-without-building \
