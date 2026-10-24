@@ -137,7 +137,7 @@ struct SuggestionDone: Hashable, Codable, Sendable {
 }
 
 /// A photo in the compose screen before it is posted.
-struct DraftPhoto: Identifiable, Hashable, Sendable {
+struct DraftPhoto: Identifiable, Hashable, Codable, Sendable {
     var id: ID = UUID().uuidString
     var source: PhotoSource
     var width: Int
@@ -147,7 +147,7 @@ struct DraftPhoto: Identifiable, Hashable, Sendable {
     var takenAt: Date?
 }
 
-struct DumpDraft: Hashable, Sendable {
+struct DumpDraft: Hashable, Codable, Sendable {
     static let maxPhotos = 15
     static let maxTagsPerPhoto = 10
     static let maxCaptionLength = 300

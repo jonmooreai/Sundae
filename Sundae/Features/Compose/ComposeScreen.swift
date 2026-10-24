@@ -103,6 +103,11 @@ struct ComposeScreen: View {
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.accentColor)
             }
+            if compose.queuedOffline {
+                Label("You're offline. Your week is saved and will post when you're back online.", systemImage: Icon.calendar)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
 
             donePrompt
 

@@ -45,6 +45,10 @@ final class AppModel {
     let compose: ComposeStore
     let approvals: ApprovalsStore
     let weekday: WeekdayStore
+    let network = NetworkMonitor()
+
+    /// True when running against the in-memory mock instead of a server.
+    var isUsingMock: Bool { mock != nil }
 
     private var boundaryTask: Task<Void, Never>?
 
@@ -52,6 +56,7 @@ final class AppModel {
         static let appearance = "appearance"
         static let debugDay = "debugDay"
         static let session = "session.token"
+        static let cachedUser = "session.user"
     }
 
     var isSunday: Bool { phase == .sunday }
@@ -63,31 +68,79 @@ final class AppModel {
         let appearance = Appearance(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .system
         let debugDay = DebugDay(rawValue: defaults.string(forKey: Keys.debugDay) ?? "") ?? .real
         let clock = Self.makeClock(for: debugDay)
-        let mock = MockSundaeAPI(clock: clock)
         let catalog = SuggestionCatalog.bundled()
+
+        let api: any SundaeAPI
+        let mock: MockSundaeAPI?
+        if let baseURL = APIConfiguration.baseURL {
+            api = LiveSundaeAPI(client: HTTPClient(baseURL: baseURL))
+            mock = nil
+        } else {
+            let m = MockSundaeAPI(clock: clock)
+            api = m
+            mock = m
+        }
 
         self.appearance = appearance
         self.debugDay = debugDay
         self.clock = clock
         self.mock = mock
-        self.api = mock
+        self.api = api
         self.suggestions = catalog
-        self.feed = FeedStore(api: mock)
-        self.compose = ComposeStore(api: mock)
-        self.approvals = ApprovalsStore(api: mock)
-        self.weekday = WeekdayStore(api: mock, catalog: catalog)
+        self.feed = FeedStore(api: api)
+        self.compose = ComposeStore(api: api)
+        self.approvals = ApprovalsStore(api: api)
+        self.weekday = WeekdayStore(api: api, catalog: catalog)
     }
 
     // MARK: - Lifecycle
 
     func start() async {
         refreshPhase()
-        if let token = Keychain.string(for: Keys.session),
-           let user = try? await api.restoreSession(token: token) {
-            currentUser = user
-            await didSignIn()
+        network.onChange = { [weak self] online in
+            guard online else { return }
+            Task { await self?.networkReturned() }
+        }
+        if let token = Keychain.string(for: Keys.session) {
+            do {
+                if let user = try await api.restoreSession(token: token) {
+                    currentUser = user
+                    cacheUser(user)
+                    await didSignIn()
+                } else {
+                    Keychain.delete(Keys.session)
+                    cacheUser(nil)
+                }
+            } catch {
+                // Offline at launch. Trust the cached identity until the server can be reached.
+                if let cached = cachedUser() {
+                    currentUser = cached
+                }
+            }
         }
         isRestoringSession = false
+    }
+
+    /// When the network returns on Sunday, post anything compose queued while offline.
+    private func networkReturned() async {
+        guard isSignedIn else { return }
+        if let dump = await compose.retryQueuedPost(currentWeekStart: currentWeekStart, isSunday: isSunday) {
+            feed.insertOwn(dump)
+            shared.postedWeekStart = dump.weekStart
+        }
+    }
+
+    private func cacheUser(_ user: User?) {
+        let defaults = UserDefaults.standard
+        if let user, let data = try? JSONEncoder().encode(user) {
+            defaults.set(data, forKey: Keys.cachedUser)
+        } else {
+            defaults.removeObject(forKey: Keys.cachedUser)
+        }
+    }
+
+    private func cachedUser() -> User? {
+        UserDefaults.standard.data(forKey: Keys.cachedUser).flatMap { try? JSONDecoder().decode(User.self, from: $0) }
     }
 
     /// Recomputes Sunday vs weekday and arms a wake-up at the next midnight boundary.
@@ -113,6 +166,7 @@ final class AppModel {
         let session = try await api.signIn(method, username: username, name: name)
         Keychain.set(session.token, for: Keys.session)
         currentUser = session.user
+        cacheUser(session.user)
         await didSignIn()
     }
 
@@ -129,6 +183,7 @@ final class AppModel {
     func signOut() async {
         try? await api.signOut()
         Keychain.delete(Keys.session)
+        cacheUser(nil)
         currentUser = nil
         compose.reset()
         feed.reset()
@@ -142,6 +197,7 @@ final class AppModel {
 
     func updateProfile(name: String, username: String, bio: String) async throws {
         currentUser = try await api.updateProfile(name: name, username: username, bio: bio)
+        cacheUser(currentUser)
     }
 
     func saveAccountSettings(_ settings: AccountSettings) async {

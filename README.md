@@ -18,7 +18,9 @@ Requirements: Xcode 26, iOS 26 deployment target, Swift 6 with complete concurre
 
 Pick the `Sundae` scheme and run on any iPhone or iPad simulator. Tests run with Cmd-U.
 
-There is no backend yet. The app runs against `MockSundaeAPI`, an in-memory backend seeded with six friends, eight weeks of dumps, pending tag requests and a follow request. The mock enforces the same rules the real server will (Sunday gate, one dump per week, edit lock, photo and tag caps, follows-only tagging), so the app behaves honestly before the API exists.
+There is no backend yet. By default the app runs against `MockSundaeAPI`, an in-memory backend seeded with six friends, eight weeks of dumps, pending tag requests and a follow request. The mock enforces the same rules the real server will (Sunday gate, one dump per week, edit lock, photo and tag caps, follows-only tagging), so the app behaves honestly before the API exists.
+
+To point at a server, set `SUNDAE_API_BASE_URL` in the scheme's environment (or `SundaeAPIBaseURL` in Info.plist). `LiveSundaeAPI` then speaks the contract in [docs/API.md](docs/API.md). Pass `-mockAPI` as a launch argument to force the mock.
 
 ### Working on Sunday screens during the week
 
@@ -37,7 +39,10 @@ Sundae/
   App/                   SundaeApp, AppModel (session, phase, clock), RootView and the tab shell
   Core/                  Theme, Icon, Haptics, Keychain
   Models/                User, Dump, Photo, Tag, Follow, Comment, Profile, DumpDraft, settings
-  Services/              SundaeAPI protocol, MockSundaeAPI, PhotoProcessor, PhotoLibrary, notifications
+  Services/              SundaeAPI protocol, MockSundaeAPI, PhotoProcessor, PhotoLibrary, notifications,
+                         NetworkMonitor, PendingPostStore (offline compose queue)
+  Services/Live/         HTTPClient (bearer auth, single-flight refresh), TokenStore (Keychain),
+                         DTOs, LiveSundaeAPI, BackgroundUploader (background URLSession to pre-signed URLs)
   Components/            PhotoView, AvatarView, PhotoCarousel, LikesLabel, UserRow, buttons
   Features/
     Weekday/             The weekday screen and its store
@@ -51,6 +56,7 @@ Sundae/
     Onboarding/          Welcome, sign in, profile, invite your group
 SundaeWidget/            Home Screen and Lock Screen widget: today's idea, days until Sunday
 SundaeTests/             Swift Testing: week math, suggestion catalog, mock gate rules
+docs/API.md              The REST contract the live client expects
 ```
 
 ## How the pieces fit
@@ -64,6 +70,8 @@ SundaeTests/             Swift Testing: week math, suggestion catalog, mock gate
 **Photos.** `PhotosPicker` needs no permission. `PhotoProcessor` re-encodes every picked photo on device to a 2048 px JPEG through a fresh bitmap, which drops EXIF and GPS before upload. Full library access is only requested for the "this week" filter and the "add Thursday's photos" prompt, with an explanation, and the picker keeps working if declined.
 
 **Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's dump with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals is the one social screen open on weekdays.
+
+**Offline compose.** Saving a dump while offline writes the draft to Application Support and shows "will post when you're back online". `NetworkMonitor` watches the path; when it returns on the same Sunday the queued post goes up and lands at the top of the feed. If Sunday ended first the queue is dropped, because a missed week stays empty by design.
 
 **Icons.** The PRD picks Phosphor Icons. `Core/Icon.swift` is the single place icon names live; it currently maps to SF Symbols so the project builds with no package fetch. Adding the PhosphorSwift package and changing that one file swaps the set.
 
@@ -85,11 +93,12 @@ Built, against the mock:
 - Widget (small, medium, Lock Screen rectangular and inline)
 - Light and dark mode, Dynamic Type, VoiceOver labels on photos, Reduce Motion on the carousel, light haptics on post, approve, decline
 
+- Live HTTP client with Keychain token storage, rotating refresh tokens, background upload to pre-signed URLs, and an offline compose queue
+
 Not yet:
 
-- A real backend. `SundaeAPI` is the contract; `MockSundaeAPI` is the only implementation.
-- Passkeys (WebAuthn), App Attest, token refresh. Sign in with Apple is wired to the UI only.
-- Background `URLSession` upload, offline compose queue
+- A real backend. `docs/API.md` is the contract the client speaks.
+- Passkeys (WebAuthn), App Attest. Sign in with Apple is wired through the UI to `auth/apple`.
 - Contacts matching
 - Live Activity, StandBy, Share Sheet extension, App Intents (v1, not MVP)
 - Drag and drop into compose on iPad, pointer hover states

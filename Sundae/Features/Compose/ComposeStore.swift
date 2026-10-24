@@ -9,8 +9,11 @@ import SwiftUI
 @Observable
 final class ComposeStore {
     private let api: any SundaeAPI
+    private let pendingStore = PendingPostStore()
 
     var draft = DumpDraft()
+    /// Set when a post could not reach the server and is waiting for the network.
+    private(set) var queuedOffline = false
     private(set) var existingDump: Dump?
     private(set) var loadedWeekStart: Date?
     private(set) var isLoading = false
@@ -39,6 +42,7 @@ final class ComposeStore {
         loadedWeekStart = nil
         importedAssetIDs = []
         justPosted = false
+        queuedOffline = false
         errorMessage = nil
     }
 
@@ -49,11 +53,21 @@ final class ComposeStore {
         isLoading = true
         defer { isLoading = false }
         loadedWeekStart = weekStart
+        if let pending = pendingStore.load() {
+            if pending.weekStart == weekStart {
+                // A post that never reached the server last time. Keep it and try again.
+                draft = pending.draft
+                queuedOffline = true
+            } else {
+                pendingStore.clear()
+            }
+        }
         taggable = (try? await api.taggableUsers()) ?? []
         if let dump = try? await api.myDump(weekStart: weekStart) {
             existingDump = dump
             if draft.isEmpty { draft = DumpDraft(from: dump) }
         }
+        if queuedOffline { _ = await save(weekStart: weekStart) }
     }
 
     func refreshTaggable() async {
@@ -127,13 +141,34 @@ final class ComposeStore {
             existingDump = dump
             draft = DumpDraft(from: dump)
             justPosted = true
+            queuedOffline = false
+            pendingStore.clear()
             NotificationScheduler.cancelLastCallForThisWeek()
             Haptics.success()
             return dump
+        } catch SundaeError.offline {
+            // Compose works offline. Keep the draft on disk and post when the network returns.
+            pendingStore.save(PendingPost(weekStart: weekStart, draft: draft, queuedAt: Date()))
+            queuedOffline = true
+            errorMessage = nil
+            return nil
         } catch {
             errorMessage = error.localizedDescription
             return nil
         }
+    }
+
+    /// Called when the network comes back. Posts the queued dump if it is still this week.
+    func retryQueuedPost(currentWeekStart: Date, isSunday: Bool) async -> Dump? {
+        guard queuedOffline, !isSaving else { return nil }
+        guard isSunday, loadedWeekStart == currentWeekStart else {
+            // Sunday ended before the network came back. The missed week stays empty, by design.
+            pendingStore.clear()
+            queuedOffline = false
+            errorMessage = SundaeError.dumpLocked.localizedDescription
+            return nil
+        }
+        return await save(weekStart: currentWeekStart)
     }
 
     func delete() async -> ID? {

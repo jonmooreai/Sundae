@@ -36,6 +36,7 @@ targets:
       path: Sundae/Info.plist
       properties:
         CFBundleDisplayName: Sundae
+        SundaeAPIBaseURL: ""
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
