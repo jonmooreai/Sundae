@@ -27,7 +27,8 @@ enum SundayTab: Hashable, CaseIterable {
 }
 
 /// Familiar skeleton with our own bottom bar: Feed, Search, Post, Approvals, Profile.
-/// Every tab stays alive so switching back keeps scroll position and navigation.
+/// The system TabView does the paging (so every tab keeps its scroll position and navigation)
+/// with its own bar hidden; the bar you see is `SundaeTabBar`.
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @State private var tab: SundayTab = .feed
@@ -35,11 +36,11 @@ struct SundayShell: View {
     private var compose: ComposeStore { model.compose }
 
     var body: some View {
-        ZStack {
-            pane(.feed) { FeedScreen(onPost: openCompose) }
-            pane(.search) { SearchScreen() }
-            pane(.approvals) { ApprovalsScreen() }
-            pane(.profile) { ProfileScreen() }
+        TabView(selection: $tab) {
+            Tab(value: .feed) { FeedScreen(onPost: openCompose).toolbar(.hidden, for: .tabBar) }
+            Tab(value: .search) { SearchScreen().toolbar(.hidden, for: .tabBar) }
+            Tab(value: .approvals) { ApprovalsScreen().toolbar(.hidden, for: .tabBar) }
+            Tab(value: .profile) { ProfileScreen().toolbar(.hidden, for: .tabBar) }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
@@ -60,13 +61,6 @@ struct SundayShell: View {
                 compose.present(.prompt)
             }
         }
-    }
-
-    private func pane<Content: View>(_ which: SundayTab, @ViewBuilder content: () -> Content) -> some View {
-        content()
-            .opacity(tab == which ? 1 : 0)
-            .allowsHitTesting(tab == which)
-            .accessibilityHidden(tab != which)
     }
 
     private func openCompose() {

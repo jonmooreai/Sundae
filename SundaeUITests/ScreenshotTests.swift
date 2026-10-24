@@ -145,7 +145,7 @@ final class ScreenshotTests: XCTestCase {
         // Open the first friend's profile from a feed header.
         let author = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'author-'")).firstMatch
         if author.waitForExistence(timeout: 8) {
-            author.tap()
+            author.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             snap(app, "03-profile-friend", settle: 5)
             back(app)
         }
@@ -153,7 +153,7 @@ final class ScreenshotTests: XCTestCase {
         // Dump detail with comments.
         let comments = app.buttons["Comments"].firstMatch
         if comments.waitForExistence(timeout: 5) {
-            comments.tap()
+            comments.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             snap(app, "04-dump-detail", settle: 4)
             back(app)
         }
