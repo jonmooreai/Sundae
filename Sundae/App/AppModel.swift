@@ -101,6 +101,16 @@ final class AppModel {
             guard online else { return }
             Task { await self?.networkReturned() }
         }
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-uiTestSignedOut") {
+            Keychain.delete(Keys.session)
+            cacheUser(nil)
+        }
+        if arguments.contains("-uiTestSignedIn"), isUsingMock {
+            try? await signIn(.demo, username: "jon", name: "Jon")
+            isRestoringSession = false
+            return
+        }
         if let token = Keychain.string(for: Keys.session) {
             do {
                 if let user = try await api.restoreSession(token: token) {

@@ -13,6 +13,11 @@ build/
 .swiftpm/
 Package.resolved
 
+# CI scratch
+/screenshots/
+/results/
+/exported/
+
 # macOS
 .DS_Store
 

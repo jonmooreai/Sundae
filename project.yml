@@ -96,6 +96,13 @@ targets:
       - path: SundaeTests
     dependencies:
       - target: Sundae
+  SundaeUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SundaeUITests
+    dependencies:
+      - target: Sundae
 schemes:
   Sundae:
     build:
@@ -103,9 +110,11 @@ schemes:
         Sundae: all
         SundaeWidget: all
         SundaeTests: [test]
+        SundaeUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - SundaeTests
+        - SundaeUITests

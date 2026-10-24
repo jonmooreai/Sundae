@@ -1,0 +1,132 @@
+name: iOS
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-screenshots:
+    name: Build, test, screenshots
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+          MAJOR=$(xcodebuild -version | head -1 | awk '{print $2}' | cut -d. -f1)
+          echo "XCODE_MAJOR=$MAJOR" >> "$GITHUB_ENV"
+          # The project targets iOS 26. Older Xcodes build it for iOS 18, which every API in use supports.
+          if [ "$MAJOR" -lt 26 ]; then
+            echo "DT_OVERRIDE=IPHONEOS_DEPLOYMENT_TARGET=18.0" >> "$GITHUB_ENV"
+          else
+            echo "DT_OVERRIDE=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Pick simulators
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available -j > devices.json
+          python3 scripts/pick_simulators.py devices.json >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project Sundae.xcodeproj -scheme Sundae \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            $DT_OVERRIDE \
+            2>&1 | tee build.log | grep -E "error:|warning: .*(never|unused)|BUILD (SUCCEEDED|FAILED)|Compiling|Linking" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Unit and UI tests on iPhone
+        run: |
+          set -o pipefail
+          mkdir -p screenshots
+          xcodebuild test-without-building \
+            -project Sundae.xcodeproj -scheme Sundae \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath build \
+            -resultBundlePath results/iphone.xcresult \
+            SCREENSHOT_DIR="$PWD/screenshots" \
+            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test-iphone.log
+
+      - name: UI tests on iPad
+        if: env.IPAD_UDID != ''
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project Sundae.xcodeproj -scheme Sundae \
+            -destination "platform=iOS Simulator,id=$IPAD_UDID" \
+            -derivedDataPath build \
+            -only-testing:SundaeUITests \
+            -resultBundlePath results/ipad.xcresult \
+            SCREENSHOT_DIR="$PWD/screenshots" \
+            2>&1 | tee test-ipad.log | grep -E "Test Case|error:|failed|passed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test-ipad.log
+
+      - name: Export screenshots from result bundles
+        if: always()
+        run: |
+          set -euo pipefail
+          for bundle in results/*.xcresult; do
+            [ -d "$bundle" ] || continue
+            out="exported/$(basename "$bundle" .xcresult)"
+            mkdir -p "$out"
+            xcrun xcresulttool export attachments --path "$bundle" --output-path "$out" || true
+          done
+          python3 scripts/collect_screenshots.py exported screenshots docs/screenshots
+          ls -la docs/screenshots || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sundae-${{ github.run_number }}
+          path: |
+            docs/screenshots
+            results
+            build.log
+            test-*.log
+          if-no-files-found: ignore
+
+      - name: Commit screenshots to the branch
+        if: success() && github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          if [ -z "$(ls -A docs/screenshots 2>/dev/null)" ]; then
+            echo "No screenshots to commit"; exit 0
+          fi
+          git config user.name "sundae-ci"
+          git config user.email "sundae-ci@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "Screenshots unchanged"; exit 0; fi
+          git commit -m "Update simulator screenshots [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
