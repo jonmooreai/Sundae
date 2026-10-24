@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// One feed item is one dump. Same anatomy as a carousel post so the muscle memory transfers:
-/// author header, paged photos, caption, tagged names, likes, comments.
+/// author header, paged photos, actions, caption, tagged names, likes, comments.
 struct DumpCard: View {
     @Environment(AppModel.self) private var model
     let dump: Dump
@@ -21,7 +21,7 @@ struct DumpCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 18) {
                     Button(action: onLike) {
-                        Image(systemName: dump.likedByMe ? Icon.heartFilled : Icon.heart)
+                        Icon(Glyph.heart, weight: dump.likedByMe ? .fill : .regular, size: 26)
                             .foregroundStyle(dump.likedByMe ? Color.accentColor : .primary)
                             .contentTransition(.symbolEffect(.replace))
                             .symbolEffect(.bounce, value: dump.likedByMe)
@@ -29,7 +29,8 @@ struct DumpCard: View {
                     .accessibilityLabel(dump.likedByMe ? "Unlike" : "Like")
 
                     Button { open(.dump(dump.id)) } label: {
-                        Image(systemName: Icon.comment)
+                        Icon(Glyph.comment, size: 26)
+                            .foregroundStyle(.primary)
                     }
                     .accessibilityLabel("Comments")
                     .disabled(!dump.commentsEnabled)
@@ -42,7 +43,6 @@ struct DumpCard: View {
                             .monospacedDigit()
                     }
                 }
-                .font(.title3)
                 .buttonStyle(.plain)
 
                 if !dump.caption.isEmpty {
@@ -94,25 +94,30 @@ struct DumpCard: View {
             Spacer()
             Menu {
                 if dump.author.id != model.currentUser?.id {
-                    Button("Report", systemImage: Icon.flag) { reporting = true }
-                    Button("Block \(dump.author.firstName)", systemImage: Icon.block, role: .destructive) {
+                    Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
+                    Button(role: .destructive) {
                         Task {
                             try? await model.api.block(userID: dump.author.id)
                             await model.feed.load(refresh: true)
                         }
+                    } label: {
+                        Label { Text("Block \(dump.author.firstName)") } icon: { Glyph.block.regular }
                     }
                 } else {
-                    Button("Delete this week", systemImage: Icon.trash, role: .destructive) {
+                    Button(role: .destructive) {
                         Task {
                             try? await model.api.deleteDump(id: dump.id)
                             model.feed.remove(dumpID: dump.id)
                             model.compose.reset()
                         }
+                    } label: {
+                        Label { Text("Delete this week") } icon: { Glyph.trash.regular }
                     }
                 }
             } label: {
-                Image(systemName: Icon.more)
-                    .padding(8)
+                Icon(Glyph.more, weight: .bold, size: 22)
+                    .foregroundStyle(.primary)
+                    .frame(width: 36, height: 36)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("More")

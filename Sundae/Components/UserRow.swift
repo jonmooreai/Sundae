@@ -35,27 +35,14 @@ struct FollowButton: View {
     var body: some View {
         switch relationship {
         case .notFollowing:
-            Button(action: action) {
-                Text("Follow").frame(width: 76)
-            }
-            .buttonStyle(.borderedProminent)
-            .fontWeight(.semibold)
+            Button(action: action) { Text("Follow").frame(width: 70) }
+                .buttonStyle(.pill(.primary, size: .small))
         case .requested:
-            Button(action: action) {
-                Text("Requested").frame(width: 76)
-            }
-            .buttonStyle(.bordered)
-            .tint(.gray)
-            .foregroundStyle(.primary)
-            .fontWeight(.semibold)
+            Button(action: action) { Text("Requested").frame(width: 70) }
+                .buttonStyle(.pill(.secondary, size: .small))
         case .following:
-            Button(action: action) {
-                Text("Following").frame(width: 76)
-            }
-            .buttonStyle(.bordered)
-            .tint(.gray)
-            .foregroundStyle(.primary)
-            .fontWeight(.semibold)
+            Button(action: action) { Text("Following").frame(width: 70) }
+                .buttonStyle(.pill(.secondary, size: .small))
         case .me, .blocked:
             EmptyView()
         }
@@ -88,12 +75,8 @@ struct PrimaryButton: View {
                 Text(title).opacity(isLoading ? 0 : 1)
                 if isLoading { ProgressView().tint(.white) }
             }
-            .font(.body.weight(.semibold))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
         }
-        .buttonStyle(.borderedProminent)
-        .controlSize(.large)
+        .buttonStyle(.pill(.primary, fullWidth: true))
         .disabled(!isEnabled || isLoading)
     }
 }

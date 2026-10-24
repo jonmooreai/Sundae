@@ -19,8 +19,7 @@ struct AvatarView: View {
             case nil:
                 ZStack {
                     Theme.surface
-                    Image(systemName: Icon.person)
-                        .font(.system(size: size * 0.45))
+                    Icon(Glyph.person, size: size * 0.5)
                         .foregroundStyle(.secondary)
                 }
             }

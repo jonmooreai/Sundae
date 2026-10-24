@@ -43,9 +43,14 @@ struct TagPickerSheet: View {
                         } label: {
                             HStack {
                                 UserRow(user: user)
-                                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
-                                    .font(.title3)
+                                ZStack {
+                                    Circle().strokeBorder(isOn ? Color.accentColor : Theme.hairline, lineWidth: 1.5)
+                                    if isOn {
+                                        Circle().fill(Color.accentColor)
+                                        Icon(Glyph.done, weight: .bold, size: 14).foregroundStyle(.white)
+                                    }
+                                }
+                                .frame(width: 26, height: 26)
                             }
                         }
                         .buttonStyle(.plain)

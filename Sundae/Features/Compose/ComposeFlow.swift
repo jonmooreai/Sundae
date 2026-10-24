@@ -44,6 +44,42 @@ struct ComposeFlow: View {
 
 // MARK: - Shared pieces
 
+/// Top of a flow step: back or close on the left, a serif title, chrome on the right.
+struct FlowHeader<Trailing: View>: View {
+    let title: String
+    var subtitle: String? = nil
+    var isRoot: Bool
+    var onClose: () -> Void
+    @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            if isRoot {
+                IconButton(glyph: Glyph.close, label: "Close", size: 22, action: onClose)
+                    .padding(.leading, -8)
+            } else {
+                IconButton(glyph: Glyph.back, label: "Back", size: 24) { dismiss() }
+                    .padding(.leading, -8)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(Theme.display(24))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if let subtitle {
+                    Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.top, 6)
+        .padding(.bottom, 6)
+    }
+}
+
 /// Bottom bar with a count on the left and the one primary action on the right.
 struct FlowBottomBar<Leading: View>: View {
     let title: String
@@ -70,18 +106,19 @@ struct FlowBottomBar<Leading: View>: View {
                     Text(title).opacity(isLoading ? 0 : 1)
                     if isLoading { ProgressView().tint(.white) }
                 }
-                .font(.body.weight(.semibold))
-                .frame(minWidth: 110)
-                .padding(.vertical, 4)
+                .frame(minWidth: 80)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.pill(.primary))
             .disabled(!isEnabled || isLoading)
             .accessibilityIdentifier("flow-primary")
         }
         .padding(.horizontal, Theme.pagePadding)
-        .padding(.vertical, 12)
-        .background(.bar)
+        .padding(.vertical, 10)
+        .background {
+            Theme.background
+                .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 }
 
@@ -186,9 +223,8 @@ struct SundayPromptStep: View {
                 path.append(.pick)
             }
             Button("Show me the feed first") { notNow() }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .padding(.top, 14)
+                .buttonStyle(.pill(.quiet, fullWidth: true))
+                .padding(.top, 4)
         }
         .padding(24)
         .background(Theme.background)
@@ -229,10 +265,10 @@ struct PostedStep: View {
     var body: some View {
         VStack(spacing: 18) {
             Spacer()
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 76))
+            Icon(Glyph.approvals, weight: .fill, size: 84)
                 .foregroundStyle(Color.accentColor)
-                .symbolEffect(.bounce, value: appeared)
+                .scaleEffect(appeared ? 1 : 0.6)
+                .animation(.bouncy(duration: 0.5), value: appeared)
             Text(compose.queuedOffline ? "Saved for when you're back online." : "Your week is up.")
                 .font(Theme.display(36))
                 .multilineTextAlignment(.center)
@@ -254,8 +290,8 @@ struct PostedStep: View {
                 compose.entry = .arrange
                 path = []
             }
-            .font(.subheadline.weight(.medium))
-            .padding(.top, 10)
+            .buttonStyle(.pill(.quiet, fullWidth: true))
+            .padding(.top, 2)
         }
         .padding(24)
         .background(Theme.background)

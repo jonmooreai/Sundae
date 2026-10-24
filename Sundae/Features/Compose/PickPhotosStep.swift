@@ -9,9 +9,8 @@ struct PickPhotosStep: View {
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
 
-    private enum Scope: String, CaseIterable {
-        case week = "This week"
-        case all = "All photos"
+    private enum Scope: Hashable {
+        case week, all
     }
 
     @State private var scope: Scope = .week
@@ -26,7 +25,13 @@ struct PickPhotosStep: View {
     private var remaining: Int { max(0, DumpDraft.maxPhotos - total) }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            FlowHeader(title: "Pick your photos", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart),
+                       isRoot: path.isEmpty, onClose: { compose.dismiss() }) {
+                if library.isAuthorized {
+                    ChipPicker(options: [(Scope.week, "This week"), (Scope.all, "All")], selection: $scope)
+                }
+            }
             if library.isAuthorized {
                 grid
             } else {
@@ -34,16 +39,7 @@ struct PickPhotosStep: View {
             }
         }
         .background(Theme.background)
-        .navigationTitle(model.clock.rangeLabel(weekStart: model.currentWeekStart))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if path.isEmpty {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { compose.dismiss() } label: { Image(systemName: Icon.close) }
-                        .accessibilityLabel("Close")
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             if library.isAuthorized {
                 FlowBottomBar(title: "Next", isEnabled: total > 0, isLoading: isPreparing) {
@@ -88,13 +84,6 @@ struct PickPhotosStep: View {
     private var grid: some View {
         ScrollView {
             VStack(spacing: 10) {
-                Picker("Photos", selection: $scope) {
-                    ForEach(Scope.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, Theme.pagePadding)
-                .padding(.top, 4)
-
                 if library.assets.isEmpty {
                     VStack(spacing: 12) {
                         Text(scope == .week ? "No photos from this week yet." : "No photos in your library.")
@@ -102,7 +91,7 @@ struct PickPhotosStep: View {
                             .foregroundStyle(.secondary)
                         if scope == .week {
                             Button("Show all photos") { scope = .all }
-                                .font(.subheadline.weight(.semibold))
+                                .buttonStyle(.pill(.secondary, size: .small))
                         }
                     }
                     .padding(.vertical, 48)
@@ -116,11 +105,15 @@ struct PickPhotosStep: View {
 
                 PhotosPicker(selection: $pickerItems, maxSelectionCount: remaining, selectionBehavior: .ordered,
                              matching: .images, photoLibrary: .shared()) {
-                    Label("Choose from another album", systemImage: Icon.photos)
-                        .font(.subheadline.weight(.medium))
+                    HStack(spacing: 8) {
+                        Icon(Glyph.photos, size: 18)
+                        Text("Choose from another album")
+                    }
+                    .font(.subheadline.weight(.semibold))
                 }
+                .buttonStyle(.pill(.quiet))
                 .disabled(remaining == 0)
-                .padding(.vertical, 16)
+                .padding(.vertical, 12)
             }
         }
     }
@@ -184,19 +177,14 @@ struct PickPhotosStep: View {
             } else {
                 Link(destination: URL(string: UIApplication.openSettingsURLString)!) {
                     Text("Open Settings")
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .buttonStyle(.pill(.primary, fullWidth: true))
             }
             PhotosPicker(selection: $pickerItems, maxSelectionCount: remaining, selectionBehavior: .ordered,
                          matching: .images, photoLibrary: .shared()) {
                 Text("Choose from Photos instead")
-                    .font(.subheadline.weight(.medium))
             }
-            .padding(.top, 6)
+            .buttonStyle(.pill(.quiet, fullWidth: true))
         }
         .padding(24)
     }

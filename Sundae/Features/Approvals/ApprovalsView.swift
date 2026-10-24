@@ -4,6 +4,7 @@ struct ApprovalsScreen: View {
     var body: some View {
         NavigationStack {
             ApprovalsView()
+                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
         }
     }
@@ -14,15 +15,20 @@ struct ApprovalsScreen: View {
 struct ApprovalsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.horizontalSizeClass) private var sizeClass
 
     private var store: ApprovalsStore { model.approvals }
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 20) {
+            LazyVStack(spacing: 28) {
+                ScreenHeader(title: "Approvals", subtitle: store.requests.isEmpty ? nil : "Photos friends tagged you in") {
+                    if !model.isSunday {
+                        Button("Done") { dismiss() }
+                            .buttonStyle(.pill(.secondary, size: .small))
+                    }
+                }
                 if let message = store.errorMessage {
-                    ErrorBanner(message: message)
+                    ErrorBanner(message: message).padding(.horizontal, Theme.pagePadding)
                 }
                 ForEach(store.requests) { request in
                     TagRequestCard(request: request) { approve in
@@ -33,27 +39,29 @@ struct ApprovalsView: View {
                     }
                 }
                 if store.hasLoaded && store.requests.isEmpty {
-                    ContentUnavailableView("No tags waiting", systemImage: Icon.approvals,
-                                           description: Text("When a friend tags you in their week, it shows up here first."))
-                        .padding(.top, 40)
+                    VStack(spacing: 10) {
+                        Icon(Glyph.approvals, size: 36).foregroundStyle(.secondary)
+                        Text("Nothing waiting").font(Theme.display(24))
+                        Text("When a friend tags you in their week, it shows up here first.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
+                    .padding(.top, 40)
                 }
             }
-            .padding(Theme.pagePadding)
+            .padding(.bottom, 24)
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity)
         }
         .background(Theme.background)
-        .navigationTitle("Approvals")
-        .toolbar {
-            if !model.isSunday {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-            }
-        }
         .task { await store.load() }
         .refreshable { await store.load() }
     }
 }
 
+/// Flat: who tagged you, the photo, one line of explanation, two pills.
 struct TagRequestCard: View {
     @Environment(AppModel.self) private var model
     let request: TagRequest
@@ -73,34 +81,26 @@ struct TagRequestCard: View {
                 }
                 Spacer()
             }
+            .padding(.horizontal, Theme.pagePadding)
 
             PhotoView(source: request.photo.source)
                 .aspectRatio(min(max(request.photo.aspectRatio, 0.8), 1.5), contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius + 4, style: .continuous))
+                .padding(.horizontal, Theme.pagePadding)
                 .accessibilityLabel(request.photo.altText ?? "Photo from \(request.tagger.firstName)'s week")
 
             Text("Approve to add it to your week as \u{201C}from \(request.tagger.firstName)\u{201D}. You can remove it later.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, Theme.pagePadding)
 
-            HStack(spacing: 12) {
-                Button {
-                    respond(false)
-                } label: {
-                    Text("Decline").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
-                Button {
-                    respond(true)
-                } label: {
-                    Text("Approve").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+            HStack(spacing: 10) {
+                Button("Decline") { respond(false) }
+                    .buttonStyle(.pill(.secondary, fullWidth: true))
+                Button("Approve") { respond(true) }
+                    .buttonStyle(.pill(.primary, fullWidth: true))
             }
+            .padding(.horizontal, Theme.pagePadding)
         }
-        .card()
     }
 }

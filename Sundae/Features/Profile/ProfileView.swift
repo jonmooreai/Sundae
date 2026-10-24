@@ -7,7 +7,7 @@ struct ProfileScreen: View {
     var body: some View {
         NavigationStack {
             if let id = model.currentUser?.id {
-                ProfileView(userID: id)
+                ProfileView(userID: id, isRoot: true)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
             }
         }
@@ -19,6 +19,7 @@ struct ProfileScreen: View {
 struct ProfileView: View {
     @Environment(AppModel.self) private var model
     let userID: ID
+    var isRoot = false
 
     @State private var profile: Profile?
     @State private var errorMessage: String?
@@ -31,6 +32,30 @@ struct ProfileView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
+                ScreenHeader(title: profile?.user.username ?? "", showsBack: !isRoot) {
+                    if isOwn {
+                        IconButton(glyph: Glyph.settings, label: "Settings", size: 24) { showSettings = true }
+                            .accessibilityIdentifier("profile-settings")
+                    } else if let profile {
+                        Menu {
+                            Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
+                            Button(role: .destructive) {
+                                Task {
+                                    try? await model.api.block(userID: userID)
+                                    await load()
+                                }
+                            } label: {
+                                Label { Text("Block \(profile.user.firstName)") } icon: { Glyph.block.regular }
+                            }
+                        } label: {
+                            Icon(Glyph.more, weight: .bold, size: 24)
+                                .foregroundStyle(.primary)
+                                .frame(width: 40, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("More")
+                    }
+                }
                 if let profile {
                     ProfileHeader(profile: profile, onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
                         .padding(.horizontal, Theme.pagePadding)
@@ -46,29 +71,7 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
         }
         .background(Theme.background)
-        .navigationTitle(profile?.user.username ?? "Profile")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                if isOwn {
-                    Button { showSettings = true } label: { Image(systemName: Icon.settings) }
-                        .accessibilityLabel("Settings")
-                        .accessibilityIdentifier("profile-settings")
-                } else if let profile {
-                    Menu {
-                        Button("Report", systemImage: Icon.flag) { reporting = true }
-                        Button("Block \(profile.user.firstName)", systemImage: Icon.block, role: .destructive) {
-                            Task {
-                                try? await model.api.block(userID: userID)
-                                await load()
-                            }
-                        }
-                    } label: {
-                        Image(systemName: Icon.more)
-                    }
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
         }
@@ -86,15 +89,12 @@ struct ProfileView: View {
     private func weekRows(for profile: Profile) -> some View {
         let items = ProfileRowItem.build(from: profile.weeks, currentWeekStart: model.currentWeekStart)
         if profile.relationship == .notFollowing || profile.relationship == .requested, !profile.user.isPublic {
-            ContentUnavailableView("Private account", systemImage: Icon.lock,
-                                   description: Text(profile.relationship == .requested
-                                                     ? "Your request is waiting on \(profile.user.firstName)."
-                                                     : "Follow \(profile.user.firstName) to see their weeks."))
-                .padding(.top, 20)
+            emptyState(Glyph.lock, "Private account",
+                       profile.relationship == .requested
+                       ? "Your request is waiting on \(profile.user.firstName)."
+                       : "Follow \(profile.user.firstName) to see their weeks.")
         } else if items.isEmpty {
-            ContentUnavailableView("Nothing here yet", systemImage: Icon.calendar,
-                                   description: Text(isOwn ? "Your weeks will stack up here." : "No weeks posted yet."))
-                .padding(.top, 20)
+            emptyState(Glyph.calendar, "Nothing here yet", isOwn ? "Your weeks will stack up here." : "No weeks posted yet.")
         } else {
             ForEach(items) { item in
                 switch item {
@@ -115,6 +115,17 @@ struct ProfileView: View {
                 }
             }
         }
+    }
+
+    private func emptyState(_ glyph: Ph, _ title: String, _ text: String) -> some View {
+        VStack(spacing: 10) {
+            Icon(glyph, size: 36).foregroundStyle(.secondary)
+            Text(title).font(Theme.display(24))
+            Text(text).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(32)
+        .padding(.top, 20)
     }
 
     private func load() async {
@@ -212,27 +223,14 @@ struct ProfileHeader: View {
                     .lineLimit(2)
             }
             if profile.relationship == .me {
-                Button(action: onEdit) {
-                    Text("Edit profile").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.gray)
-                .foregroundStyle(.primary)
-                .fontWeight(.semibold)
+                Button("Edit profile", action: onEdit)
+                    .buttonStyle(.pill(.secondary, size: .small, fullWidth: true))
             } else if profile.relationship == .notFollowing {
-                Button(action: onFollow) {
-                    Text("Follow").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .fontWeight(.semibold)
+                Button("Follow", action: onFollow)
+                    .buttonStyle(.pill(.primary, size: .small, fullWidth: true))
             } else {
-                Button(action: onFollow) {
-                    Text(profile.relationship == .requested ? "Requested" : "Following").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .tint(.gray)
-                .foregroundStyle(.primary)
-                .fontWeight(.semibold)
+                Button(profile.relationship == .requested ? "Requested" : "Following", action: onFollow)
+                    .buttonStyle(.pill(.secondary, size: .small, fullWidth: true))
             }
         }
     }

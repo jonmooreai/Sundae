@@ -17,7 +17,22 @@ struct ArrangeStep: View {
     private var current: DraftPhoto? { photos.indices.contains(page) ? photos[page] : nil }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            FlowHeader(title: "Arrange and tag", isRoot: path.isEmpty, onClose: { compose.dismiss() }) {
+                if compose.hasPosted {
+                    Menu {
+                        Button(role: .destructive) { confirmDelete = true } label: {
+                            Label { Text("Delete this week") } icon: { Glyph.trash.regular }
+                        }
+                    } label: {
+                        Icon(Glyph.more, weight: .bold, size: 24)
+                            .foregroundStyle(.primary)
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("More")
+                }
+            }
             if photos.isEmpty {
                 empty
             } else {
@@ -25,25 +40,7 @@ struct ArrangeStep: View {
             }
         }
         .background(Theme.background)
-        .navigationTitle("Arrange and tag")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if path.isEmpty {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { compose.dismiss() } label: { Image(systemName: Icon.close) }
-                        .accessibilityLabel("Close")
-                }
-            }
-            if compose.hasPosted {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button("Delete this week", systemImage: Icon.trash, role: .destructive) { confirmDelete = true }
-                    } label: {
-                        Image(systemName: Icon.more)
-                    }
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             if !photos.isEmpty {
                 FlowBottomBar(title: "Next") {
@@ -52,9 +49,12 @@ struct ArrangeStep: View {
                     Button {
                         showReorder = true
                     } label: {
-                        Label("Reorder", systemImage: Icon.reorder)
-                            .font(.subheadline.weight(.medium))
+                        HStack(spacing: 6) {
+                            Icon(Glyph.reorder, size: 18)
+                            Text("Reorder")
+                        }
                     }
+                    .buttonStyle(.pill(.quiet, size: .small))
                     .disabled(photos.count < 2)
                 }
             }
@@ -133,22 +133,20 @@ struct ArrangeStep: View {
             .padding(.horizontal, Theme.pagePadding)
 
             HStack(spacing: 10) {
-                action(current?.taggedUsers.isEmpty == false ? "Tagged \(current?.taggedUsers.count ?? 0)" : "Tag friends", Icon.tag) {
+                action(current?.taggedUsers.isEmpty == false ? "Tagged \(current?.taggedUsers.count ?? 0)" : "Tag friends", Glyph.tag) {
                     if let current { tagging = current }
                 }
                 .accessibilityIdentifier("tag-friends")
-                action(current?.altText.isEmpty == false ? "Alt text added" : "Alt text", Icon.altText) {
+                action(current?.altText.isEmpty == false ? "Alt text added" : "Alt text", Glyph.altText) {
                     if let current { altPhoto = current }
                 }
-                Button(role: .destructive) {
+                Button {
                     if let current { withAnimation { compose.remove(current.id) } }
                 } label: {
-                    Image(systemName: Icon.trash)
-                        .frame(width: 44, height: 36)
+                    Icon(Glyph.trash, size: 20)
+                        .frame(width: 20)
                 }
-                .buttonStyle(.bordered)
-                .tint(.gray)
-                .foregroundStyle(.primary)
+                .buttonStyle(.pill(.secondary, size: .small))
                 .accessibilityLabel("Remove photo")
             }
             .padding(.horizontal, Theme.pagePadding)
@@ -164,17 +162,15 @@ struct ArrangeStep: View {
         }
     }
 
-    private func action(_ title: String, _ icon: String, _ perform: @escaping () -> Void) -> some View {
+    private func action(_ title: String, _ glyph: Ph, _ perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
-            Label(title, systemImage: icon)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
-                .frame(height: 36)
+            HStack(spacing: 6) {
+                Icon(glyph, size: 18)
+                Text(title)
+            }
+            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.bordered)
-        .tint(.gray)
-        .foregroundStyle(.primary)
+        .buttonStyle(.pill(.secondary, size: .small, fullWidth: true))
     }
 
     private var thumbnails: some View {
@@ -195,8 +191,7 @@ struct ArrangeStep: View {
                     Button {
                         addMore()
                     } label: {
-                        Image(systemName: "plus")
-                            .font(.title3.weight(.medium))
+                        Icon(Glyph.plus, weight: .bold, size: 20)
                             .foregroundStyle(.secondary)
                             .frame(width: 60, height: 60)
                             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))

@@ -40,10 +40,9 @@ struct FullScreenPhotoView: View {
             Button {
                 dismiss()
             } label: {
-                Image(systemName: Icon.close)
-                    .font(.body.weight(.semibold))
+                Icon(Glyph.close, weight: .bold, size: 18)
                     .foregroundStyle(.white)
-                    .padding(10)
+                    .frame(width: 40, height: 40)
                     .background(.white.opacity(0.15), in: Circle())
             }
             .padding(16)

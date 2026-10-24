@@ -47,16 +47,17 @@ struct WeekdayView: View {
                 showApprovals = true
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: Icon.approvals)
+                    Icon(Glyph.approvals, size: 22)
                     if model.pendingApprovalCount > 0 {
                         Text("\(model.pendingApprovalCount)")
                             .font(.subheadline.weight(.semibold))
                     }
                 }
-                .padding(.horizontal, model.pendingApprovalCount > 0 ? 12 : 10)
-                .padding(.vertical, 8)
-                .background(.regularMaterial, in: Capsule())
+                .padding(.horizontal, model.pendingApprovalCount > 0 ? 12 : 9)
+                .frame(height: 40)
+                .background(Theme.fill, in: Capsule())
             }
+            .buttonStyle(.plain)
             .accessibilityLabel(model.pendingApprovalCount > 0 ? "\(model.pendingApprovalCount) tags waiting for approval" : "Tag approvals")
             .opacity(model.pendingApprovalCount > 0 ? 1 : 0.6)
 
@@ -64,14 +65,7 @@ struct WeekdayView: View {
             SundaeMark(size: 30)
             Spacer()
 
-            Button {
-                showSettings = true
-            } label: {
-                Image(systemName: Icon.settings)
-                    .padding(10)
-                    .background(.regularMaterial, in: Circle())
-            }
-            .accessibilityLabel("Settings")
+            IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
         }
         .foregroundStyle(.primary)
     }
@@ -82,9 +76,9 @@ struct WeekdayView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 6) {
                     if store.justMarkedDone {
-                        Image(systemName: "checkmark.circle.fill")
+                        Icon(Glyph.approvals, weight: .fill, size: 18)
                             .foregroundStyle(Color.accentColor)
-                            .symbolEffect(.bounce, value: store.justMarkedDone)
+                            .transition(.scale.combined(with: .opacity))
                     }
                     Text(store.justMarkedDone ? "That's one for Sunday" : dayLine)
                         .textCase(.uppercase)
@@ -123,23 +117,23 @@ struct WeekdayView: View {
                         store.shuffle(clock: model.clock)
                     }
                 } label: {
-                    Label(store.justMarkedDone ? "Another idea" : "Shuffle", systemImage: Icon.shuffle)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
+                    HStack(spacing: 8) {
+                        Icon(Glyph.shuffle, weight: .bold, size: 18)
+                        Text(store.justMarkedDone ? "Another idea" : "Shuffle")
+                    }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.pill(.secondary, fullWidth: true))
 
                 if !store.justMarkedDone {
                     Button {
                         Task { await store.markDone(clock: model.clock) }
                     } label: {
-                        Label("Done", systemImage: Icon.done)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
+                        HStack(spacing: 8) {
+                            Icon(Glyph.done, weight: .bold, size: 18)
+                            Text("Done")
+                        }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .buttonStyle(.pill(.primary, fullWidth: true))
                     .disabled(store.isCurrentDone)
                 }
             }

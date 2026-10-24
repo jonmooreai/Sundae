@@ -4,6 +4,7 @@ struct SearchScreen: View {
     var body: some View {
         NavigationStack {
             SearchView()
+                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
         }
     }
@@ -21,71 +22,67 @@ struct SearchView: View {
     @State private var contacts: ContactsMatcher?
 
     var body: some View {
-        List {
-            if !requests.isEmpty && query.isEmpty {
-                Section {
-                    ForEach(requests) { user in
-                        HStack(spacing: 8) {
-                            UserRow(user: user, subtitle: user.name)
-                            Button("Confirm") { Task { await respond(user, accept: true) } }
-                                .buttonStyle(.borderedProminent)
-                                .fontWeight(.semibold)
-                            Button("Delete") { Task { await respond(user, accept: false) } }
-                                .buttonStyle(.bordered)
-                                .tint(.gray)
-                                .foregroundStyle(.primary)
-                                .fontWeight(.semibold)
+        VStack(spacing: 0) {
+            ScreenHeader(title: "Search") { EmptyView() }
+            SearchField(text: $query, placeholder: "Name or username")
+                .padding(.horizontal, Theme.pagePadding)
+                .padding(.bottom, 6)
+            List {
+                if !requests.isEmpty && query.isEmpty {
+                    Section {
+                        ForEach(requests) { user in
+                            HStack(spacing: 8) {
+                                UserRow(user: user, subtitle: user.name)
+                                Button("Confirm") { Task { await respond(user, accept: true) } }
+                                    .buttonStyle(.pill(.primary, size: .small))
+                                Button("Delete") { Task { await respond(user, accept: false) } }
+                                    .buttonStyle(.pill(.secondary, size: .small))
+                            }
+                            .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
+                            .listRowInsets(rowInsets)
+                            .listRowSeparator(.hidden)
                         }
-                        .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
+                    } header: {
+                        header("Follow requests")
+                    }
+                }
+
+                if query.isEmpty {
+                    contactsSection
+                    if !suggested.isEmpty {
+                        Section {
+                            ForEach(suggested) { user in row(user) }
+                        } header: {
+                            header("Suggested for you")
+                        }
+                    }
+                    Section {
+                        ShareLink(item: URL(string: "https://sundae.app/join")!,
+                                  subject: Text("Join me on Sundae"),
+                                  message: Text("Sundays only. Come post your week with us.")) {
+                            actionRow(Glyph.share, "Invite your group", "Sundae works when the whole group is here.")
+                        }
+                        .foregroundStyle(.primary)
                         .listRowInsets(rowInsets)
                         .listRowSeparator(.hidden)
                     }
-                } header: {
-                    header("Follow requests")
-                }
-            }
-
-            if query.isEmpty {
-                contactsSection
-                if !suggested.isEmpty {
+                } else {
                     Section {
-                        ForEach(suggested) { user in row(user) }
-                    } header: {
-                        header("Suggested for you")
-                    }
-                }
-                Section {
-                    ShareLink(item: URL(string: "https://sundae.app/join")!,
-                              subject: Text("Join me on Sundae"),
-                              message: Text("Sundays only. Come post your week with us.")) {
-                        HStack(spacing: 12) {
-                            Image(systemName: Icon.share)
-                                .font(.title3)
-                                .frame(width: 44, height: 44)
-                                .background(Theme.surface, in: Circle())
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Invite your group").font(.subheadline.weight(.semibold)).lineLimit(1)
-                                Text("Sundae works when the whole group is here.").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                            }
+                        if results.isEmpty && !isSearching {
+                            Text("Nobody by that name yet.")
+                                .foregroundStyle(.secondary)
+                                .listRowInsets(rowInsets)
+                                .listRowSeparator(.hidden)
                         }
+                        ForEach(results) { user in row(user) }
                     }
-                    .foregroundStyle(.primary)
-                    .listRowInsets(rowInsets)
-                    .listRowSeparator(.hidden)
-                }
-            } else {
-                Section {
-                    if results.isEmpty && !isSearching {
-                        Text("Nobody by that name yet.").foregroundStyle(.secondary)
-                    }
-                    ForEach(results) { user in row(user) }
                 }
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 70)
         }
-        .listStyle(.plain)
-        .environment(\.defaultMinListRowHeight, 70)
-        .searchable(text: $query, prompt: "Search")
-        .navigationTitle("Search")
+        .background(Theme.background)
         .task {
             if contacts == nil { contacts = ContactsMatcher(api: model.api) }
             await loadInitial()
@@ -104,12 +101,29 @@ struct SearchView: View {
         }
     }
 
+    private var rowInsets: EdgeInsets {
+        EdgeInsets(top: 8, leading: Theme.pagePadding, bottom: 8, trailing: Theme.pagePadding)
+    }
+
     private func header(_ title: String) -> some View {
         Text(title)
             .font(.body.weight(.semibold))
             .foregroundStyle(.primary)
             .textCase(nil)
             .listRowInsets(EdgeInsets(top: 12, leading: Theme.pagePadding, bottom: 4, trailing: Theme.pagePadding))
+    }
+
+    private func actionRow(_ glyph: Ph, _ title: String, _ subtitle: String) -> some View {
+        HStack(spacing: 12) {
+            Icon(glyph, size: 22)
+                .frame(width: 54, height: 54)
+                .background(Theme.surface, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.body.weight(.semibold)).lineLimit(1)
+                Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
     }
 
     @ViewBuilder
@@ -120,39 +134,33 @@ struct SearchView: View {
                     ForEach(contacts.matches) { user in row(user) }
                 } else if contacts.isMatching {
                     HStack { ProgressView(); Text("Checking your contacts").foregroundStyle(.secondary) }
+                        .listRowInsets(rowInsets)
+                        .listRowSeparator(.hidden)
                 } else if contacts.isOptedIn {
-                    Text("Nobody from your contacts is here yet.").foregroundStyle(.secondary).lineLimit(1)
+                    Text("Nobody from your contacts is here yet.")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .listRowInsets(rowInsets)
+                        .listRowSeparator(.hidden)
                 } else {
                     Button {
                         Task { await contacts.match() }
                     } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: Icon.personAdd)
-                                .font(.title3)
-                                .frame(width: 44, height: 44)
-                                .background(Theme.surface, in: Circle())
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Find friends from your contacts").font(.subheadline.weight(.semibold)).lineLimit(1)
-                                Text("Numbers are hashed on your phone, never stored.").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                        }
-                        .foregroundStyle(.primary)
+                        actionRow(Glyph.personAdd, "Find friends from your contacts", "Numbers are hashed on your phone, never stored.")
                     }
+                    .buttonStyle(.plain)
                     .disabled(!contacts.canUse)
                     .listRowInsets(rowInsets)
                     .listRowSeparator(.hidden)
                 }
                 if let message = contacts.errorMessage {
                     Text(message).font(.footnote).foregroundStyle(.secondary)
+                        .listRowSeparator(.hidden)
                 }
             } header: {
                 header("From your contacts")
             }
         }
-    }
-
-    private var rowInsets: EdgeInsets {
-        EdgeInsets(top: 8, leading: Theme.pagePadding, bottom: 8, trailing: Theme.pagePadding)
     }
 
     /// Row content with an invisible navigation link behind it, so there is no chevron.

@@ -61,8 +61,7 @@ struct PhotoStackIcon: View {
             card.rotationEffect(.degrees(-10)).offset(x: -size * 0.16, y: size * 0.04)
             card.rotationEffect(.degrees(8)).offset(x: size * 0.16, y: size * 0.02)
             card.overlay {
-                Image(systemName: Icon.photos)
-                    .font(.system(size: size * 0.34, weight: .regular))
+                Icon(Glyph.photos, size: size * 0.36)
                     .foregroundStyle(.secondary)
             }
         }

@@ -57,7 +57,7 @@ struct TagChipRow: View {
         HStack(spacing: 6) {
             ForEach(tags) { tag in
                 HStack(spacing: 4) {
-                    Image(systemName: Icon.tag).font(.caption2)
+                    Icon(Glyph.tag, size: 12)
                     Text(tag.taggedUser.firstName)
                     if tag.status == .pending {
                         Text("pending").foregroundStyle(.secondary)

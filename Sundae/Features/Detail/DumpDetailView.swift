@@ -19,6 +19,36 @@ struct DumpDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                ScreenHeader(title: dump.map { model.clock.rangeLabel(weekStart: $0.weekStart) } ?? "", showsBack: true) {
+                    if let dump {
+                        Menu {
+                            if isOwn {
+                                Button(role: .destructive) {
+                                    Task {
+                                        try? await model.api.deleteDump(id: dump.id)
+                                        model.feed.remove(dumpID: dump.id)
+                                        model.compose.reset()
+                                    }
+                                } label: {
+                                    Label { Text("Delete this week") } icon: { Glyph.trash.regular }
+                                }
+                            } else {
+                                Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
+                                Button(role: .destructive) {
+                                    Task { try? await model.api.block(userID: dump.author.id) }
+                                } label: {
+                                    Label { Text("Block \(dump.author.firstName)") } icon: { Glyph.block.regular }
+                                }
+                            }
+                        } label: {
+                            Icon(Glyph.more, weight: .bold, size: 24)
+                                .foregroundStyle(.primary)
+                                .frame(width: 40, height: 40)
+                                .contentShape(Rectangle())
+                        }
+                        .accessibilityLabel("More")
+                    }
+                }
                 if let dump {
                     content(dump)
                 } else if let errorMessage {
@@ -32,32 +62,7 @@ struct DumpDetailView: View {
             .padding(.bottom, 24)
         }
         .background(Theme.background)
-        .navigationTitle(dump.map { model.clock.rangeLabel(weekStart: $0.weekStart) } ?? "")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if let dump {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        if isOwn {
-                            Button("Delete this week", systemImage: Icon.trash, role: .destructive) {
-                                Task {
-                                    try? await model.api.deleteDump(id: dump.id)
-                                    model.feed.remove(dumpID: dump.id)
-                                    model.compose.reset()
-                                }
-                            }
-                        } else {
-                            Button("Report", systemImage: Icon.flag) { reporting = true }
-                            Button("Block \(dump.author.firstName)", systemImage: Icon.block, role: .destructive) {
-                                Task { try? await model.api.block(userID: dump.author.id) }
-                            }
-                        }
-                    } label: {
-                        Image(systemName: Icon.more)
-                    }
-                }
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dumpID)
         }
@@ -100,7 +105,7 @@ struct DumpDetailView: View {
                 Button {
                     Task { await toggleLike() }
                 } label: {
-                    Image(systemName: dump.likedByMe ? Icon.heartFilled : Icon.heart)
+                    Icon(Glyph.heart, weight: dump.likedByMe ? .fill : .regular, size: 26)
                         .foregroundStyle(dump.likedByMe ? Color.accentColor : .primary)
                 }
                 .accessibilityLabel(dump.likedByMe ? "Unlike" : "Like")
@@ -109,7 +114,6 @@ struct DumpDetailView: View {
                     Text("\(page + 1) of \(dump.photos.count)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 }
             }
-            .font(.title3)
             .buttonStyle(.plain)
 
             if !dump.caption.isEmpty {
@@ -168,14 +172,23 @@ struct DumpDetailView: View {
             Button {
                 Task { await send() }
             } label: {
-                Image(systemName: "arrow.up.circle.fill").font(.title2)
+                Icon(Glyph.send, weight: .bold, size: 18)
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Color.accentColor, in: Circle())
             }
+            .buttonStyle(.plain)
             .disabled(newComment.trimmingCharacters(in: .whitespaces).isEmpty || isSending)
+            .opacity(newComment.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
             .accessibilityLabel("Send comment")
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.vertical, 10)
-        .background(.bar)
+        .background {
+            Theme.background
+                .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 
     private func load() async {

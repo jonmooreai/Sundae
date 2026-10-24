@@ -10,7 +10,9 @@ struct CaptionStep: View {
 
     var body: some View {
         @Bindable var store = model.compose
-        ScrollView {
+        VStack(spacing: 0) {
+            FlowHeader(title: "Caption", isRoot: false, onClose: { compose.dismiss() }) { EmptyView() }
+            ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 DraftThumbnailStrip(photos: compose.draft.photos)
                     .padding(.horizontal, -Theme.pagePadding)
@@ -51,11 +53,11 @@ struct CaptionStep: View {
                     .foregroundStyle(.secondary)
             }
             .padding(Theme.pagePadding)
+            }
+            .scrollDismissesKeyboard(.interactively)
         }
-        .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
-        .navigationTitle("Caption")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             FlowBottomBar(title: compose.hasPosted ? "Save changes" : "Post your week",
                           isEnabled: compose.canPost, isLoading: compose.isSaving) {

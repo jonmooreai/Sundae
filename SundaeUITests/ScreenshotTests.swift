@@ -49,14 +49,13 @@ final class ScreenshotTests: XCTestCase {
     }
 
     private func tab(_ app: XCUIApplication, _ name: String) {
-        let button = app.tabBars.buttons[name].firstMatch
-        if button.waitForExistence(timeout: 5) {
-            button.tap()
-        } else {
-            // Regular width uses a sidebar instead of a tab bar.
-            let sidebarButton = app.buttons[name].firstMatch
-            if sidebarButton.waitForExistence(timeout: 5) { sidebarButton.tap() }
-        }
+        let button = app.buttons["tab-\(name.lowercased())"].firstMatch
+        if button.waitForExistence(timeout: 5) { button.tap() }
+    }
+
+    private func back(_ app: XCUIApplication) {
+        let button = app.buttons["Back"].firstMatch
+        if button.waitForExistence(timeout: 3) { button.tap() }
     }
 
     func testOnboarding() {
@@ -107,7 +106,7 @@ final class ScreenshotTests: XCTestCase {
         if pickCount > 0 {
             snap(app, "06-compose-pick-selected", settle: 1)
             app.buttons["flow-primary"].firstMatch.tap()
-            XCTAssertTrue(app.navigationBars["Arrange and tag"].waitForExistence(timeout: 30))
+            XCTAssertTrue(app.staticTexts["Arrange and tag"].waitForExistence(timeout: 30))
             snap(app, "06-compose-arrange", settle: 3)
 
             let tag = app.buttons["tag-friends"].firstMatch
@@ -121,7 +120,7 @@ final class ScreenshotTests: XCTestCase {
             }
 
             app.buttons["flow-primary"].firstMatch.tap()
-            XCTAssertTrue(app.navigationBars["Caption"].waitForExistence(timeout: 10))
+            XCTAssertTrue(app.staticTexts["How was your week?"].waitForExistence(timeout: 10))
             let field = app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
             if field.waitForExistence(timeout: 3) {
                 field.tap()
@@ -140,7 +139,7 @@ final class ScreenshotTests: XCTestCase {
             if close.waitForExistence(timeout: 3) { close.tap() }
         }
 
-        XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed", settle: 5)
 
         // Open the first friend's profile from a feed header.
@@ -148,8 +147,7 @@ final class ScreenshotTests: XCTestCase {
         if author.waitForExistence(timeout: 8) {
             author.tap()
             snap(app, "03-profile-friend", settle: 5)
-            let back = app.navigationBars.buttons.element(boundBy: 0)
-            if back.waitForExistence(timeout: 3) { back.tap() }
+            back(app)
         }
 
         // Dump detail with comments.
@@ -157,8 +155,7 @@ final class ScreenshotTests: XCTestCase {
         if comments.waitForExistence(timeout: 5) {
             comments.tap()
             snap(app, "04-dump-detail", settle: 4)
-            let back = app.navigationBars.buttons.element(boundBy: 0)
-            if back.exists { back.tap() }
+            back(app)
         }
 
         tab(app, "Approvals")
@@ -187,7 +184,7 @@ final class ScreenshotTests: XCTestCase {
             snap(app, "02-sunday-prompt-dark", settle: 1.5)
             later.tap()
         }
-        XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed-dark", settle: 5)
     }
 }

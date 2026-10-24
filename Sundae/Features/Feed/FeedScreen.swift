@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Sunday opens here. Compact width is a plain stack; regular width (iPad, Duo unfolded) is
-/// two columns with the feed on the left and the open dump or profile on the right.
+/// Sunday's home. Compact width is a plain stack; regular width (iPad) is two columns with the
+/// feed on the left and the open dump or profile on the right.
 struct FeedScreen: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var path: [Route] = []
@@ -12,19 +12,19 @@ struct FeedScreen: View {
         if sizeClass == .regular {
             NavigationSplitView {
                 FeedList(open: { selection = $0 }, onPost: onPost)
-                    .navigationTitle("Sunday")
+                    .toolbar(.hidden, for: .navigationBar)
                     .navigationSplitViewColumnWidth(min: 380, ideal: 460, max: 560)
             } detail: {
                 if let selection {
                     RouteStack(root: selection).id(selection)
                 } else {
-                    ContentUnavailableView("Pick a dump", systemImage: Icon.photos, description: Text("Tap a photo or a name on the left."))
+                    ContentUnavailableView("Pick a dump", systemImage: "photo.on.rectangle", description: Text("Tap a photo or a name on the left."))
                 }
             }
         } else {
             NavigationStack(path: $path) {
                 FeedList(open: { path.append($0) }, onPost: onPost)
-                    .navigationTitle("Sunday")
+                    .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
             }
         }
@@ -40,12 +40,16 @@ struct FeedList: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 28) {
-                PostYourWeekCard(onPost: onPost)
-                    .padding(.horizontal, Theme.pagePadding)
+            LazyVStack(spacing: 0) {
+                ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) {
+                    SundaeMark(size: 30)
+                }
+                .accessibilityElement(children: .contain)
+
+                PostYourWeekRow(onPost: onPost)
 
                 if let message = feed.errorMessage {
-                    ErrorBanner(message: message).padding(.horizontal, Theme.pagePadding)
+                    ErrorBanner(message: message).padding(Theme.pagePadding)
                 }
 
                 ForEach(feed.dumps) { dump in
@@ -54,20 +58,26 @@ struct FeedList: View {
                         open: open,
                         onLike: { Task { await feed.toggleLike(dump, me: model.currentUser) } }
                     )
+                    .padding(.top, 18)
+                    .padding(.bottom, 10)
                     .task { await feed.loadMoreIfNeeded(current: dump) }
                 }
 
                 if feed.isLoading {
-                    ProgressView().padding()
+                    ProgressView().padding(32)
                 } else if feed.hasLoaded && feed.dumps.isEmpty {
-                    ContentUnavailableView(
-                        "Quiet Sunday",
-                        systemImage: Icon.sun,
-                        description: Text("Nobody you follow has posted yet. Post your week, or find your friends in Search.")
-                    )
+                    VStack(spacing: 10) {
+                        Icon(Glyph.sun, size: 36).foregroundStyle(.secondary)
+                        Text("Quiet Sunday").font(Theme.display(24))
+                        Text("Nobody you follow has posted yet. Post your week, or find your friends in Search.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
                 }
             }
-            .padding(.vertical, 12)
+            .padding(.bottom, 24)
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
         }
@@ -83,33 +93,39 @@ struct FeedList: View {
     }
 }
 
-/// Pinned at the top until you post. Afterwards it turns into a quiet "your week is up" card.
-struct PostYourWeekCard: View {
+/// A flat row at the top of the feed until you post; afterwards a quiet "your week is up".
+struct PostYourWeekRow: View {
     @Environment(AppModel.self) private var model
     let onPost: () -> Void
 
     var body: some View {
         let compose = model.compose
-        HStack(spacing: 14) {
-            if let user = model.currentUser { AvatarView(user: user, size: 44) }
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 12) {
+            if let user = model.currentUser {
+                AvatarView(user: user, size: 44)
+                    .overlay {
+                        if !compose.hasPosted {
+                            Circle().strokeBorder(Color.accentColor, lineWidth: 2)
+                        }
+                    }
+            }
+            VStack(alignment: .leading, spacing: 2) {
                 Text(compose.hasPosted ? "Your week is up" : "Post your week")
-                    .font(.headline)
+                    .font(.body.weight(.semibold))
                     .lineLimit(1)
-                Text(compose.hasPosted
-                     ? "Edit any time until midnight."
-                     : model.clock.rangeLabel(weekStart: model.currentWeekStart))
+                Text(compose.hasPosted ? "Edit any time until midnight." : "\(compose.draft.photos.isEmpty ? "Pick the photos" : "Finish your draft") from this week.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            Spacer()
-            if compose.hasPosted {
-                Button("Edit", action: onPost).buttonStyle(.bordered)
-            } else {
-                Button("Post", action: onPost).buttonStyle(.borderedProminent)
-            }
+            Spacer(minLength: 8)
+            Button(compose.hasPosted ? "Edit" : "Post", action: onPost)
+                .buttonStyle(.pill(compose.hasPosted ? .secondary : .primary, size: .small))
         }
-        .card()
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.vertical, 12)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.hairline).frame(height: 0.5).padding(.horizontal, Theme.pagePadding)
+        }
     }
 }

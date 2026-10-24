@@ -108,7 +108,7 @@ struct OnboardingView: View {
                         pendingMethod = .phone(number: phone, code: code)
                         step = .profile
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.pill(.secondary, size: .small))
                     .disabled(code.count != 6)
                 } else {
                     TextField("Phone number", text: $phone)
@@ -117,7 +117,7 @@ struct OnboardingView: View {
                         .padding(12)
                         .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                     Button("Send code") { codeSent = true }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.pill(.secondary, size: .small))
                         .disabled(phone.filter(\.isNumber).count < 10)
                 }
             }
@@ -181,13 +181,12 @@ struct OnboardingView: View {
             ShareLink(item: URL(string: "https://sundae.app/join")!,
                       subject: Text("Join me on Sundae"),
                       message: Text("Sundays only. Come post your week with us.")) {
-                Label("Invite your group", systemImage: Icon.share)
-                    .font(.body.weight(.semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
+                HStack(spacing: 8) {
+                    Icon(Glyph.share, weight: .bold, size: 18)
+                    Text("Invite your group")
+                }
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
+            .buttonStyle(.pill(.primary, fullWidth: true))
             Button {
                 Task { await finishSignIn() }
             } label: {
@@ -195,12 +194,8 @@ struct OnboardingView: View {
                     Text("Open Sundae").opacity(isWorking ? 0 : 1)
                     if isWorking { ProgressView() }
                 }
-                .font(.body.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
+            .buttonStyle(.pill(.secondary, fullWidth: true))
             .disabled(isWorking)
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.secondary)

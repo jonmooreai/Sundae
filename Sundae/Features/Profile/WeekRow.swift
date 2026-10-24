@@ -68,8 +68,10 @@ struct WeekRow: View {
                             .accessibilityLabel("Photo from \(tagged.from.firstName)'s week")
                             .contextMenu {
                                 if isOwn {
-                                    Button("Remove from my week", systemImage: Icon.trash, role: .destructive) {
+                                    Button(role: .destructive) {
                                         onRemoveTagged(tagged)
+                                    } label: {
+                                        Label { Text("Remove from my week") } icon: { Glyph.trash.regular }
                                     }
                                 }
                             }
@@ -122,8 +124,7 @@ struct WeekRow: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: Icon.chevronRight)
-                    .font(.footnote.weight(.semibold))
+                Icon(Glyph.chevronRight, weight: .bold, size: 14)
                     .foregroundStyle(.tertiary)
             }
             .padding(16)

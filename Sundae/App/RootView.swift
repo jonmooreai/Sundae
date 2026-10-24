@@ -22,13 +22,12 @@ struct RootView: View {
     }
 }
 
-enum SundayTab: Hashable {
+enum SundayTab: Hashable, CaseIterable {
     case feed, search, post, approvals, profile
 }
 
-/// Familiar skeleton: Feed, Search, Post, Approvals, Profile.
-/// `.sidebarAdaptable` turns the bottom bar into a sidebar in regular width (iPad, Duo unfolded),
-/// which also keeps the tab bar away from the Duo's right-side dock.
+/// Familiar skeleton with our own bottom bar: Feed, Search, Post, Approvals, Profile.
+/// Every tab stays alive so switching back keeps scroll position and navigation.
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @State private var tab: SundayTab = .feed
@@ -36,32 +35,14 @@ struct SundayShell: View {
     private var compose: ComposeStore { model.compose }
 
     var body: some View {
-        TabView(selection: $tab) {
-            Tab("Feed", systemImage: Icon.feed, value: .feed) {
-                FeedScreen(onPost: openCompose)
-            }
-            Tab("Search", systemImage: Icon.search, value: .search, role: .search) {
-                SearchScreen()
-            }
-            Tab("Post", systemImage: Icon.post, value: .post) {
-                // Never shown: selecting this tab opens the full-screen flow instead.
-                Theme.background.ignoresSafeArea()
-            }
-            Tab("Approvals", systemImage: Icon.approvals, value: .approvals) {
-                ApprovalsScreen()
-            }
-            .badge(model.pendingApprovalCount)
-            Tab("Profile", systemImage: Icon.profile, value: .profile) {
-                ProfileScreen()
-            }
+        ZStack {
+            pane(.feed) { FeedScreen(onPost: openCompose) }
+            pane(.search) { SearchScreen() }
+            pane(.approvals) { ApprovalsScreen() }
+            pane(.profile) { ProfileScreen() }
         }
-        .tabViewStyle(.sidebarAdaptable)
-        .onChange(of: tab) { previous, current in
-            // The Post tab behaves like a button: open the flow and stay where you were.
-            if current == .post {
-                tab = previous == .post ? .feed : previous
-                openCompose()
-            }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
         }
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
@@ -81,8 +62,106 @@ struct SundayShell: View {
         }
     }
 
+    private func pane<Content: View>(_ which: SundayTab, @ViewBuilder content: () -> Content) -> some View {
+        content()
+            .opacity(tab == which ? 1 : 0)
+            .allowsHitTesting(tab == which)
+            .accessibilityHidden(tab != which)
+    }
+
     private func openCompose() {
         compose.present(compose.hasPosted ? .arrange : .pick)
+    }
+}
+
+/// Our bottom bar: five icons on a quiet surface with a hairline above. The Post item opens the
+/// posting flow instead of switching tabs, and the Profile item is your own avatar.
+struct SundaeTabBar: View {
+    @Binding var selected: SundayTab
+    let pendingApprovals: Int
+    let user: User?
+    let onPost: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            item(.feed, Glyph.feed, "Feed")
+            item(.search, Glyph.search, "Search")
+            Button {
+                Haptics.light()
+                onPost()
+            } label: {
+                Icon(Glyph.post, size: 27)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 50)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Post your week")
+            .accessibilityIdentifier("tab-post")
+            item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+            profileItem
+        }
+        .padding(.horizontal, 8)
+        .background {
+            Theme.background
+                .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+                .ignoresSafeArea(edges: .bottom)
+        }
+    }
+
+    private func item(_ which: SundayTab, _ glyph: Ph, _ label: String, badge: Int = 0) -> some View {
+        let isSelected = selected == which
+        return Button {
+            selected = which
+        } label: {
+            Icon(glyph, weight: isSelected ? .fill : .regular, size: 27)
+                .foregroundStyle(.primary)
+                .overlay(alignment: .topTrailing) {
+                    if badge > 0 {
+                        Text("\(badge)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .frame(minWidth: 17, minHeight: 17)
+                            .background(Color.accentColor, in: Capsule())
+                            .offset(x: 10, y: -6)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(badge > 0 ? "\(label), \(badge) waiting" : label)
+        .accessibilityIdentifier("tab-\(label.lowercased())")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var profileItem: some View {
+        let isSelected = selected == .profile
+        return Button {
+            selected = .profile
+        } label: {
+            Group {
+                if let user {
+                    AvatarView(user: user, size: 27)
+                        .overlay {
+                            Circle().strokeBorder(isSelected ? Color.primary : .clear, lineWidth: 2)
+                        }
+                } else {
+                    Icon(Glyph.profile, weight: isSelected ? .fill : .regular, size: 27)
+                        .foregroundStyle(.primary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Profile")
+        .accessibilityIdentifier("tab-profile")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
