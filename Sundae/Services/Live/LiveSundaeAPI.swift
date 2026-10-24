@@ -192,6 +192,17 @@ actor LiveSundaeAPI: SundaeAPI {
         return users.map(\.model)
     }
 
+    func contactsHashingKey() async throws -> ContactsHashingKey {
+        let key: DTO.ContactsKey = try await client.get("v1/contacts/key")
+        guard let model = key.model else { throw SundaeError.notFound }
+        return model
+    }
+
+    func matchContacts(hashes: [String], keyID: String) async throws -> [User] {
+        let users: [DTO.User] = try await client.post("v1/contacts/match", body: DTO.ContactsMatch(keyId: keyID, hashes: hashes))
+        return users.map(\.model)
+    }
+
     // MARK: - Tags
 
     func pendingTagRequests() async throws -> [TagRequest] {

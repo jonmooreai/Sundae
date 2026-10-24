@@ -18,6 +18,7 @@ struct SearchView: View {
     @State private var requests: [User] = []
     @State private var relationships: [ID: Relationship] = [:]
     @State private var isSearching = false
+    @State private var contacts: ContactsMatcher?
 
     var body: some View {
         List {
@@ -39,6 +40,7 @@ struct SearchView: View {
             }
 
             if query.isEmpty {
+                contactsSection
                 if !suggested.isEmpty {
                     Section("People your friends follow") {
                         ForEach(suggested) { user in row(user) }
@@ -65,7 +67,11 @@ struct SearchView: View {
         .listStyle(.insetGrouped)
         .searchable(text: $query, prompt: "Name or username")
         .navigationTitle("Search")
-        .task { await loadInitial() }
+        .task {
+            if contacts == nil { contacts = ContactsMatcher(api: model.api) }
+            await loadInitial()
+            if let contacts, contacts.isOptedIn, contacts.matches.isEmpty { await contacts.match() }
+        }
         .task(id: query) {
             guard !query.isEmpty else {
                 results = []
@@ -76,6 +82,37 @@ struct SearchView: View {
             guard !Task.isCancelled else { return }
             results = (try? await model.api.searchUsers(query)) ?? []
             isSearching = false
+        }
+    }
+
+    @ViewBuilder
+    private var contactsSection: some View {
+        if let contacts {
+            Section {
+                if !contacts.matches.isEmpty {
+                    ForEach(contacts.matches) { user in row(user) }
+                } else if contacts.isMatching {
+                    HStack { ProgressView(); Text("Checking your contacts").foregroundStyle(.secondary) }
+                } else if contacts.isOptedIn {
+                    Text("Nobody from your contacts is here yet. Invite them below.").foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        Task { await contacts.match() }
+                    } label: {
+                        Label("Find friends from your contacts", systemImage: Icon.personAdd)
+                    }
+                    .disabled(!contacts.canUse)
+                }
+                if let message = contacts.errorMessage {
+                    Text(message).font(.footnote).foregroundStyle(.secondary)
+                }
+            } header: {
+                Text("From your contacts")
+            } footer: {
+                if !contacts.isOptedIn {
+                    Text("Phone numbers are hashed on your phone with a one-time key. Only the hashes are sent, matched in memory, and thrown away.")
+                }
+            }
         }
     }
 

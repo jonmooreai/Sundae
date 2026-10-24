@@ -197,6 +197,14 @@ struct AccountSettings: Hashable, Codable, Sendable {
     var notifyTagApproved = false
 }
 
+/// Per-session HMAC key for contacts matching. Hashes made with one key cannot be replayed
+/// against another session.
+struct ContactsHashingKey: Hashable, Sendable {
+    var keyID: String
+    var key: Data
+    var expiresAt: Date
+}
+
 struct Session: Hashable, Codable, Sendable {
     var token: String
     var user: User

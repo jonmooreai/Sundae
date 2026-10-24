@@ -81,5 +81,6 @@ struct WeekRow: View {
         PhotoView(source: source)
             .frame(width: Theme.rowHeight * min(max(aspect, 0.6), 1.8), height: Theme.rowHeight)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .hoverEffect(.lift)
     }
 }

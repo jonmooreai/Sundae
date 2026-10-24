@@ -12,6 +12,7 @@ struct DumpDetailView: View {
     @State private var errorMessage: String?
     @State private var reporting = false
     @State private var isSending = false
+    @State private var showFullScreen = false
 
     private var isOwn: Bool { dump?.author.id == model.currentUser?.id }
 
@@ -60,6 +61,11 @@ struct DumpDetailView: View {
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dumpID)
         }
+        .fullScreenCover(isPresented: $showFullScreen) {
+            if let dump, dump.photos.indices.contains(page) {
+                FullScreenPhotoView(photo: dump.photos[page], caption: dump.caption)
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             if let dump, dump.commentsEnabled {
                 commentField
@@ -86,6 +92,8 @@ struct DumpDetailView: View {
             .focusable()
             .onKeyPress(.leftArrow) { page = max(0, page - 1); return .handled }
             .onKeyPress(.rightArrow) { page = min(dump.photos.count - 1, page + 1); return .handled }
+            .onKeyPress(.space) { showFullScreen = true; return .handled }
+            .onLongPressGesture { showFullScreen = true }
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 18) {

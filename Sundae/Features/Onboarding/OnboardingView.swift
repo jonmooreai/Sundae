@@ -176,6 +176,9 @@ struct OnboardingView: View {
             Text("Bring your group").font(Theme.display(34))
             Text("Sundae is empty with fewer than five friends and great with ten. Send the link to the people you actually spend your weeks with.")
                 .foregroundStyle(.secondary)
+            Text("Once you're in, Search can check your contacts for people already here. Numbers are hashed on your phone and never stored.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             ShareLink(item: URL(string: "https://sundae.app/join")!,
                       subject: Text("Join me on Sundae"),
                       message: Text("Sundays only. Come post your week with us.")) {

@@ -141,6 +141,22 @@ struct ComposeScreen: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 36)
         .card()
+        .dropDestination(for: Data.self) { items, _ in
+            importDropped(items)
+        }
+    }
+
+    /// Photos dragged in from Photos, Files or another window go through the same re-encode.
+    private func importDropped(_ items: [Data]) -> Bool {
+        guard !items.isEmpty, compose.draft.canAddMore else { return false }
+        Task {
+            for data in items.prefix(compose.draft.remainingSlots) {
+                if let processed = await PhotoProcessor.processInBackground(data) {
+                    compose.append(processed, takenAt: nil)
+                }
+            }
+        }
+        return true
     }
 
     private var columns: [GridItem] {
@@ -177,6 +193,7 @@ struct ComposeScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .hoverEffect(.lift)
                     .accessibilityLabel(photo.altText.isEmpty ? "Photo, tap to tag friends" : photo.altText)
                     .contextMenu {
                         Button("Tag friends", systemImage: Icon.tag) { taggingPhoto = photo }
@@ -203,6 +220,9 @@ struct ComposeScreen: View {
             Text("Tap a photo to tag the friends who were there.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+        }
+        .dropDestination(for: Data.self) { items, _ in
+            importDropped(items)
         }
     }
 

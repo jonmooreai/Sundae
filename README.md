@@ -36,11 +36,11 @@ Shared/                  Compiled into both the app and the widget
   SharedDefaults.swift   App-group state for the widget (current suggestion, approvals badge)
   suggestions.json       Curated list of photographable suggestions, 122 so far (target ~200)
 Sundae/
-  App/                   SundaeApp, AppModel (session, phase, clock), RootView and the tab shell
+  App/                   SundaeApp, AppModel (session, phase, clock), RootView and the tab shell, App Intents
   Core/                  Theme, Icon, Haptics, Keychain
   Models/                User, Dump, Photo, Tag, Follow, Comment, Profile, DumpDraft, settings
   Services/              SundaeAPI protocol, MockSundaeAPI, PhotoProcessor, PhotoLibrary, notifications,
-                         NetworkMonitor, PendingPostStore (offline compose queue)
+                         NetworkMonitor, PendingPostStore (offline compose queue), ContactsMatcher
   Services/Live/         HTTPClient (bearer auth, single-flight refresh), TokenStore (Keychain),
                          DTOs, LiveSundaeAPI, BackgroundUploader (background URLSession to pre-signed URLs)
   Components/            PhotoView, AvatarView, PhotoCarousel, LikesLabel, UserRow, buttons
@@ -94,13 +94,14 @@ Built, against the mock:
 - Light and dark mode, Dynamic Type, VoiceOver labels on photos, Reduce Motion on the carousel, light haptics on post, approve, decline
 
 - Live HTTP client with Keychain token storage, rotating refresh tokens, background upload to pre-signed URLs, and an offline compose queue
+- Contacts matching, opt in: numbers normalized and HMAC-hashed on device under a per-session key, only hashes sent
+- App Intents: "Show today's suggestion" and "Mark today's suggestion done" for Siri and Shortcuts
+- iPad: drag photos into compose from Photos or Files, pointer hover on photos, Cmd-N to post, arrow keys through a carousel, Space for full screen
 
 Not yet:
 
 - A real backend. `docs/API.md` is the contract the client speaks.
 - Passkeys (WebAuthn), App Attest. Sign in with Apple is wired through the UI to `auth/apple`.
-- Contacts matching
-- Live Activity, StandBy, Share Sheet extension, App Intents (v1, not MVP)
-- Drag and drop into compose on iPad, pointer hover states
+- Live Activity, StandBy, Share Sheet extension
 - Phosphor icon package
 - App icon artwork

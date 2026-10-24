@@ -197,6 +197,21 @@ enum DTO {
         }
     }
 
+    struct ContactsKey: Decodable {
+        let keyId: String
+        let key: String
+        let expiresAt: Date
+
+        var model: ContactsHashingKey? {
+            Data(base64Encoded: key).map { ContactsHashingKey(keyID: keyId, key: $0, expiresAt: expiresAt) }
+        }
+    }
+
+    struct ContactsMatch: Encodable {
+        let keyId: String
+        let hashes: [String]
+    }
+
     struct SessionResponse: Decodable {
         let accessToken: String
         let refreshToken: String
