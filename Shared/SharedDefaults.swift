@@ -2,7 +2,9 @@ import Foundation
 
 /// Small amount of state shared between the app and the widget through the app group.
 /// Nothing sensitive goes here: just which suggestion is showing and the approvals badge.
-public struct SharedDefaults: Sendable {
+///
+/// `UserDefaults` is documented thread-safe but not marked `Sendable`; the struct holds nothing else.
+public struct SharedDefaults: @unchecked Sendable {
     public static let appGroup = "group.com.sundae.shared"
 
     private let defaults: UserDefaults

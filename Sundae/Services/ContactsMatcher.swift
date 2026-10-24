@@ -39,9 +39,8 @@ final class ContactsMatcher {
         defer { isMatching = false }
         errorMessage = nil
 
-        let store = CNContactStore()
         if authorization == .notDetermined {
-            _ = try? await store.requestAccess(for: .contacts)
+            _ = try? await CNContactStore().requestAccess(for: .contacts)
             authorization = CNContactStore.authorizationStatus(for: .contacts)
         }
         guard authorization == .authorized || authorization == .limited else {
