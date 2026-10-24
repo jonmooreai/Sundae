@@ -53,6 +53,7 @@ struct ProfileView: View {
                 if isOwn {
                     Button { showSettings = true } label: { Image(systemName: Icon.settings) }
                         .accessibilityLabel("Settings")
+                        .accessibilityIdentifier("profile-settings")
                 } else if let profile {
                     Menu {
                         Button("Report", systemImage: Icon.flag) { reporting = true }

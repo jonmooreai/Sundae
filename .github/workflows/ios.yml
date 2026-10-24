@@ -85,8 +85,8 @@ jobs:
             -derivedDataPath build \
             -resultBundlePath results/iphone.xcresult \
             SCREENSHOT_DIR="$PWD/screenshots" \
-            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST (SUCCEEDED|FAILED)" || true
-          grep -q "TEST SUCCEEDED" test-iphone.log
+            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
 
       - name: UI tests on iPad
         if: env.FULL == 'true' && env.IPAD_UDID != ''
@@ -100,8 +100,8 @@ jobs:
             -only-testing:SundaeUITests \
             -resultBundlePath results/ipad.xcresult \
             SCREENSHOT_DIR="$PWD/screenshots" \
-            2>&1 | tee test-ipad.log | grep -E "Test Case|error:|failed|passed|TEST (SUCCEEDED|FAILED)" || true
-          grep -q "TEST SUCCEEDED" test-ipad.log
+            2>&1 | tee test-ipad.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-ipad.log
 
       - name: Export screenshots from result bundles
         if: always() && env.FULL == 'true'

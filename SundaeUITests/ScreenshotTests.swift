@@ -88,13 +88,13 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed", settle: 2.5)
 
-        // Open the first friend's profile from the feed header.
-        let maya = app.buttons.containing(.staticText, identifier: "Maya Chen").firstMatch
-        if maya.waitForExistence(timeout: 5) {
-            maya.tap()
-            snap(app, "03-profile-friend", settle: 2)
+        // Open the first friend's profile from a feed header.
+        let author = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'author-'")).firstMatch
+        if author.waitForExistence(timeout: 8) {
+            author.tap()
+            snap(app, "03-profile-friend", settle: 2.5)
             let back = app.navigationBars.buttons.element(boundBy: 0)
-            if back.exists { back.tap() }
+            if back.waitForExistence(timeout: 3) { back.tap() }
         }
 
         // Dump detail with comments.
@@ -118,8 +118,8 @@ final class ScreenshotTests: XCTestCase {
         tab(app, "Profile")
         snap(app, "08-profile-own", settle: 2)
 
-        let settings = app.buttons["Settings"].firstMatch
-        if settings.waitForExistence(timeout: 5) {
+        let settings = app.descendants(matching: .any)["profile-settings"].firstMatch
+        if settings.waitForExistence(timeout: 8) {
             settings.tap()
             snap(app, "09-settings", settle: 1.5)
         }

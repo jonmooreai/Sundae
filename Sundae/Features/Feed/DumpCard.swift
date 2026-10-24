@@ -88,6 +88,7 @@ struct DumpCard: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("author-\(dump.author.username)")
             Spacer()
             Menu {
                 if dump.author.id != model.currentUser?.id {
