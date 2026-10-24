@@ -42,6 +42,23 @@ final class PhotoLibrary {
         assets = list
     }
 
+    /// The whole library, newest first, capped so the grid stays quick.
+    func loadAllAssets(limit: Int = 600) {
+        guard isAuthorized else {
+            assets = []
+            return
+        }
+        let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.fetchLimit = limit
+        let result = PHAsset.fetchAssets(with: options)
+        var list: [PHAsset] = []
+        list.reserveCapacity(result.count)
+        result.enumerateObjects { asset, _, _ in list.append(asset) }
+        assets = list
+    }
+
     func thumbnail(for asset: PHAsset, side: CGFloat) async -> UIImage? {
         let scale = UIScreen.main.scale
         let target = CGSize(width: side * scale, height: side * scale)

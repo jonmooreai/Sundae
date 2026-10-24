@@ -79,6 +79,9 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p screenshots
+          xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || true
+          xcrun simctl privacy "$IPHONE_UDID" grant photos com.sundae.app || true
+          xcrun simctl privacy "$IPHONE_UDID" grant contacts com.sundae.app || true
           xcodebuild test-without-building \
             -project Sundae.xcodeproj -scheme Sundae \
             -destination "platform=iOS Simulator,id=$IPHONE_UDID" \

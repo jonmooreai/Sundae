@@ -108,6 +108,9 @@ final class AppModel {
             Keychain.delete(Keys.session)
             cacheUser(nil)
         }
+        if arguments.contains("-uiTestSignedIn") {
+            UserDefaults.standard.removeObject(forKey: "sundayPrompt.dismissedWeekStart")
+        }
         if arguments.contains("-uiTestSignedIn"), isUsingMock {
             try? await signIn(.demo, username: "jon", name: "Jon")
             isRestoringSession = false

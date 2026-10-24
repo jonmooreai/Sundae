@@ -84,6 +84,62 @@ final class ScreenshotTests: XCTestCase {
 
     func testSunday() {
         let app = launch(day: "sunday")
+
+        // Sunday opens on the prompt.
+        XCTAssertTrue(app.buttons["Pick your photos"].waitForExistence(timeout: 20))
+        snap(app, "02-sunday-prompt", settle: 1.5)
+        app.buttons["Pick your photos"].tap()
+
+        // Pick: allow the library if asked, then switch to all photos (the simulator's samples are old).
+        let allow = app.buttons["Show my photos"].firstMatch
+        if allow.waitForExistence(timeout: 4) {
+            allow.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+            app.navigationBars.firstMatch.tap()   // gives the interruption monitor a chance to answer the system alert
+        }
+        let all = app.buttons["All photos"].firstMatch
+        if all.waitForExistence(timeout: 8) { all.tap() }
+        snap(app, "06-compose-pick", settle: 3)
+
+        let cells = app.buttons.matching(identifier: "library-cell")
+        let pickCount = min(4, cells.count)
+        for i in 0..<pickCount { cells.element(boundBy: i).tap() }
+        if pickCount > 0 {
+            snap(app, "06-compose-pick-selected", settle: 1)
+            app.buttons["flow-primary"].firstMatch.tap()
+            XCTAssertTrue(app.navigationBars["Arrange and tag"].waitForExistence(timeout: 30))
+            snap(app, "06-compose-arrange", settle: 3)
+
+            let tag = app.buttons["tag-friends"].firstMatch
+            if tag.waitForExistence(timeout: 3) {
+                tag.tap()
+                snap(app, "06-compose-tag", settle: 2)
+                let first = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'maya'")).firstMatch
+                if first.waitForExistence(timeout: 3) { first.tap() }
+                let done = app.buttons["Done"].firstMatch
+                if done.waitForExistence(timeout: 3) { done.tap() }
+            }
+
+            app.buttons["flow-primary"].firstMatch.tap()
+            XCTAssertTrue(app.navigationBars["Caption"].waitForExistence(timeout: 10))
+            let field = app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
+            if field.waitForExistence(timeout: 3) {
+                field.tap()
+                if app.keyboards.count > 0 {
+                    app.typeText("Bikes, a very long lunch, and the first cold morning.")
+                }
+            }
+            snap(app, "06-compose-caption", settle: 1.5)
+            app.buttons["flow-primary"].firstMatch.tap()
+            XCTAssertTrue(app.buttons["See the feed"].waitForExistence(timeout: 20))
+            snap(app, "06-compose-posted", settle: 2.5)
+            app.buttons["See the feed"].tap()
+        } else {
+            // Nothing to pick on this simulator: close the flow and carry on.
+            let close = app.buttons["Close"].firstMatch
+            if close.waitForExistence(timeout: 3) { close.tap() }
+        }
+
         XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed", settle: 5)
 
@@ -104,9 +160,6 @@ final class ScreenshotTests: XCTestCase {
             let back = app.navigationBars.buttons.element(boundBy: 0)
             if back.exists { back.tap() }
         }
-
-        tab(app, "Post")
-        snap(app, "06-compose", settle: 2)
 
         tab(app, "Approvals")
         snap(app, "07-approvals", settle: 4)
@@ -129,6 +182,11 @@ final class ScreenshotTests: XCTestCase {
 
     func testSundayDark() {
         let app = launch(day: "sunday", appearance: "dark")
+        let later = app.buttons["Show me the feed first"].firstMatch
+        if later.waitForExistence(timeout: 20) {
+            snap(app, "02-sunday-prompt-dark", settle: 1.5)
+            later.tap()
+        }
         XCTAssertTrue(app.navigationBars["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed-dark", settle: 5)
     }

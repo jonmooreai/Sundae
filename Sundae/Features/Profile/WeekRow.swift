@@ -41,7 +41,7 @@ struct WeekRow: View {
             }
 
             if week.isEmpty, isOwn, isCurrent {
-                postCard.padding(.horizontal, Theme.pagePadding)
+                postInvite.padding(.horizontal, Theme.pagePadding)
             } else if week.isEmpty {
                 Text("No photos this week.")
                     .font(.footnote)
@@ -76,41 +76,58 @@ struct WeekRow: View {
                         }
                     }
                     .padding(.horizontal, Theme.pagePadding)
+                    .scrollTargetLayout()
                 }
                 .scrollIndicators(.hidden)
                 .scrollClipDisabled()
-                .frame(height: Theme.rowHeight)
+                .scrollTargetBehavior(.viewAligned)
+                .frame(height: isCurrent ? nil : Theme.rowHeight)
             }
         }
     }
 
-    /// Square rounded cards, inset from the edge so they read as a shelf of prints.
+    /// Rounded square cards. This week's are nearly full width, with the next one peeking in;
+    /// older weeks are a smaller shelf of prints.
+    @ViewBuilder
     private func cell(_ source: PhotoSource, aspect: CGFloat) -> some View {
-        PhotoView(source: source)
-            .frame(width: Theme.rowHeight, height: Theme.rowHeight)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous))
-            .hoverEffect(.lift)
+        if isCurrent {
+            PhotoView(source: source)
+                .aspectRatio(1, contentMode: .fit)
+                .containerRelativeFrame(.horizontal, count: 6, span: 5, spacing: Theme.gap)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius + 4, style: .continuous))
+                .hoverEffect(.lift)
+        } else {
+            PhotoView(source: source)
+                .frame(width: Theme.rowHeight, height: Theme.rowHeight)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous))
+                .hoverEffect(.lift)
+        }
     }
 
-    /// A dashed, empty card for this week. Tapping it opens the Post tab.
-    private var postCard: some View {
+    /// This week, before you post: one card that opens the posting flow.
+    private var postInvite: some View {
         Button {
             Haptics.light()
-            model.requestedTab = .post
+            model.compose.present(.pick)
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 6]))
-                    .foregroundStyle(.tertiary)
-                VStack(spacing: 10) {
-                    Image(systemName: "plus")
-                        .font(.title2.weight(.medium))
+            HStack(spacing: 16) {
+                PhotoStackIcon(size: 44)
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Post your week")
-                        .font(.subheadline.weight(.medium))
+                        .font(.headline)
+                        .lineLimit(1)
+                    Text("Pick the photos from \(model.clock.rangeLabel(weekStart: week.weekStart)).")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
-                .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Image(systemName: Icon.chevronRight)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
-            .frame(width: Theme.rowHeight, height: Theme.rowHeight)
+            .padding(16)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Post your week")

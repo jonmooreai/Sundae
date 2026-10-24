@@ -3,6 +3,16 @@ import Observation
 import PhotosUI
 import SwiftUI
 
+/// Where the full-screen posting flow starts.
+enum ComposeEntry: Equatable {
+    /// The Sunday greeting: "It's Sunday. Post your week."
+    case prompt
+    /// Straight to the photo grid.
+    case pick
+    /// Editing a dump that already exists.
+    case arrange
+}
+
 /// The draft lives here, not in a view, so it survives tab switches, the iPad sidebar,
 /// and the iPhone Duo unfolding mid-compose.
 @MainActor
@@ -10,6 +20,11 @@ import SwiftUI
 final class ComposeStore {
     private let api: any SundaeAPI
     private let pendingStore = PendingPostStore()
+    private static let promptDismissedKey = "sundayPrompt.dismissedWeekStart"
+
+    /// Whether the full-screen posting flow is on screen, and where it opened.
+    private(set) var isPresented = false
+    var entry: ComposeEntry = .pick
 
     var draft = DumpDraft()
     /// Set when a post could not reach the server and is waiting for the network.
@@ -20,7 +35,8 @@ final class ComposeStore {
     private(set) var isImporting = false
     private(set) var isSaving = false
     private(set) var taggable: [User] = []
-    private(set) var importedAssetIDs: Set<String> = []
+    /// Camera roll asset id to the draft photo it became, so the picker can show and undo selections.
+    private(set) var libraryPhotoIDs: [String: ID] = [:]
     var justPosted = false
     var errorMessage: String?
 
@@ -40,10 +56,42 @@ final class ComposeStore {
         draft = DumpDraft()
         existingDump = nil
         loadedWeekStart = nil
-        importedAssetIDs = []
+        libraryPhotoIDs = [:]
         justPosted = false
         queuedOffline = false
         errorMessage = nil
+    }
+
+    // MARK: - Presentation
+
+    func present(_ entry: ComposeEntry) {
+        self.entry = entry
+        isPresented = true
+    }
+
+    func dismiss() {
+        isPresented = false
+    }
+
+    /// The Sunday prompt shows once per Sunday until the user posts or waves it away.
+    func shouldShowPrompt(weekStart: Date) -> Bool {
+        guard !hasPosted, !queuedOffline else { return false }
+        let dismissed = UserDefaults.standard.object(forKey: Self.promptDismissedKey) as? Date
+        return dismissed != weekStart
+    }
+
+    func dismissPrompt(for weekStart: Date) {
+        UserDefaults.standard.set(weekStart, forKey: Self.promptDismissedKey)
+    }
+
+    /// Asset ids of the draft's camera roll photos, in draft order.
+    var libraryAssetIDsInOrder: [String] {
+        draft.photos.compactMap { photo in libraryPhotoIDs.first { $0.value == photo.id }?.key }
+    }
+
+    /// Draft photos that did not come from the camera roll grid (an existing dump, the Photos picker, a drop).
+    var nonLibraryPhotoCount: Int {
+        draft.photos.count - libraryPhotoIDs.count
     }
 
     /// Loads this week's dump if one exists. An in-progress draft is never thrown away.
@@ -88,12 +136,26 @@ final class ComposeStore {
     }
 
     func importLibraryData(_ data: Data, assetID: String, takenAt: Date?) async {
-        guard !importedAssetIDs.contains(assetID), draft.canAddMore else { return }
+        guard libraryPhotoIDs[assetID] == nil, draft.canAddMore else { return }
         isImporting = true
         defer { isImporting = false }
         guard let processed = await PhotoProcessor.processInBackground(data) else { return }
-        importedAssetIDs.insert(assetID)
-        append(processed, takenAt: takenAt)
+        let photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
+        libraryPhotoIDs[assetID] = photo.id
+        draft.photos.append(photo)
+    }
+
+    func removeLibraryAsset(_ assetID: String) {
+        guard let id = libraryPhotoIDs.removeValue(forKey: assetID) else { return }
+        draft.photos.removeAll { $0.id == id }
+    }
+
+    /// Default order is chronological. Photos without a date keep their place at the end.
+    func sortChronologically() {
+        let dated = draft.photos.filter { $0.takenAt != nil }.sorted { ($0.takenAt ?? .distantPast) < ($1.takenAt ?? .distantPast) }
+        guard !dated.isEmpty else { return }
+        let undated = draft.photos.filter { $0.takenAt == nil }
+        draft.photos = dated + undated
     }
 
     func append(_ processed: ProcessedPhoto, takenAt: Date?) {
@@ -109,6 +171,7 @@ final class ComposeStore {
 
     func remove(_ id: ID) {
         draft.photos.removeAll { $0.id == id }
+        libraryPhotoIDs = libraryPhotoIDs.filter { $0.value != id }
     }
 
     func move(from source: IndexSet, to destination: Int) {

@@ -1,0 +1,266 @@
+import SwiftUI
+import UIKit
+
+enum ComposeStep: Hashable {
+    case pick, arrange, caption, posted
+}
+
+/// The full-screen posting flow: greet (on Sunday open), pick, arrange and tag, caption, posted.
+/// Presented over the tab shell. The draft lives in `ComposeStore`, so closing keeps it.
+struct ComposeFlow: View {
+    @Environment(AppModel.self) private var model
+    @State private var path: [ComposeStep] = []
+    @State private var library = PhotoLibrary()
+
+    private var compose: ComposeStore { model.compose }
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            root
+                .navigationDestination(for: ComposeStep.self) { step in
+                    switch step {
+                    case .pick: PickPhotosStep(library: library, path: $path)
+                    case .arrange: ArrangeStep(library: library, path: $path)
+                    case .caption: CaptionStep(path: $path)
+                    case .posted: PostedStep(path: $path)
+                    }
+                }
+        }
+        .task {
+            await compose.load(weekStart: model.currentWeekStart)
+            library.refreshStatus()
+        }
+    }
+
+    @ViewBuilder
+    private var root: some View {
+        switch compose.entry {
+        case .prompt: SundayPromptStep(library: library, path: $path)
+        case .pick: PickPhotosStep(library: library, path: $path)
+        case .arrange: ArrangeStep(library: library, path: $path)
+        }
+    }
+}
+
+// MARK: - Shared pieces
+
+/// Bottom bar with a count on the left and the one primary action on the right.
+struct FlowBottomBar<Leading: View>: View {
+    let title: String
+    let isEnabled: Bool
+    let isLoading: Bool
+    let action: () -> Void
+    let leading: () -> Leading
+
+    init(title: String, isEnabled: Bool = true, isLoading: Bool = false,
+         action: @escaping () -> Void, @ViewBuilder leading: @escaping () -> Leading) {
+        self.title = title
+        self.isEnabled = isEnabled
+        self.isLoading = isLoading
+        self.action = action
+        self.leading = leading
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            leading()
+            Spacer(minLength: 0)
+            Button(action: action) {
+                ZStack {
+                    Text(title).opacity(isLoading ? 0 : 1)
+                    if isLoading { ProgressView().tint(.white) }
+                }
+                .font(.body.weight(.semibold))
+                .frame(minWidth: 110)
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!isEnabled || isLoading)
+            .accessibilityIdentifier("flow-primary")
+        }
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.vertical, 12)
+        .background(.bar)
+    }
+}
+
+/// Small thumbnails of the draft, used on the caption and posted steps.
+struct DraftThumbnailStrip: View {
+    let photos: [DraftPhoto]
+    var side: CGFloat = 56
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 6) {
+                ForEach(photos) { photo in
+                    PhotoView(source: photo.source)
+                        .frame(width: side, height: side)
+                        .clipShape(RoundedRectangle(cornerRadius: side * 0.2, style: .continuous))
+                }
+            }
+            .padding(.horizontal, Theme.pagePadding)
+        }
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+    }
+}
+
+/// Three real photos from the week, fanned like prints on a table.
+struct FannedPhotos: View {
+    let images: [UIImage]
+
+    var body: some View {
+        ZStack {
+            ForEach(Array(images.prefix(3).enumerated()), id: \.offset) { index, image in
+                let angle: Double = [-9, 7, -2][index % 3]
+                let offset: CGFloat = [-34, 34, 0][index % 3]
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 150, height: 190)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .black.opacity(0.14), radius: 12, y: 6)
+                    .rotationEffect(.degrees(angle))
+                    .offset(x: offset, y: CGFloat(index) * -4)
+            }
+        }
+        .frame(height: 220)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Sunday prompt
+
+/// The first thing you see on Sunday: a greeting and one button.
+struct SundayPromptStep: View {
+    @Environment(AppModel.self) private var model
+    let library: PhotoLibrary
+    @Binding var path: [ComposeStep]
+    @State private var previews: [UIImage] = []
+
+    private var compose: ComposeStore { model.compose }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                SundaeMark(size: 28)
+                Spacer()
+                Button("Not now") { notNow() }
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 20)
+
+            VStack(alignment: .leading, spacing: 18) {
+                Text(dateLine)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                Text("It's Sunday.\nPost your week.")
+                    .font(Theme.display(44))
+                    .lineSpacing(2)
+                Text("Pick the photos, tag who was there, and say how it went. You have until midnight.")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Spacer(minLength: 20)
+
+            Group {
+                if previews.isEmpty {
+                    PhotoStackIcon(size: 96)
+                } else {
+                    FannedPhotos(images: previews)
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            Spacer(minLength: 20)
+
+            PrimaryButton(title: "Pick your photos") {
+                Haptics.light()
+                path.append(.pick)
+            }
+            Button("Show me the feed first") { notNow() }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 14)
+        }
+        .padding(24)
+        .background(Theme.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .task { await loadPreviews() }
+    }
+
+    private var dateLine: String {
+        model.clock.now().formatted(.dateTime.weekday(.wide).month(.wide).day())
+    }
+
+    private func notNow() {
+        compose.dismissPrompt(for: model.currentWeekStart)
+        compose.dismiss()
+    }
+
+    /// Real photos from this week when the library is already allowed. Never asks here.
+    private func loadPreviews() async {
+        guard library.isAuthorized else { return }
+        library.loadAssets(from: model.currentWeekStart, to: model.clock.weekEnd(containing: model.currentWeekStart))
+        var images: [UIImage] = []
+        for asset in library.assets.suffix(3) {
+            if let image = await library.thumbnail(for: asset, side: 300) { images.append(image) }
+        }
+        previews = images
+    }
+}
+
+// MARK: - Posted
+
+struct PostedStep: View {
+    @Environment(AppModel.self) private var model
+    @Binding var path: [ComposeStep]
+    @State private var appeared = false
+
+    private var compose: ComposeStore { model.compose }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Spacer()
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 76))
+                .foregroundStyle(Color.accentColor)
+                .symbolEffect(.bounce, value: appeared)
+            Text(compose.queuedOffline ? "Saved for when you're back online." : "Your week is up.")
+                .font(Theme.display(36))
+                .multilineTextAlignment(.center)
+            Text(compose.queuedOffline
+                 ? "It posts the moment the network returns, as long as it is still Sunday."
+                 : "Edit any time until midnight. Tagged friends get a request to approve.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+            DraftThumbnailStrip(photos: compose.draft.photos, side: 64)
+                .padding(.top, 8)
+            Spacer()
+            PrimaryButton(title: "See the feed") {
+                compose.dismiss()
+                model.requestedTab = .feed
+            }
+            Button("Edit") {
+                compose.entry = .arrange
+                path = []
+            }
+            .font(.subheadline.weight(.medium))
+            .padding(.top, 10)
+        }
+        .padding(24)
+        .background(Theme.background)
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .onAppear { appeared = true }
+    }
+}

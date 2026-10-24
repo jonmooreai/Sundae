@@ -33,16 +33,19 @@ struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @State private var tab: SundayTab = .feed
 
+    private var compose: ComposeStore { model.compose }
+
     var body: some View {
         TabView(selection: $tab) {
             Tab("Feed", systemImage: Icon.feed, value: .feed) {
-                FeedScreen(onPost: { tab = .post })
+                FeedScreen(onPost: openCompose)
             }
             Tab("Search", systemImage: Icon.search, value: .search, role: .search) {
                 SearchScreen()
             }
             Tab("Post", systemImage: Icon.post, value: .post) {
-                ComposeScreen()
+                // Never shown: selecting this tab opens the full-screen flow instead.
+                Theme.background.ignoresSafeArea()
             }
             Tab("Approvals", systemImage: Icon.approvals, value: .approvals) {
                 ApprovalsScreen()
@@ -53,11 +56,33 @@ struct SundayShell: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        .onChange(of: tab) { previous, current in
+            // The Post tab behaves like a button: open the flow and stay where you were.
+            if current == .post {
+                tab = previous == .post ? .feed : previous
+                openCompose()
+            }
+        }
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
             tab = requested
             model.requestedTab = nil
         }
+        .fullScreenCover(isPresented: Binding(get: { compose.isPresented }, set: { if !$0 { compose.dismiss() } })) {
+            ComposeFlow()
+                .environment(model)
+        }
+        .task {
+            // Sunday opens on the prompt until you have posted, so you can start right away.
+            await compose.load(weekStart: model.currentWeekStart)
+            if compose.shouldShowPrompt(weekStart: model.currentWeekStart) {
+                compose.present(.prompt)
+            }
+        }
+    }
+
+    private func openCompose() {
+        compose.present(compose.hasPosted ? .arrange : .pick)
     }
 }
 
