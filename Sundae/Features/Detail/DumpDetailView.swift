@@ -121,6 +121,9 @@ struct DumpDetailView: View {
                 }
                 .accessibilityLabel("Comments")
                 .disabled(!dump.commentsEnabled)
+                if isOwn {
+                    PostcardShareIcon(dump: dump)
+                }
                 LikesLabel(dump: dump, meID: model.currentUser?.id)
                 Spacer(minLength: 8)
                 if dump.photos.count > 1 {
@@ -135,8 +138,6 @@ struct DumpDetailView: View {
 
             if isOwn {
                 SealRow(dump: dump)
-                PostcardShareButton(dump: dump, line: dump.caption.isEmpty ? nil : dump.caption)
-                    .padding(.top, 4)
             }
         }
         .padding(.horizontal, Theme.pagePadding)
