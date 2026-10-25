@@ -34,7 +34,8 @@ https://developer.apple.com/account under Membership details.
 That's it. Say so in the Claude session and the build will be started for you, or start it
 yourself: Actions → TestFlight → Run workflow. Any push to the `testflight` branch starts one
 too (`git push -f origin HEAD:testflight`), as does a commit whose message contains
-`[testflight]`; the latter skips the ordinary CI build for that commit.
+`[testflight]`; the latter skips the ordinary CI build for that commit. A head commit whose
+message contains `[skip ci]` never starts a build on any branch; push a new commit in that case.
 
 ## What the first run does
 
