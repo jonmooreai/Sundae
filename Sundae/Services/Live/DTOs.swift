@@ -173,6 +173,7 @@ enum DTO {
         struct Place: Decodable {
             let name: String
             let walkMinutes: Int?
+            let distanceMeters: Double?
             let latitude: Double?
             let longitude: Double?
         }
@@ -188,6 +189,7 @@ enum DTO {
                        text: text, reason: reason, categories: [.local],
                        timeOfDay: Suggestion.TimeOfDay(rawValue: timeOfDay) ?? .any,
                        place: place.map { Suggestion.Place(name: $0.name, walkMinutes: $0.walkMinutes,
+                                                           distanceMeters: $0.distanceMeters,
                                                            latitude: $0.latitude, longitude: $0.longitude) })
         }
     }

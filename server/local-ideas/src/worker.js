@@ -8,10 +8,10 @@
 import { generate } from './ideas.js';
 import { bounds, encode, isValidCell } from './geohash.js';
 
-/** Shards are five-character cells (about 5 km square). */
-const SHARD_PRECISION = 5;
-/** Degrees of padding around the cell so a walk across a shard edge still finds places. */
-const PADDING_DEGREES = 0.012;
+/** Shards are four-character cells (about 39 km by 20 km), since ideas reach twenty miles. */
+const SHARD_PRECISION = 4;
+/** Degrees of padding around the cell: twenty miles, give or take the latitude. */
+const PADDING_DEGREES = 0.3;
 /** How far the caller's date may be from the server's, in days. Covers every time zone. */
 const DAY_TOLERANCE = 2;
 
@@ -46,7 +46,7 @@ export default {
   },
 };
 
-/** Every shard the padded cell touches, usually one, at most four. */
+/** The cell's own shard plus every shard the padded box touches, at most five. */
 export function shardsFor(cell) {
   const b = bounds(cell);
   const corners = [
@@ -55,7 +55,8 @@ export function shardsFor(cell) {
     [b.latHigh + PADDING_DEGREES, b.lonLow - PADDING_DEGREES],
     [b.latHigh + PADDING_DEGREES, b.lonHigh + PADDING_DEGREES],
   ];
-  return [...new Set(corners.map(([lat, lon]) => encode(lat, lon, SHARD_PRECISION)))];
+  const own = cell.slice(0, SHARD_PRECISION);
+  return [...new Set([own, ...corners.map(([lat, lon]) => encode(lat, lon, SHARD_PRECISION))])];
 }
 
 async function loadPlaces(cell, env) {

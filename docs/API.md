@@ -127,7 +127,8 @@ profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week
 week:     {week_start, dump?, tagged: [{photo, from: user, tag}]}
 tag_request: {tag, photo, tagger: user, week_start}
 local_idea: {id, text, reason, time_of_day: morning|afternoon|evening|any,
-           place?: {name, walk_minutes?, latitude?, longitude?}}   the place's position, never the caller's
+           place?: {name, walk_minutes?, distance_meters?, latitude?, longitude?}}
+                                                   the place's position, never the caller's; walk_minutes only within a walk
 ```
 
 `liked_by` carries names for the "Liked by Maya and Theo" line; the client switches to a count past 10.

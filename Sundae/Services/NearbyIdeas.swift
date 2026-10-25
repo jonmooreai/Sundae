@@ -2,12 +2,15 @@ import CoreLocation
 import Foundation
 import MapKit
 
-/// Real places from Apple Maps, picked on the phone. One points-of-interest search around the
-/// middle of the cell: Apple sees a neighborhood, never the fix, and Sundae's servers see
-/// nothing at all. The pick is seeded by cell and day, so the three ideas hold still all day.
+/// Real places from Apple Maps, picked on the phone. Two points-of-interest searches around the
+/// middle of the cell, one walkable and one within twenty miles: Apple sees a neighborhood,
+/// never the fix, and Sundae's servers see nothing at all. The pick is seeded by cell and day,
+/// so the three ideas hold still all day.
 enum NearbyIdeas {
-    /// How far people will walk for an idea: the cell plus a fifteen-minute walk.
-    static let radiusMeters: CLLocationDistance = 1200
+    /// A walk: the cell plus about fifteen minutes on foot.
+    static let walkMeters: CLLocationDistance = 1200
+    /// Worth the trip: twenty miles.
+    static let radiusMeters: CLLocationDistance = 32187
 
     /// Meters per minute on foot, for the "12 min walk" line.
     private static let walkPace = 80.0
@@ -36,7 +39,12 @@ enum NearbyIdeas {
 
     static func ideas(cell: String, day: Date, calendar: Calendar) async throws -> [Suggestion] {
         guard let origin = Geohash.center(cell) else { throw Failure.badCell }
-        let places = try await search(around: origin)
+        // Maps returns a couple of dozen results per search, so the wide one alone would skip
+        // the corner café. Ask twice and merge.
+        async let near = search(around: origin, radius: walkMeters)
+        async let far = search(around: origin, radius: radiusMeters)
+        var seen = Set<String>()
+        let places = try await (near + far).filter { seen.insert($0.id).inserted }
         return pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar)
     }
 
@@ -57,9 +65,9 @@ enum NearbyIdeas {
         }
     }
 
-    private static func search(around origin: (latitude: Double, longitude: Double)) async throws -> [Place] {
+    private static func search(around origin: (latitude: Double, longitude: Double), radius: CLLocationDistance) async throws -> [Place] {
         let center = CLLocationCoordinate2D(latitude: origin.latitude, longitude: origin.longitude)
-        let request = MKLocalPointsOfInterestRequest(center: center, radius: radiusMeters)
+        let request = MKLocalPointsOfInterestRequest(center: center, radius: radius)
         request.pointOfInterestFilter = MKPointOfInterestFilter(including: [
             .cafe, .bakery, .park, .nationalPark, .landmark, .library, .museum, .foodMarket, .hiking, .beach, .marina,
         ])
@@ -103,9 +111,11 @@ enum NearbyIdeas {
         for (index, slot) in slots.enumerated() {
             let candidates = nearby.filter { !usedPlaces.contains($0.place.id) && !(lines[$0.place.theme]?[slot] ?? []).isEmpty }
             guard !candidates.isEmpty else { continue }
-            // A theme not used yet today, among the closest few, then chance.
+            // A theme not used yet today, then chance. The morning idea stays close to home;
+            // the afternoon and evening may be worth the drive.
             let fresh = candidates.filter { !usedThemes.contains($0.place.theme) }
-            let pool = Array((fresh.isEmpty ? candidates : fresh).prefix(8))
+            let ranked = fresh.isEmpty ? candidates : fresh
+            let pool = index == 0 ? Array(ranked.prefix(8)) : ranked
             let choice = pool[Int(random.next() % UInt64(pool.count))]
             guard let variants = lines[choice.place.theme]?[slot], !variants.isEmpty else { continue }
             let line = variants[Int(random.next() % UInt64(variants.count))]
@@ -118,7 +128,8 @@ enum NearbyIdeas {
                 reason: line.reason.replacingOccurrences(of: "{name}", with: choice.place.name),
                 categories: [.local], timeOfDay: slot,
                 place: Suggestion.Place(name: choice.place.name,
-                                        walkMinutes: max(1, Int((choice.meters / walkPace).rounded())),
+                                        walkMinutes: choice.meters <= walkMeters ? max(1, Int((choice.meters / walkPace).rounded())) : nil,
+                                        distanceMeters: choice.meters,
                                         latitude: choice.place.latitude, longitude: choice.place.longitude)))
         }
         return ideas

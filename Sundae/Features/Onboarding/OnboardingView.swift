@@ -293,7 +293,7 @@ struct OnboardingView: View {
     /// on; iOS itself asks on the first weekday look. Saying no changes nothing and costs nothing.
     private var ideas: some View {
         VStack(alignment: .leading, spacing: 20) {
-            heading("Ideas near you?", "Monday to Saturday, Sundae gives you one thing worth doing. With your location, it can be one thing a short walk away.")
+            heading("Ideas near you?", "Monday to Saturday, Sundae gives you one thing worth doing. With your location, it can be one thing nearby, or one worth the drive.")
 
             VStack(alignment: .leading, spacing: 16) {
                 valueRow(Glyph.calendar, "Weekdays only",

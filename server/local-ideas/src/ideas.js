@@ -3,8 +3,10 @@
 
 import { center, distanceMeters } from './geohash.js';
 
-/** How far people will walk for an idea, in meters: the cell plus a fifteen-minute walk. */
-export const RADIUS_METERS = 1200;
+/** A walk, in meters: the cell plus a fifteen-minute walk. */
+export const WALK_METERS = 1200;
+/** Worth the trip: twenty miles. */
+export const RADIUS_METERS = 32187;
 
 /** Meters per minute on foot, for the "about 8 minutes" line. */
 const WALK_PACE = 80;
@@ -203,9 +205,11 @@ export function generate(cell, day, places) {
   SLOTS.forEach((slot, index) => {
     const candidates = nearby.filter((p) => !usedPlaces.has(p.id) && THEMES[p.category][slot]?.length);
     if (!candidates.length) return;
-    // A category not used yet today, among the closest few, then chance.
+    // A category not used yet today, then chance. The morning idea stays close to home; the
+    // afternoon and evening may be worth the drive.
     const fresh = candidates.filter((p) => !usedCategories.has(p.category));
-    const pool = (fresh.length ? fresh : candidates).slice(0, 8);
+    const ranked = fresh.length ? fresh : candidates;
+    const pool = index === 0 ? ranked.slice(0, 8) : ranked;
     const place = pool[Math.floor(rng() * pool.length)];
     const variants = THEMES[place.category][slot];
     const variant = variants[Math.floor(rng() * variants.length)];
@@ -219,7 +223,8 @@ export function generate(cell, day, places) {
       time_of_day: slot,
       place: {
         name: place.name,
-        walk_minutes: Math.max(1, Math.round(place.meters / WALK_PACE)),
+        walk_minutes: place.meters <= WALK_METERS ? Math.max(1, Math.round(place.meters / WALK_PACE)) : null,
+        distance_meters: Math.round(place.meters),
         latitude: Math.round(place.lat * 1e5) / 1e5,
         longitude: Math.round(place.lon * 1e5) / 1e5,
       },
