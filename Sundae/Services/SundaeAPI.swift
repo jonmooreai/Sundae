@@ -11,6 +11,8 @@ protocol SundaeAPI: Sendable {
     func restoreSession(token: String) async throws -> User?
     func signOut() async throws
     func updateProfile(name: String, username: String, bio: String) async throws -> User
+    /// Replaces the profile photo with an already re-encoded image.
+    func updateAvatar(_ photo: ProcessedPhoto) async throws -> User
     func accountSettings() async throws -> AccountSettings
     func updateAccountSettings(_ settings: AccountSettings) async throws
     func deleteAccount() async throws

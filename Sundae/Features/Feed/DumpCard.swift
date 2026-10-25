@@ -16,21 +16,16 @@ struct DumpCard: View {
         VStack(alignment: .leading, spacing: 10) {
             header.padding(.horizontal, Theme.pagePadding)
 
-            PhotoCarousel(photos: dump.photos, index: $page) { position in
+            PhotoCarousel(photos: dump.photos, index: $page, onTap: { position in
                 guard dump.photos.indices.contains(position) else { return }
                 open(.dump(dump.id, photo: dump.photos[position].id))
-            }
-            .onTapGesture(count: 2) { if !dump.likedByMe { onLike() } }
+            }, onDoubleTap: {
+                if !dump.likedByMe { onLike() }
+            })
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 18) {
-                    Button(action: onLike) {
-                        Icon(Glyph.heart, weight: dump.likedByMe ? .fill : .regular, size: 26)
-                            .foregroundStyle(dump.likedByMe ? Color.accentColor : .primary)
-                            .contentTransition(.symbolEffect(.replace))
-                            .symbolEffect(.bounce, value: dump.likedByMe)
-                    }
-                    .accessibilityLabel(dump.likedByMe ? "Unlike" : "Like")
+                    LikeButton(liked: dump.likedByMe, action: onLike)
 
                     Button { open(.dump(dump.id)) } label: {
                         Icon(Glyph.comment, size: 26)
@@ -39,7 +34,9 @@ struct DumpCard: View {
                     .accessibilityLabel("Comments")
                     .disabled(!dump.commentsEnabled)
 
-                    Spacer()
+                    LikesLabel(dump: dump, meID: model.currentUser?.id)
+
+                    Spacer(minLength: 8)
                     if dump.photos.count > 1 {
                         Text("\(page + 1) of \(dump.photos.count)")
                             .font(.caption)
@@ -58,8 +55,6 @@ struct DumpCard: View {
                 if !dump.taggedUsers.isEmpty {
                     taggedLine
                 }
-
-                LikesLabel(dump: dump, meID: model.currentUser?.id)
 
                 if dump.commentCount > 0 {
                     Button {

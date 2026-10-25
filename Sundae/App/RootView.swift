@@ -33,18 +33,22 @@ enum SundayTab: Hashable, CaseIterable {
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @State private var tab: SundayTab = .feed
+    @State private var barHeight: CGFloat = 50
 
     private var compose: ComposeStore { model.compose }
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab(value: .feed) { FeedScreen(onPost: openCompose).toolbar(.hidden, for: .tabBar) }
-            Tab(value: .search) { SearchScreen().toolbar(.hidden, for: .tabBar) }
-            Tab(value: .approvals) { ApprovalsScreen().toolbar(.hidden, for: .tabBar) }
-            Tab(value: .profile) { ProfileScreen().toolbar(.hidden, for: .tabBar) }
+            Tab(value: .feed) { FeedScreen(onPost: openCompose).tabPage(barHeight: barHeight) }
+            Tab(value: .search) { SearchScreen().tabPage(barHeight: barHeight) }
+            Tab(value: .approvals) { ApprovalsScreen().tabPage(barHeight: barHeight) }
+            Tab(value: .profile) { ProfileScreen().tabPage(barHeight: barHeight) }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // The bar is an overlay and every page reserves its height. A safe area inset on the
+        // TabView itself never reached the pages, so a screen's bottom composer sat under the bar.
+        .overlay(alignment: .bottom) {
             SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
         }
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
@@ -66,6 +70,14 @@ struct SundayShell: View {
 
     private func openCompose() {
         compose.present(compose.hasPosted ? .arrange : .pick)
+    }
+}
+
+private extension View {
+    /// A tab page under our own bar: the system bar hidden, and room kept for ours.
+    func tabPage(barHeight: CGFloat) -> some View {
+        toolbar(.hidden, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: barHeight) }
     }
 }
 

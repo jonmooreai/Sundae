@@ -60,6 +60,16 @@ actor LiveSundaeAPI: SundaeAPI {
         return user.model
     }
 
+    func updateAvatar(_ photo: ProcessedPhoto) async throws -> User {
+        let ticket: DTO.UploadTicket = try await client.post(
+            "v1/uploads",
+            body: DTO.UploadRequest(contentType: "image/jpeg", byteSize: photo.data.count, width: photo.width, height: photo.height)
+        )
+        try await uploader.upload(photo.data, to: ticket.url, headers: ticket.headers ?? [:], contentType: "image/jpeg")
+        let user: DTO.User = try await client.patch("v1/me", body: DTO.AvatarUpdate(avatarUploadId: ticket.uploadId))
+        return user.model
+    }
+
     func accountSettings() async throws -> AccountSettings {
         let settings: DTO.Settings = try await client.get("v1/me/settings")
         return settings.model

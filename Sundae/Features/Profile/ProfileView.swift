@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import PhosphorSwift
 
 /// The Profile tab: your own archive.
@@ -254,16 +255,45 @@ struct EditProfileSheet: View {
     @State private var username = ""
     @State private var bio = ""
     @State private var error: String?
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var isUploadingAvatar = false
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Name", text: $name)
-                TextField("Username", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                TextField("Bio", text: $bio, axis: .vertical).lineLimit(2...4)
-                if let error { Text(error).foregroundStyle(.secondary) }
+                Section {
+                    VStack(spacing: 10) {
+                        AvatarView(user: model.currentUser ?? user, size: 96)
+                            .overlay {
+                                if isUploadingAvatar {
+                                    ZStack {
+                                        Color.black.opacity(0.35)
+                                        ProgressView().tint(.white)
+                                    }
+                                    .clipShape(Circle())
+                                }
+                            }
+                        PhotosPicker(selection: $avatarItem, matching: .images) {
+                            Text("Change photo")
+                        }
+                        .buttonStyle(.pill(.secondary, size: .small))
+                        .disabled(isUploadingAvatar)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .listRowBackground(Color.clear)
+                }
+                Section {
+                    TextField("Name", text: $name)
+                    TextField("Username", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    TextField("Bio", text: $bio, axis: .vertical).lineLimit(2...4)
+                    if let error { Text(error).foregroundStyle(.secondary) }
+                }
+            }
+            .onChange(of: avatarItem) { _, item in
+                guard let item else { return }
+                Task { await changeAvatar(item) }
             }
             .navigationTitle("Edit profile")
             .navigationBarTitleDisplayMode(.inline)
@@ -288,6 +318,21 @@ struct EditProfileSheet: View {
                 username = user.username
                 bio = user.bio
             }
+        }
+    }
+
+    /// The new photo goes up as soon as it is picked; the avatar above shows it the moment it lands.
+    private func changeAvatar(_ item: PhotosPickerItem) async {
+        isUploadingAvatar = true
+        defer {
+            isUploadingAvatar = false
+            avatarItem = nil
+        }
+        do {
+            guard let data = try await item.loadTransferable(type: Data.self) else { throw SundaeError.invalidPhoto }
+            try await model.updateAvatar(data)
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }

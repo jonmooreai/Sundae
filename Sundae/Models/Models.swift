@@ -237,11 +237,13 @@ enum SundaeError: LocalizedError, Equatable {
     case notFound
     case offline
     case invalidCode
+    case invalidPhoto
 
     var errorDescription: String? {
         switch self {
         case .sundayClosed: "The feed opens on Sunday."
         case .dumpLocked: "This week's dump is locked. Sunday is over."
+        case .invalidPhoto: "That image could not be read."
         case .tooManyPhotos: "A dump holds up to \(DumpDraft.maxPhotos) photos."
         case .tooManyTags: "You can tag up to \(DumpDraft.maxTagsPerPhoto) people per photo."
         case .captionTooLong: "Captions are up to \(DumpDraft.maxCaptionLength) characters."

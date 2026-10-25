@@ -96,7 +96,9 @@ struct DumpDetailView: View {
         }
         .padding(.horizontal, Theme.pagePadding)
 
-        PhotoCarousel(photos: dump.photos, index: $page)
+        PhotoCarousel(photos: dump.photos, index: $page, onDoubleTap: {
+            if !dump.likedByMe { Task { await toggleLike() } }
+        })
             .focusable()
             .onKeyPress(.leftArrow) { page = max(0, page - 1); return .handled }
             .onKeyPress(.rightArrow) { page = min(dump.photos.count - 1, page + 1); return .handled }
@@ -105,14 +107,11 @@ struct DumpDetailView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 18) {
-                Button {
+                LikeButton(liked: dump.likedByMe) {
                     Task { await toggleLike() }
-                } label: {
-                    Icon(Glyph.heart, weight: dump.likedByMe ? .fill : .regular, size: 26)
-                        .foregroundStyle(dump.likedByMe ? Color.accentColor : .primary)
                 }
-                .accessibilityLabel(dump.likedByMe ? "Unlike" : "Like")
-                Spacer()
+                LikesLabel(dump: dump, meID: model.currentUser?.id)
+                Spacer(minLength: 8)
                 if dump.photos.count > 1 {
                     Text("\(page + 1) of \(dump.photos.count)").font(.caption).foregroundStyle(.secondary).monospacedDigit()
                 }
@@ -136,8 +135,6 @@ struct DumpDetailView: View {
                 }
                 .font(.subheadline)
             }
-
-            LikesLabel(dump: dump, meID: model.currentUser?.id)
         }
         .padding(.horizontal, Theme.pagePadding)
 

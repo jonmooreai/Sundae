@@ -7,7 +7,7 @@ struct SundaeMark: View {
     var size: CGFloat = 32
     var lineWidth: CGFloat = 1.6
 
-    private let cherry = Color(red: 0.86, green: 0.26, blue: 0.30)
+    private let cherry = Theme.cherry
 
     var body: some View {
         Canvas { context, canvasSize in

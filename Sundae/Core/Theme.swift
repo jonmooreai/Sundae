@@ -23,6 +23,8 @@ enum Theme {
     /// Neutral fill for secondary buttons.
     static var fill: Color { dynamic(light: 0.93, dark: 0.17) }
     static var hairline: Color { dynamic(light: 0.88, dark: 0.22) }
+    /// The cherry on the sundae, and the color of a like. The only red in the app.
+    static let cherry = Color(red: 0.86, green: 0.26, blue: 0.30)
 
     private static func dynamic(light: CGFloat, dark: CGFloat) -> Color {
         Color(uiColor: UIColor { trait in

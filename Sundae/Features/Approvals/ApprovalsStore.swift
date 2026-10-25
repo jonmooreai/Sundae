@@ -33,8 +33,18 @@ final class ApprovalsStore {
 
     /// Approve adds the photo to the user's week. Decline removes the tag everywhere, quietly.
     func respond(_ request: TagRequest, approve: Bool) async {
-        requests.removeAll { $0.id == request.id }
+        dismiss(request)
         Haptics.light()
+        await submit(request, approve: approve)
+    }
+
+    /// Takes the request off the list. Wrap in `withAnimation` to let the card leave gracefully.
+    func dismiss(_ request: TagRequest) {
+        requests.removeAll { $0.id == request.id }
+    }
+
+    /// Tells the server; on failure the list reloads so nothing is silently lost.
+    func submit(_ request: TagRequest, approve: Bool) async {
         do {
             try await api.respondToTag(id: request.tag.id, approve: approve)
         } catch {

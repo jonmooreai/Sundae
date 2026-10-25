@@ -115,6 +115,17 @@ actor MockSundaeAPI: SundaeAPI {
         return me
     }
 
+    func updateAvatar(_ photo: ProcessedPhoto) async throws -> User {
+        var me = try requireSignedIn()
+        me.avatar = .data(photo.data)
+        users[me.id] = me
+        for (id, var dump) in dumps where dump.author.id == me.id {
+            dump.author = me
+            dumps[id] = dump
+        }
+        return me
+    }
+
     func accountSettings() async throws -> AccountSettings {
         _ = try requireSignedIn()
         return settings

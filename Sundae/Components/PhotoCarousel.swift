@@ -10,8 +10,11 @@ struct PhotoCarousel: View {
     var cornerRadius: CGFloat = 0
     /// Called with the photo's position when a photo is tapped. Without it a tap toggles the tag chips.
     var onTap: ((Int) -> Void)? = nil
+    /// Called on a double tap, which also pops a heart over the photo.
+    var onDoubleTap: (() -> Void)? = nil
 
     @State private var showTags = false
+    @State private var burst = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var aspect: CGFloat {
@@ -50,10 +53,31 @@ struct PhotoCarousel: View {
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .contentShape(Rectangle())
-        .onTapGesture {
-            if let onTap { onTap(index) } else { toggleTags() }
+        .overlay {
+            if burst > 0 {
+                HeartBurst().id(burst).transition(.opacity)
+            }
         }
+        // Declared first so two quick taps read as one double tap, not two singles.
+        .onTapGesture(count: 2) { doubleTap() }
+        .onTapGesture { singleTap() }
         .transaction { t in if reduceMotion { t.animation = nil } }
+    }
+
+    private func singleTap() {
+        if let onTap { onTap(index) } else { toggleTags() }
+    }
+
+    private func doubleTap() {
+        guard let onDoubleTap else { singleTap(); return }
+        onDoubleTap()
+        burst += 1
+        let shown = burst
+        Task {
+            try? await Task.sleep(for: .milliseconds(700))
+            guard burst == shown else { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { burst = 0 }
+        }
     }
 
     private func toggleTags() {
@@ -66,6 +90,23 @@ struct PhotoCarousel: View {
         let names = photo.visibleTags.map(\.taggedUser.displayName)
         if !names.isEmpty { parts.append("with " + ListFormatter.localizedString(byJoining: names)) }
         return parts.joined(separator: ". ")
+    }
+}
+
+/// The big heart that pops over a photo on a double tap.
+private struct HeartBurst: View {
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Icon(Glyph.heart, weight: .fill, size: 96)
+            .foregroundStyle(.white)
+            .shadow(color: .black.opacity(0.25), radius: 14, y: 4)
+            .scaleEffect(shown ? 1 : 0.5)
+            .opacity(shown ? 1 : 0)
+            .onAppear { withAnimation(reduceMotion ? nil : .bouncy(duration: 0.4)) { shown = true } }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

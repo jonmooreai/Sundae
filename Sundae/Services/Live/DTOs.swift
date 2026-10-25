@@ -247,6 +247,10 @@ enum DTO {
         let bio: String
     }
 
+    struct AvatarUpdate: Encodable {
+        let avatarUploadId: String
+    }
+
     struct UploadRequest: Encodable {
         let contentType: String
         let byteSize: Int

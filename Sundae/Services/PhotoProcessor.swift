@@ -18,13 +18,13 @@ enum PhotoProcessor {
     static let maxLongEdge = 2048
     static let jpegQuality: CGFloat = 0.85
 
-    nonisolated static func process(_ data: Data) -> ProcessedPhoto? {
+    nonisolated static func process(_ data: Data, maxPixelSize: Int = maxLongEdge) -> ProcessedPhoto? {
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxLongEdge,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
         ]
         guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
         let image = UIImage(cgImage: cgImage)
@@ -33,7 +33,30 @@ enum PhotoProcessor {
     }
 
     /// Runs the re-encode off the main actor.
-    static func processInBackground(_ data: Data) async -> ProcessedPhoto? {
-        await Task.detached(priority: .userInitiated) { process(data) }.value
+    static func processInBackground(_ data: Data, maxPixelSize: Int = maxLongEdge) async -> ProcessedPhoto? {
+        await Task.detached(priority: .userInitiated) { process(data, maxPixelSize: maxPixelSize) }.value
+    }
+
+    /// Profile photos: the center square, 600 px.
+    nonisolated static func processAvatar(_ data: Data) -> ProcessedPhoto? {
+        guard let photo = process(data, maxPixelSize: 1200), let image = UIImage(data: photo.data) else { return nil }
+        let side = min(image.size.width, image.size.height)
+        let origin = CGPoint(x: (image.size.width - side) / 2, y: (image.size.height - side) / 2)
+        guard let cg = image.cgImage?.cropping(to: CGRect(origin: origin, size: CGSize(width: side, height: side))) else { return nil }
+        let target = CGFloat(600)
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: target, height: target), format: {
+            let f = UIGraphicsImageRendererFormat.default()
+            f.scale = 1
+            return f
+        }())
+        let square = renderer.image { _ in
+            UIImage(cgImage: cg).draw(in: CGRect(x: 0, y: 0, width: target, height: target))
+        }
+        guard let jpeg = square.jpegData(compressionQuality: jpegQuality) else { return nil }
+        return ProcessedPhoto(data: jpeg, width: Int(target), height: Int(target))
+    }
+
+    static func processAvatarInBackground(_ data: Data) async -> ProcessedPhoto? {
+        await Task.detached(priority: .userInitiated) { processAvatar(data) }.value
     }
 }

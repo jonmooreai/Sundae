@@ -17,6 +17,9 @@ struct ApprovalsScreen: View {
 struct ApprovalsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Requests whose card is showing its "added to your week" moment before it leaves.
+    @State private var approved: Set<ID> = []
 
     private var store: ApprovalsStore { model.approvals }
 
@@ -33,12 +36,10 @@ struct ApprovalsView: View {
                     ErrorBanner(message: message).padding(.horizontal, Theme.pagePadding)
                 }
                 ForEach(store.requests) { request in
-                    TagRequestCard(request: request) { approve in
-                        Task {
-                            await store.respond(request, approve: approve)
-                            await model.refreshPendingCount()
-                        }
+                    TagRequestCard(request: request, isApproved: approved.contains(request.id)) { approve in
+                        respond(to: request, approve: approve)
                     }
+                    .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 0.94).combined(with: .opacity)))
                 }
                 if store.hasLoaded && store.requests.isEmpty {
                     VStack(spacing: 10) {
@@ -61,12 +62,33 @@ struct ApprovalsView: View {
         .task { await store.load() }
         .refreshable { await store.load() }
     }
+
+    /// Approve stamps the photo and shows the chip it will wear on your week, then the card
+    /// folds away. Decline just folds away.
+    private func respond(to request: TagRequest, approve: Bool) {
+        if approve {
+            Haptics.success()
+            withAnimation(reduceMotion ? nil : .bouncy(duration: 0.5)) { _ = approved.insert(request.id) }
+        } else {
+            Haptics.light()
+        }
+        Task {
+            if approve, !reduceMotion {
+                try? await Task.sleep(for: .milliseconds(1100))
+            }
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.4)) { store.dismiss(request) }
+            approved.remove(request.id)
+            await store.submit(request, approve: approve)
+            await model.refreshPendingCount()
+        }
+    }
 }
 
 /// Flat: who tagged you, the photo, one line of explanation, two pills.
 struct TagRequestCard: View {
     @Environment(AppModel.self) private var model
     let request: TagRequest
+    var isApproved = false
     let respond: (Bool) -> Void
 
     var body: some View {
@@ -87,22 +109,69 @@ struct TagRequestCard: View {
 
             PhotoView(source: request.photo.source)
                 .aspectRatio(min(max(request.photo.aspectRatio, 0.8), 1.5), contentMode: .fit)
+                .overlay {
+                    if isApproved {
+                        ZStack {
+                            Color.black.opacity(0.22)
+                            ApprovedStamp()
+                        }
+                        .transition(.opacity)
+                    }
+                }
+                .overlay(alignment: .bottomLeading) {
+                    if isApproved {
+                        AttributionChip(user: request.tagger)
+                            .padding(6)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
                 .clipShape(RoundedRectangle(cornerRadius: Theme.rowRadius + 4, style: .continuous))
                 .padding(.horizontal, Theme.pagePadding)
                 .accessibilityLabel(request.photo.altText ?? "Photo from \(request.tagger.firstName)'s week")
 
-            Text("Approve to add it to your week as \u{201C}from \(request.tagger.firstName)\u{201D}. You can remove it later.")
+            Text(isApproved
+                 ? "Added to your week."
+                 : "Approve to add it to your week as \u{201C}from \(request.tagger.firstName)\u{201D}. You can remove it later.")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isApproved ? Color.accentColor : .secondary)
                 .padding(.horizontal, Theme.pagePadding)
 
-            HStack(spacing: 10) {
-                Button("Decline") { respond(false) }
-                    .buttonStyle(.pill(.secondary, fullWidth: true))
-                Button("Approve") { respond(true) }
-                    .buttonStyle(.pill(.primary, fullWidth: true))
+            if isApproved {
+                HStack(spacing: 6) {
+                    Icon(Glyph.done, weight: .bold, size: 16)
+                    Text("Added to your week")
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .transition(.opacity)
+            } else {
+                HStack(spacing: 10) {
+                    Button("Decline") { respond(false) }
+                        .buttonStyle(.pill(.secondary, fullWidth: true))
+                    Button("Approve") { respond(true) }
+                        .buttonStyle(.pill(.primary, fullWidth: true))
+                }
+                .padding(.horizontal, Theme.pagePadding)
             }
-            .padding(.horizontal, Theme.pagePadding)
         }
+    }
+}
+
+/// The check that lands on a photo the moment you approve it.
+private struct ApprovedStamp: View {
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Icon(Glyph.done, weight: .bold, size: 34)
+            .foregroundStyle(.white)
+            .frame(width: 72, height: 72)
+            .background(Color.accentColor, in: Circle())
+            .scaleEffect(shown ? 1 : 0.4)
+            .opacity(shown ? 1 : 0)
+            .onAppear { withAnimation(reduceMotion ? nil : .bouncy(duration: 0.45, extraBounce: 0.15)) { shown = true } }
+            .accessibilityLabel("Approved")
     }
 }

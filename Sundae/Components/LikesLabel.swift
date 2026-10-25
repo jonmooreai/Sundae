@@ -1,6 +1,7 @@
 import SwiftUI
+import PhosphorSwift
 
-/// Likes show as names of friends, not a total, until the count passes 10.
+/// Likes show as names of friends, not a total, until the count passes 10. One line.
 struct LikesLabel: View {
     let dump: Dump
     var meID: ID? = nil
@@ -10,6 +11,8 @@ struct LikesLabel: View {
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
     }
 
@@ -20,5 +23,33 @@ struct LikesLabel: View {
         var names = likers.filter { $0.id != meID }.map(\.firstName)
         if dump.likedByMe { names.insert("you", at: 0) }
         return "Liked by " + ListFormatter.localizedString(byJoining: names)
+    }
+}
+
+/// The heart. Cherry red once liked, with a small bounce as it turns on.
+struct LikeButton: View {
+    let liked: Bool
+    var size: CGFloat = 26
+    let action: () -> Void
+
+    @State private var pulse = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            Icon(Glyph.heart, weight: liked ? .fill : .regular, size: size)
+                .foregroundStyle(liked ? Theme.cherry : .primary)
+                .scaleEffect(pulse ? 1.3 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(liked ? "Unlike" : "Like")
+        .onChange(of: liked) { _, now in
+            guard now, !reduceMotion else { return }
+            withAnimation(.bouncy(duration: 0.3)) { pulse = true }
+            Task {
+                try? await Task.sleep(for: .milliseconds(160))
+                withAnimation(.bouncy(duration: 0.3)) { pulse = false }
+            }
+        }
     }
 }

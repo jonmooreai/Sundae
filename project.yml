@@ -40,6 +40,10 @@ targets:
       path: Sundae/Info.plist
       properties:
         CFBundleDisplayName: Sundae
+        # XcodeGen would write literal 1 / 1.0 here; these follow the build settings instead,
+        # so CI can stamp each TestFlight build with its run number.
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         SundaeAPIBaseURL: ""
         # Set to group.com.jonmooreai.sundae (here and in the widget) once the App ID has the app group.
         SundaeAppGroup: ""
@@ -86,6 +90,8 @@ targets:
       path: SundaeWidget/Info.plist
       properties:
         CFBundleDisplayName: Sundae
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
         SundaeAppGroup: ""
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
