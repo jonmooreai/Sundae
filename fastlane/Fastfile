@@ -4,11 +4,12 @@
 #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT   App Store Connect API key (the .p8 contents, raw or base64)
 #   APPLE_TEAM_ID                                 Developer team id
 #   MATCH_PASSWORD                                Passphrase that encrypts the signing certificate
-#   GITHUB_TOKEN                                  Lets match keep the encrypted certificate on a branch of this repo
+#   MATCH_GIT_URL, MATCH_GIT_TOKEN                The private repository holding the encrypted certificate, and a
+#                                                 fine-grained token with Contents read and write on it
 # Optional:
 #   BUNDLE_ID (default com.jonmooreai.sundae), BUILD_NUMBER (default GITHUB_RUN_NUMBER)
-#   MATCH_GIT_URL, MATCH_GIT_BRANCH, MATCH_GIT_TOKEN or MATCH_GIT_BASIC_AUTHORIZATION to keep the
-#   certificate somewhere other than the "certificates" branch of this repository
+#   MATCH_GIT_BRANCH (default certificates), MATCH_GIT_BASIC_AUTHORIZATION in place of the token;
+#   without MATCH_GIT_URL the lane falls back to a branch of this repository using GITHUB_TOKEN
 
 require "base64"
 require "spaceship"

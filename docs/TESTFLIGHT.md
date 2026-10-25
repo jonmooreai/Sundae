@@ -27,7 +27,12 @@ release), Primary language English (U.S.), Bundle ID "Sundae - com.jonmooreai.su
 browser. If the bundle id is not in the list yet, run the workflow once first: it registers the
 App IDs and then stops with this same instruction.
 
-**3. Add five secrets** at https://github.com/jonmooreai/Sundae/settings/secrets/actions
+**3. A private repository for the signing certificate**, for example `sundae-private`, and a
+fine-grained personal access token (github.com → Settings → Developer settings → Fine-grained
+tokens) with Contents: Read and write on that one repository. The certificate is stored there
+encrypted, so this repository can be public.
+
+**4. Add seven secrets** at https://github.com/jonmooreai/Sundae/settings/secrets/actions
 (New repository secret, one at a time):
 
 | Secret | Value |
@@ -37,6 +42,8 @@ App IDs and then stops with this same instruction.
 | `ASC_ISSUER_ID` | The Issuer ID |
 | `ASC_KEY_CONTENT` | The contents of the `.p8` file, pasted as text (open it in any text editor) |
 | `MATCH_PASSWORD` | Any passphrase you choose; it encrypts the signing certificate |
+| `MATCH_GIT_URL` | `https://github.com/jonmooreai/sundae-private.git` |
+| `MATCH_GIT_TOKEN` | The fine-grained token from step 3 |
 
 That's it. Say so in the Claude session and the build will be started for you, or start it
 yourself: Actions → TestFlight → Run workflow. Any push to the `testflight` branch starts one
@@ -48,9 +55,9 @@ message contains `[skip ci]` never starts a build on any branch; push a new comm
 
 Registers the App IDs `com.jonmooreai.sundae` and `com.jonmooreai.sundae.widget`, checks that
 the app record exists, creates a distribution certificate and provisioning profiles, then builds
-and uploads. The certificate is stored encrypted with your `MATCH_PASSWORD` on a `certificates`
-branch of this private repository, so later runs reuse it. Later runs take about 15 minutes and
-only build and upload.
+and uploads. The certificate is stored encrypted with your `MATCH_PASSWORD` on the
+`certificates` branch of the private certificates repository, so later runs reuse it. Later
+runs take about 15 minutes and only build and upload.
 
 ## After the first upload
 
