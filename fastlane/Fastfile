@@ -20,7 +20,7 @@ platform :ios do
   lane :beta do
     bundle_id = ENV["BUNDLE_ID"] || "com.jonmooreai.sundae"
     widget_id = "#{bundle_id}.widget"
-    team_id = ENV["APPLE_TEAM_ID"]
+    team_id = ENV["APPLE_TEAM_ID"].to_s.strip
 
     setup_ci
 
@@ -80,6 +80,14 @@ platform :ios do
       git_branch: ENV["MATCH_GIT_BRANCH"] || "certificates",
       git_basic_authorization: git_auth
     )
+
+    # The API key belongs to exactly one team, and the profile match just made carries its id.
+    # Trust that over the APPLE_TEAM_ID secret: Xcode only finds the profile under the right team.
+    profile_team = ENV["sigh_#{bundle_id}_appstore_team-id"].to_s.strip
+    if !profile_team.empty? && profile_team != team_id
+      UI.important("APPLE_TEAM_ID is '#{team_id}' but the signing profile belongs to team '#{profile_team}'; using '#{profile_team}'")
+      team_id = profile_team
+    end
 
     update_code_signing_settings(
       path: "Sundae.xcodeproj",
