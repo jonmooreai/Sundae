@@ -62,7 +62,7 @@ struct CommentsSheet: View {
     // MARK: - Pieces
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .center, spacing: 8) {
             Text("Comments").font(Theme.display(26))
             if !comments.isEmpty {
                 Text("\(comments.count)")
@@ -186,20 +186,6 @@ struct CommentsSheet: View {
 
     private var composer: some View {
         VStack(spacing: 6) {
-            if let editing {
-                HStack(spacing: 6) {
-                    Icon(Glyph.altText, size: 14).foregroundStyle(.secondary)
-                    Text("Editing your comment").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("Cancel") { cancelEditing() }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
-                }
-                .padding(.horizontal, 4)
-                .transition(.opacity)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Editing your comment from \(relativeTime(editing.createdAt, now: model.clock.now()))")
-            }
             HStack(spacing: 10) {
                 if let me = model.currentUser {
                     AvatarView(user: me, size: 34)
@@ -211,6 +197,19 @@ struct CommentsSheet: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 9)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                if editing != nil {
+                    Button {
+                        cancelEditing()
+                    } label: {
+                        Icon(Glyph.close, weight: .bold, size: 16)
+                            .foregroundStyle(.primary)
+                            .frame(width: 36, height: 36)
+                            .background(Theme.fill, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Cancel editing")
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                }
                 Button {
                     Task { await submit() }
                 } label: {
