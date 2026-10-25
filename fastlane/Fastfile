@@ -11,6 +11,7 @@
 #   certificate somewhere other than the "certificates" branch of this repository
 
 require "base64"
+require "spaceship"
 
 default_platform(:ios)
 
@@ -32,38 +33,46 @@ platform :ios do
       is_key_content_base64: !key_content.start_with?("-----BEGIN")
     )
 
-    # App IDs and the App Store Connect record. Idempotent: skips what already exists.
-    # App names are unique across the whole App Store, so fall back to longer names if "Sundae" is taken.
-    # The name can be changed in App Store Connect at any time before release.
-    base_name = ENV["APP_NAME"] || "Sundae"
-    candidates = [base_name, "#{base_name} Photo Dump", "#{base_name} #{team_id}"]
-    created = false
-    candidates.each do |app_name|
-      begin
-        produce(
-          api_key: api_key,
-          app_identifier: bundle_id,
-          app_name: app_name,
-          language: "en-US",
-          sku: "sundae-ios",
-          team_id: team_id
-        )
-        created = true
-        break
-      rescue => e
-        raise e unless e.message =~ /already|in use|not available|been used/i
-        UI.important("App name '#{app_name}' is taken, trying the next one")
+    # App IDs and the App Store Connect record, through Spaceship with the API key. The produce
+    # action only signs in with an Apple ID, which a runner cannot do. Idempotent: skips what exists.
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(hash: api_key)
+
+    [[bundle_id, "Sundae"], [widget_id, "Sundae Widget"]].each do |identifier, name|
+      if Spaceship::ConnectAPI::BundleId.find(identifier)
+        UI.message("App ID #{identifier} already exists")
+      else
+        UI.message("Creating App ID #{identifier}")
+        Spaceship::ConnectAPI::BundleId.create(name: name, platform: "IOS", identifier: identifier)
       end
     end
-    UI.user_error!("Could not create the App Store Connect record; every app name was taken") unless created
 
-    produce(
-      api_key: api_key,
-      app_identifier: widget_id,
-      app_name: "#{base_name} Widget",
-      skip_itc: true,
-      team_id: team_id
-    )
+    # App names are unique across the whole App Store, so fall back to longer names if "Sundae" is
+    # taken. The name can be changed in App Store Connect at any time before release.
+    base_name = ENV["APP_NAME"] || "Sundae"
+    if Spaceship::ConnectAPI::App.find(bundle_id)
+      UI.message("App Store Connect record for #{bundle_id} already exists")
+    else
+      candidates = [base_name, "#{base_name} Photo Dump", "#{base_name} #{team_id}"]
+      created = candidates.any? do |app_name|
+        begin
+          UI.message("Creating App Store Connect record '#{app_name}'")
+          Spaceship::ConnectAPI::App.create(
+            name: app_name,
+            version_string: "1.0",
+            sku: "sundae-ios",
+            primary_locale: "en-US",
+            bundle_id: bundle_id,
+            platforms: ["IOS"]
+          )
+          true
+        rescue => e
+          raise e unless e.message =~ /already|in use|not available|been used/i
+          UI.important("App name '#{app_name}' is taken, trying the next one")
+          false
+        end
+      end
+      UI.user_error!("Could not create the App Store Connect record; every app name was taken") unless created
+    end
 
     # The distribution certificate and profiles, created on first run and kept encrypted on a
     # branch of this repository (private). GitHub ignores the username when the password is a token.
