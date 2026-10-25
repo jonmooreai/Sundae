@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PhosphorSwift
 
 /// The screen people see most. One suggestion, large type, nowhere else to go.
@@ -7,9 +8,12 @@ struct WeekdayView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
+    @State private var showLocationConsent = false
 
     private var store: WeekdayStore { model.weekday }
+    private var nearby: LocalIdeasStore { model.localIdeas }
 
     var body: some View {
         ZStack {
@@ -29,10 +33,29 @@ struct WeekdayView: View {
             }
             .padding(24)
         }
-        .task { store.load(clock: model.clock) }
+        .task {
+            store.load(clock: model.clock)
+            await nearby.refresh(clock: model.clock)
+        }
         .onChange(of: model.phase) { _, _ in store.load(clock: model.clock) }
+        .onChange(of: nearby.ideas) { _, ideas in
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.35)) {
+                store.applyLocal(ideas, clock: model.clock)
+            }
+        }
+        .onChange(of: nearby.isEnabled) { _, enabled in
+            // Turned on from Settings, or here. The first look may show the iOS prompt.
+            if enabled { Task { await nearby.refresh(clock: model.clock) } }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Coming back later in the day, maybe somewhere else.
+            if phase == .active { Task { await nearby.refresh(clock: model.clock) } }
+        }
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
+        }
+        .sheet(isPresented: $showLocationConsent) {
+            LocationConsentSheet { nearby.enable() }
         }
     }
 
@@ -62,7 +85,7 @@ struct WeekdayView: View {
                             .foregroundStyle(Color.accentColor)
                             .transition(.scale.combined(with: .opacity))
                     }
-                    Text(store.justMarkedDone ? "That's one for Sunday" : dayLine)
+                    Text(store.justMarkedDone ? "That's one for Sunday" : dayLine(nearby: suggestion.isNearby))
                         .textCase(.uppercase)
                         .tracking(0.8)
                 }
@@ -77,6 +100,9 @@ struct WeekdayView: View {
                 Text(store.justMarkedDone ? "Take the photos. Sunday will remind you." : suggestion.reason)
                     .font(.title3)
                     .foregroundStyle(.secondary)
+                if let place = suggestion.place, !store.justMarkedDone {
+                    placeLine(place)
+                }
             }
             .animation(.default, value: store.justMarkedDone)
             .id(suggestion.id)
@@ -89,6 +115,28 @@ struct WeekdayView: View {
             Text("Go make something worth posting.")
                 .font(Theme.display(36))
         }
+    }
+
+    /// The place behind a nearby idea: a pin, how far on foot, and a way to get there.
+    private func placeLine(_ place: Suggestion.Place) -> some View {
+        HStack(spacing: 8) {
+            Icon(Glyph.pin, weight: .fill, size: 15)
+                .foregroundStyle(Color.accentColor)
+            Text(walkLine(place))
+                .foregroundStyle(.secondary)
+            if let url = place.mapsURL {
+                Link("Open in Maps", destination: url)
+                    .fontWeight(.medium)
+            }
+        }
+        .font(.subheadline)
+        .transition(.opacity)
+    }
+
+    private func walkLine(_ place: Suggestion.Place) -> String {
+        guard let minutes = place.walkMinutes else { return place.name }
+        let walk = minutes <= 1 ? "a minute away on foot" : "about \(minutes) minutes away on foot"
+        return "\(place.name), \(walk)"
     }
 
     private var actions: some View {
@@ -122,21 +170,75 @@ struct WeekdayView: View {
             Text(countdown)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            nearbyFooter
         }
+        .animation(.default, value: nearby.status)
+    }
+
+    /// One quiet line about ideas near you: the offer when it is off, the state when it is on.
+    @ViewBuilder
+    private var nearbyFooter: some View {
+        switch nearby.status {
+        case .off:
+            Button {
+                showLocationConsent = true
+            } label: {
+                HStack(spacing: 6) {
+                    Icon(Glyph.pin, size: 15)
+                    Text("Make today's idea local")
+                }
+            }
+            .buttonStyle(.pill(.quiet, size: .small))
+            .padding(.top, 2)
+        case .waitingForPermission:
+            footnote("iOS will ask about location the first time Sundae looks.")
+        case .denied:
+            VStack(spacing: 4) {
+                footnote("Location is off for Sundae in iOS Settings, so today's idea is general.")
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    Link("Open iOS Settings", destination: url)
+                        .font(.footnote.weight(.medium))
+                }
+            }
+        case .locating, .loading:
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Finding ideas near you")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        case .ready(let count):
+            if count == 0 {
+                footnote("Nothing near you yet, so today's idea is general.")
+            }
+        case .offline:
+            footnote("Offline, so today's idea is general.")
+        case .failed:
+            footnote("Couldn't see what's near you today, so the idea is general.")
+        }
+    }
+
+    private func footnote(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
     }
 
     // MARK: - Copy
 
-    private var dayLine: String {
+    private func dayLine(nearby: Bool) -> String {
         let now = model.clock.now()
         let slot = Suggestion.TimeOfDay.current(for: now, calendar: model.clock.calendar)
         let day = model.clock.weekdayName(now)
+        let line: String
         switch slot {
-        case .morning: return "An idea for \(day) morning"
-        case .afternoon: return "An idea for \(day) afternoon"
-        case .evening: return "An idea for \(day) evening"
-        case .any: return "An idea for \(day)"
+        case .morning: line = "An idea for \(day) morning"
+        case .afternoon: line = "An idea for \(day) afternoon"
+        case .evening: line = "An idea for \(day) evening"
+        case .any: line = "An idea for \(day)"
         }
+        return nearby ? "\(line), near you" : line
     }
 
     private var countdown: String {
@@ -152,5 +254,4 @@ struct WeekdayView: View {
             }
         }
     }
-
 }

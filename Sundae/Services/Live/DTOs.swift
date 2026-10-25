@@ -168,6 +168,30 @@ enum DTO {
         }
     }
 
+    /// One idea near the caller's area. `id` is `local:<day>:<n>` and never names the area.
+    struct LocalIdea: Decodable {
+        struct Place: Decodable {
+            let name: String
+            let walkMinutes: Int?
+            let latitude: Double?
+            let longitude: Double?
+        }
+
+        let id: String
+        let text: String
+        let reason: String
+        let timeOfDay: String
+        let place: Place?
+
+        var model: Suggestion {
+            Suggestion(id: id.hasPrefix(Suggestion.nearbyPrefix) ? id : Suggestion.nearbyPrefix + id,
+                       text: text, reason: reason, categories: [.local],
+                       timeOfDay: Suggestion.TimeOfDay(rawValue: timeOfDay) ?? .any,
+                       place: place.map { Suggestion.Place(name: $0.name, walkMinutes: $0.walkMinutes,
+                                                           latitude: $0.latitude, longitude: $0.longitude) })
+        }
+    }
+
     struct Settings: Codable {
         var isPublic: Bool
         var autoApproveUserIds: [String]

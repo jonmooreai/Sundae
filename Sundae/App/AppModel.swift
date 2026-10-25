@@ -48,6 +48,7 @@ final class AppModel {
     let compose: ComposeStore
     let approvals: ApprovalsStore
     let weekday: WeekdayStore
+    let localIdeas: LocalIdeasStore
     let network = NetworkMonitor()
 
     /// True when running against the in-memory mock instead of a server.
@@ -94,6 +95,7 @@ final class AppModel {
         self.compose = ComposeStore(api: api)
         self.approvals = ApprovalsStore(api: api)
         self.weekday = WeekdayStore(api: api, catalog: catalog)
+        self.localIdeas = LocalIdeasStore(api: api)
     }
 
     // MARK: - Lifecycle
@@ -199,6 +201,7 @@ final class AppModel {
     }
 
     func signOut() async {
+        localIdeas.disable()
         try? await api.signOut()
         Keychain.delete(Keys.session)
         cacheUser(nil)
@@ -209,6 +212,7 @@ final class AppModel {
     }
 
     func deleteAccount() async {
+        localIdeas.disable()
         try? await api.deleteAccount()
         await signOut()
     }

@@ -12,6 +12,8 @@ final class WeekdayStore {
     private(set) var current: Suggestion?
     /// Suggestion id to the day it was marked done, this week only.
     private(set) var done: [String: Date] = [:]
+    /// Today's ideas for the user's area, when they asked for them. Preferred over the catalog.
+    private(set) var local: [Suggestion] = []
     var justMarkedDone = false
 
     init(api: any SundaeAPI, catalog: SuggestionCatalog) {
@@ -28,9 +30,13 @@ final class WeekdayStore {
         let now = clock.now()
         let weekStart = clock.weekStart()
         done = shared.doneSuggestions().filter { $0.value >= weekStart }
-        if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar),
-           let suggestion = catalog.suggestion(id: id) {
+        shared.setDoneLocalSuggestions(shared.doneLocalSuggestions().filter { done[$0.id] != nil })
+        local = clock.isSunday() ? [] : (shared.localIdeas(on: now, calendar: clock.calendar) ?? [])
+        if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar), let suggestion = resolve(id) {
             current = suggestion
+        } else if let nearby = preferredLocal(for: now, calendar: clock.calendar) {
+            current = nearby
+            shared.setCurrentSuggestion(id: nearby.id, on: now)
         } else {
             current = catalog.suggestion(forDay: now, calendar: clock.calendar)
             if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
@@ -38,9 +44,41 @@ final class WeekdayStore {
         justMarkedDone = false
     }
 
+    /// Today's nearby ideas arrived or changed. They take over only from the automatic pick:
+    /// a suggestion the user shuffled to or finished stays put.
+    func applyLocal(_ ideas: [Suggestion], clock: SundayClock) {
+        local = ideas
+        let now = clock.now()
+        guard let current else {
+            load(clock: clock)
+            return
+        }
+        let automatic = catalog.suggestion(forDay: now, calendar: clock.calendar)
+        if ideas.isEmpty {
+            // Turned off, or a quiet area. A nearby idea that was showing gives way to the catalog.
+            if current.isNearby, !isCurrentDone, let automatic {
+                self.current = automatic
+                shared.setCurrentSuggestion(id: automatic.id, on: now)
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            return
+        }
+        guard !current.isNearby, !isCurrentDone, current.id == automatic?.id,
+              let nearby = preferredLocal(for: now, calendar: clock.calendar) else { return }
+        self.current = nearby
+        shared.setCurrentSuggestion(id: nearby.id, on: now)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     func shuffle(clock: SundayClock) {
         let now = clock.now()
-        current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: Set(done.keys))
+        let openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil }
+        // Half the time a nearby idea, while any are left; the catalog otherwise.
+        if let nearby = openLocal.randomElement(), Bool.random() {
+            current = nearby
+        } else {
+            current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: Set(done.keys))
+        }
         if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
         justMarkedDone = false
         WidgetCenter.shared.reloadAllTimelines()
@@ -51,8 +89,14 @@ final class WeekdayStore {
         let now = clock.now()
         done[current.id] = now
         shared.setDoneSuggestions(done)
+        if current.isNearby {
+            var kept = shared.doneLocalSuggestions().filter { $0.id != current.id }
+            kept.append(current)
+            shared.setDoneLocalSuggestions(kept)
+        }
         justMarkedDone = true
         Haptics.light()
+        // A nearby idea's id names the day and a slot, nothing about where. Safe to send with the account.
         try? await api.markSuggestionDone(id: current.id, on: now)
         WidgetCenter.shared.reloadAllTimelines()
     }
@@ -62,7 +106,21 @@ final class WeekdayStore {
         let weekStart = clock.weekStart()
         return shared.doneSuggestions()
             .filter { $0.value >= weekStart }
-            .compactMap { id, day in catalog.suggestion(id: id).map { (suggestion: $0, day: day) } }
+            .compactMap { id, day in resolve(id).map { (suggestion: $0, day: day) } }
             .sorted { $0.day < $1.day }
+    }
+
+    /// First nearby idea for this part of the day, else any nearby idea, skipping finished ones.
+    private func preferredLocal(for date: Date, calendar: Calendar) -> Suggestion? {
+        let slot = Suggestion.TimeOfDay.current(for: date, calendar: calendar)
+        let open = local.filter { done[$0.id] == nil }
+        return open.first { $0.timeOfDay == slot || $0.timeOfDay == .any } ?? open.first
+    }
+
+    /// Today's nearby ideas, then the catalog, then nearby ideas finished earlier in the week.
+    private func resolve(_ id: String) -> Suggestion? {
+        local.first { $0.id == id }
+            ?? catalog.suggestion(id: id)
+            ?? shared.doneLocalSuggestions().first { $0.id == id }
     }
 }

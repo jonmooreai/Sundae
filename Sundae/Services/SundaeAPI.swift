@@ -45,6 +45,12 @@ protocol SundaeAPI: Sendable {
     func contactsHashingKey() async throws -> ContactsHashingKey
     func matchContacts(hashes: [String], keyID: String) async throws -> [User]
 
+    // MARK: Weekdays only, anonymous
+    /// Ideas for a neighborhood-sized geohash cell on a given day. Sent without a bearer token on
+    /// purpose: the server cannot tie an area to an account, and every phone in the cell shares one
+    /// cached answer. The server answers `sunday_closed` when `day` is a Sunday.
+    func localIdeas(cell: String, day: Date) async throws -> [Suggestion]
+
     // MARK: Every day
     func pendingTagRequests() async throws -> [TagRequest]
     func respondToTag(id: ID, approve: Bool) async throws

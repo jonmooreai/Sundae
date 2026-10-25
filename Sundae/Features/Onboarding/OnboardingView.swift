@@ -436,41 +436,20 @@ private struct RiseIn: ViewModifier {
 /// Exactly what checking contacts does, before it does it. Plain words, two buttons.
 struct ContactsConsentSheet: View {
     let onAgree: () -> Void
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Check your contacts?")
-                .font(Theme.display(28))
-                .padding(.top, 24)
-            VStack(alignment: .leading, spacing: 12) {
-                point(Glyph.lock, "Phone numbers from your contacts are scrambled on this phone. The scrambled versions are compared with Sundae's and then thrown away.")
-                point(Glyph.person, "You see which of your contacts already have Sundae. They are not told you looked.")
-                point(Glyph.block, "Nobody is messaged, invited, or added. Your contacts are never stored.")
-            }
-            Spacer(minLength: 0)
-            PrimaryButton(title: "Check my contacts") {
-                onAgree()
-                dismiss()
-            }
-            Button("Not now") { dismiss() }
-                .buttonStyle(.pill(.quiet, fullWidth: true))
-        }
-        .padding(.horizontal, 24)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.background)
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(Theme.background)
-    }
-
-    private func point(_ glyph: Ph, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Icon(glyph, weight: .bold, size: 18)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 28)
-            Text(text).font(.subheadline)
-        }
+        ConsentSheet(
+            title: "Check your contacts?",
+            points: [
+                .init(glyph: Glyph.lock,
+                      text: "Phone numbers from your contacts are scrambled on this phone. The scrambled versions are compared with Sundae's and then thrown away."),
+                .init(glyph: Glyph.person,
+                      text: "You see which of your contacts already have Sundae. They are not told you looked."),
+                .init(glyph: Glyph.block,
+                      text: "Nobody is messaged, invited, or added. Your contacts are never stored."),
+            ],
+            agreeTitle: "Check my contacts",
+            onAgree: onAgree
+        )
     }
 }

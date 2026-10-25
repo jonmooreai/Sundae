@@ -91,6 +91,14 @@ Server rules: `week_start` must be the caller's current week and today must be S
 
 The server computes the same HMAC over its stored normalized numbers with that key, intersects in memory, and discards the uploaded hashes immediately. Nothing from the request is written to disk. A private set intersection protocol is the better design and is on the list for v1.1.
 
+## Ideas near you (opt in, weekdays only, anonymous)
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `ideas/local?cell=&day=` | `[local_idea]`, sent with **no** `Authorization` header; `sunday_closed` (423) when `day` is a Sunday |
+
+`cell` is a geohash of 5 or 6 characters computed on the phone (about 5 km or about 1 km across). The phone never sends coordinates, and the client sends this request without a bearer token so the server cannot tie an area to an account. The answer depends only on `(cell, day)` and comes back with `Cache-Control: public, max-age=86400`, so every phone in a cell shares one cached answer. The server must not log `cell` next to an IP address or any other identifier, and must not add per-caller content. Ideas carry `id: "local:YYYY-MM-DD:n"`, which names the day and a slot and nothing about where; the client sends that id to `me/suggestions/{id}/done` like any other. See `docs/LOCAL_IDEAS.md` for the design and `server/local-ideas/` for a reference implementation.
+
 ## Tags (every day)
 
 | Method | Path | Notes |
@@ -118,6 +126,8 @@ profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week
            follower_count?, following_count?}      counts only when relationship is "me"
 week:     {week_start, dump?, tagged: [{photo, from: user, tag}]}
 tag_request: {tag, photo, tagger: user, week_start}
+local_idea: {id, text, reason, time_of_day: morning|afternoon|evening|any,
+           place?: {name, walk_minutes?, latitude?, longitude?}}   the place's position, never the caller's
 ```
 
 `liked_by` carries names for the "Liked by Maya and Theo" line; the client switches to a count past 10.
