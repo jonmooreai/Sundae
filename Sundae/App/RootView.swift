@@ -51,6 +51,12 @@ struct SundayShell: View {
             SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
         }
+        .overlay(alignment: .top) {
+            Theme.background.opacity(0.94)
+                .frame(height: 0)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
+        }
         .filmGrain()
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }

@@ -112,7 +112,9 @@ private struct HeartBurst: View {
     }
 }
 
-/// The people in a photo, one chip each, rising from the badge one after another.
+/// The people in a photo, one chip each, fanning open above the badge: each chip swings up
+/// from the badge's corner with a little rotation, the nearest first, and settles one step
+/// further right than the one below it, like a hand of cards.
 struct TagChips: View {
     let tags: [Tag]
     var linksToProfiles = false
@@ -120,11 +122,17 @@ struct TagChips: View {
 
     var body: some View {
         ForEach(Array(tags.enumerated()), id: \.element.id) { position, tag in
+            // The last chip sits next to the badge; the first is at the top of the fan.
+            let rank = tags.count - 1 - position
             chip(tag)
+                .padding(.leading, CGFloat(rank) * 10)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .bottom).combined(with: .opacity)
-                        .animation(.bouncy(duration: 0.35).delay(Double(tags.count - 1 - position) * 0.05)),
-                    removal: .opacity.animation(.easeOut(duration: 0.12))))
+                    insertion: .modifier(active: FanStep(angle: -22, lift: 18 + CGFloat(rank) * 6, opacity: 0),
+                                         identity: FanStep(angle: 0, lift: 0, opacity: 1))
+                        .animation(.bouncy(duration: 0.45, extraBounce: 0.08).delay(Double(rank) * 0.06)),
+                    removal: .modifier(active: FanStep(angle: -12, lift: 10, opacity: 0),
+                                       identity: FanStep(angle: 0, lift: 0, opacity: 1))
+                        .animation(.easeIn(duration: 0.15))))
         }
     }
 
@@ -139,6 +147,20 @@ struct TagChips: View {
         } else {
             TagChip(tag: tag)
         }
+    }
+}
+
+/// One step of the fan: a chip pivots up from its bottom-left corner into place.
+private struct FanStep: ViewModifier {
+    let angle: Double
+    let lift: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.degrees(angle), anchor: .bottomLeading)
+            .offset(y: lift)
+            .opacity(opacity)
     }
 }
 

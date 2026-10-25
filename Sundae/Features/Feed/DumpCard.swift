@@ -11,6 +11,7 @@ struct DumpCard: View {
 
     @State private var page = 0
     @State private var reporting = false
+    @State private var showPeople = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -74,6 +75,12 @@ struct DumpCard: View {
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dump.id)
         }
+        .sheet(isPresented: $showPeople) {
+            TaggedPeopleSheet(users: dump.taggedUsers) { user in
+                showPeople = false
+                open(.profile(user.id))
+            }
+        }
     }
 
     private var header: some View {
@@ -125,26 +132,90 @@ struct DumpCard: View {
         }
     }
 
+    /// A few overlapping faces and "with Lena, Jon and 4 others". Tap for the whole list.
     private var taggedLine: some View {
         let users = dump.taggedUsers
-        return HStack(spacing: 0) {
-            Text("with ").foregroundStyle(.secondary)
+        return Button {
+            showPeople = true
+        } label: {
+            HStack(spacing: 8) {
+                FacePile(users: Array(users.prefix(3)))
+                (Text("with ").foregroundColor(.secondary) + Text(namesLine(users)).fontWeight(.medium))
+                    .font(.subheadline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("With " + ListFormatter.localizedString(byJoining: users.map(\.firstName)))
+    }
+
+    private func namesLine(_ users: [User]) -> String {
+        let names = users.map(\.firstName)
+        switch names.count {
+        case 0: return ""
+        case 1: return names[0]
+        case 2: return "\(names[0]) and \(names[1])"
+        case 3: return "\(names[0]), \(names[1]) and \(names[2])"
+        default: return "\(names[0]), \(names[1]) and \(names.count - 2) others"
+        }
+    }
+}
+
+/// Up to three faces overlapping, the first on top, each ringed in the page color.
+struct FacePile: View {
+    let users: [User]
+    var size: CGFloat = 22
+
+    var body: some View {
+        HStack(spacing: -(size * 0.32)) {
             ForEach(Array(users.enumerated()), id: \.element.id) { i, user in
-                Button {
-                    open(.profile(user.id))
-                } label: {
-                    HStack(spacing: 4) {
-                        AvatarView(user: user, size: 18)
-                        Text(user.firstName).fontWeight(.medium)
-                    }
-                }
-                .buttonStyle(.plain)
-                if i < users.count - 1 {
-                    Text(i == users.count - 2 ? " and " : ", ").foregroundStyle(.secondary)
-                }
+                AvatarView(user: user, size: size)
+                    .overlay { Circle().strokeBorder(Theme.background, lineWidth: 2) }
+                    .zIndex(Double(users.count - i))
             }
         }
-        .font(.subheadline)
-        .lineLimit(1)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Everyone tagged in a week, one row each. Tap a row to open the profile.
+struct TaggedPeopleSheet: View {
+    let users: [User]
+    let open: (User) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("With").font(Theme.display(26))
+                Spacer()
+                IconButton(glyph: Glyph.close, label: "Close", size: 20) { dismiss() }
+                    .padding(.trailing, -8)
+            }
+            .padding(.horizontal, Theme.pagePadding)
+            .padding(.top, 20)
+            .padding(.bottom, 8)
+            ScrollView {
+                VStack(spacing: 0) {
+                    ForEach(users) { user in
+                        Button {
+                            open(user)
+                        } label: {
+                            UserRow(user: user, subtitle: user.name)
+                                .padding(.horizontal, Theme.pagePadding)
+                                .padding(.vertical, 8)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.bottom, 24)
+            }
+        }
+        .background(Theme.background)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
