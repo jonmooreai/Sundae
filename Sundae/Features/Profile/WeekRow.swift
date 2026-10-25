@@ -119,7 +119,7 @@ struct WeekRow: View {
                     Text("Post your week")
                         .font(.headline)
                         .lineLimit(1)
-                    Text("Pick the photos from \(model.clock.rangeLabel(weekStart: week.weekStart)).")
+                    Text("Pick the photos from this week.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

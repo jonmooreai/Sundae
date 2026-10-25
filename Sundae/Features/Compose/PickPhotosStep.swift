@@ -28,12 +28,11 @@ struct PickPhotosStep: View {
     var body: some View {
         VStack(spacing: 0) {
             FlowHeader(title: "Pick your photos", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart),
-                       isRoot: path.isEmpty, onClose: { compose.dismiss() }) {
-                if library.isAuthorized {
-                    ChipPicker(options: [(Scope.week, "This week"), (Scope.all, "All")], selection: $scope)
-                }
-            }
+                       isRoot: path.isEmpty, onClose: { compose.dismiss() }) { EmptyView() }
             if library.isAuthorized {
+                ChipPicker(options: [(Scope.week, "This week"), (Scope.all, "All photos")], selection: $scope)
+                    .padding(.horizontal, Theme.pagePadding)
+                    .padding(.bottom, 8)
                 grid
             } else {
                 permission

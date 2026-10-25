@@ -136,9 +136,15 @@ final class ScreenshotTests: XCTestCase {
             snap(app, "06-compose-posted", settle: 2.5)
             app.buttons["See the feed"].tap()
         } else {
-            // Nothing to pick on this simulator: close the flow and carry on.
+            // Nothing to pick on this simulator: leave the flow and carry on to the feed.
             let close = app.buttons["Close"].firstMatch
-            if close.waitForExistence(timeout: 3) { close.tap() }
+            if close.waitForExistence(timeout: 2) {
+                close.tap()
+            } else {
+                back(app)
+                let later = app.buttons["Show me the feed first"].firstMatch
+                if later.waitForExistence(timeout: 3) { later.tap() }
+            }
         }
 
         XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))

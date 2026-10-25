@@ -85,6 +85,13 @@ jobs:
           [ -n "$APP" ] && xcrun simctl install "$IPHONE_UDID" "$APP" || true
           xcrun simctl privacy "$IPHONE_UDID" grant photos com.sundae.app || true
           xcrun simctl privacy "$IPHONE_UDID" grant contacts com.sundae.app || true
+          # A few real photos in the camera roll, dated today, so "this week" has something to pick.
+          mkdir -p seed-photos
+          for i in 1 2 3 4 5 6; do
+            curl -sL --max-time 20 -o "seed-photos/week-$i.jpg" "https://picsum.photos/seed/sundae-roll-$i/1200/900" || true
+          done
+          ls -la seed-photos || true
+          xcrun simctl addmedia "$IPHONE_UDID" seed-photos/*.jpg || true
           xcodebuild test-without-building \
             -project Sundae.xcodeproj -scheme Sundae \
             -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
