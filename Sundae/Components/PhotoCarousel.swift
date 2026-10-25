@@ -12,6 +12,10 @@ struct PhotoCarousel: View {
     var onTap: ((Int) -> Void)? = nil
     /// Called on a double tap, which also pops a heart over the photo.
     var onDoubleTap: (() -> Void)? = nil
+    /// What a tapped person chip does. Inside a navigation stack with Route destinations,
+    /// `tagsLinkToProfiles` pushes the profile instead.
+    var onTapTag: ((User) -> Void)? = nil
+    var tagsLinkToProfiles = false
 
     @State private var showTags = false
     @State private var burst = 0
@@ -27,18 +31,16 @@ struct PhotoCarousel: View {
                 ZStack(alignment: .bottomLeading) {
                     PhotoView(source: photo.source)
                     if !photo.visibleTags.isEmpty {
-                        Button(action: toggleTags) {
+                        // The badge stays put; the people fan out beside it.
+                        HStack(spacing: 6) {
+                            Button(action: toggleTags) { TagBadge(isOpen: showTags) }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
                             if showTags {
-                                TagChipRow(tags: photo.visibleTags)
-                                    .transition(.opacity)
-                            } else {
-                                TagBadge()
-                                    .transition(.opacity)
+                                TagChips(tags: photo.visibleTags, linksToProfiles: tagsLinkToProfiles, onTap: onTapTag)
                             }
                         }
-                        .buttonStyle(.plain)
                         .padding(10)
-                        .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
                     }
                 }
                 .tag(offset)
@@ -81,7 +83,7 @@ struct PhotoCarousel: View {
     }
 
     private func toggleTags() {
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { showTags.toggle() }
+        withAnimation(reduceMotion ? nil : .bouncy(duration: 0.35)) { showTags.toggle() }
     }
 
     private func accessibilityLabel(for photo: Photo, position: Int) -> String {
@@ -110,34 +112,65 @@ private struct HeartBurst: View {
     }
 }
 
-struct TagChipRow: View {
+/// The people in a photo, one chip each, sliding out from the badge one after another.
+struct TagChips: View {
     let tags: [Tag]
+    var linksToProfiles = false
+    var onTap: ((User) -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(tags) { tag in
-                HStack(spacing: 4) {
-                    Icon(Glyph.tag, size: 12)
-                    Text(tag.taggedUser.firstName)
-                    if tag.status == .pending {
-                        Text("pending").foregroundStyle(.secondary)
-                    }
-                }
-                .font(.caption.weight(.medium))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .background(.regularMaterial, in: Capsule())
-            }
+        ForEach(Array(tags.enumerated()), id: \.element.id) { position, tag in
+            chip(tag)
+                .transition(.asymmetric(
+                    insertion: .move(edge: .leading).combined(with: .opacity)
+                        .animation(.bouncy(duration: 0.35).delay(Double(position) * 0.05)),
+                    removal: .opacity.animation(.easeOut(duration: 0.12))))
+        }
+    }
+
+    @ViewBuilder
+    private func chip(_ tag: Tag) -> some View {
+        if linksToProfiles {
+            NavigationLink(value: Route.profile(tag.taggedUser.id)) { TagChip(tag: tag) }
+                .buttonStyle(.plain)
+        } else if let onTap {
+            Button { onTap(tag.taggedUser) } label: { TagChip(tag: tag) }
+                .buttonStyle(.plain)
+        } else {
+            TagChip(tag: tag)
         }
     }
 }
 
-/// A small floating mark in the corner of a photo that has people tagged in it.
-struct TagBadge: View {
-    var size: CGFloat = 26
+/// One person: their face and first name on a frosted capsule.
+struct TagChip: View {
+    let tag: Tag
 
     var body: some View {
-        Icon(Glyph.person, weight: .fill, size: size * 0.5)
+        HStack(spacing: 6) {
+            AvatarView(user: tag.taggedUser, size: 18)
+            Text(tag.taggedUser.firstName)
+            if tag.status == .pending {
+                Text("pending").foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption.weight(.medium))
+        .lineLimit(1)
+        .padding(.leading, 4)
+        .padding(.trailing, 9)
+        .padding(.vertical, 4)
+        .background(.regularMaterial, in: Capsule())
+        .accessibilityLabel(tag.taggedUser.displayName + (tag.status == .pending ? ", pending" : ""))
+    }
+}
+
+/// A small floating tag in the corner of a photo that has people in it. Tap it to see who.
+struct TagBadge: View {
+    var size: CGFloat = 26
+    var isOpen = false
+
+    var body: some View {
+        Icon(Glyph.tag, weight: isOpen ? .fill : .bold, size: size * 0.52)
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(Color.black.opacity(0.55), in: Circle())

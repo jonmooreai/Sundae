@@ -21,6 +21,8 @@ struct DumpCard: View {
                 open(.dump(dump.id, photo: dump.photos[position].id))
             }, onDoubleTap: {
                 if !dump.likedByMe { onLike() }
+            }, onTapTag: { user in
+                open(.profile(user.id))
             })
 
             VStack(alignment: .leading, spacing: 8) {

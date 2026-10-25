@@ -98,7 +98,7 @@ struct DumpDetailView: View {
 
         PhotoCarousel(photos: dump.photos, index: $page, onDoubleTap: {
             if !dump.likedByMe { Task { await toggleLike() } }
-        })
+        }, tagsLinkToProfiles: true)
             .focusable()
             .onKeyPress(.leftArrow) { page = max(0, page - 1); return .handled }
             .onKeyPress(.rightArrow) { page = min(dump.photos.count - 1, page + 1); return .handled }
@@ -120,20 +120,6 @@ struct DumpDetailView: View {
 
             if !dump.caption.isEmpty {
                 Text(dump.caption).fixedSize(horizontal: false, vertical: true)
-            }
-
-            let currentTags = dump.photos.indices.contains(page) ? dump.photos[page].visibleTags : []
-            if !currentTags.isEmpty {
-                HStack(spacing: 6) {
-                    Text("In this photo:").foregroundStyle(.secondary)
-                    ForEach(currentTags) { tag in
-                        NavigationLink(value: Route.profile(tag.taggedUser.id)) {
-                            Text(tag.taggedUser.firstName).fontWeight(.medium)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .font(.subheadline)
             }
         }
         .padding(.horizontal, Theme.pagePadding)
