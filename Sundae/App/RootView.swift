@@ -50,6 +50,8 @@ struct SundayShell: View {
         .overlay(alignment: .bottom) {
             SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+                // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
+                .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .overlay(alignment: .top) {
             Theme.background.opacity(0.94)
@@ -103,9 +105,18 @@ extension EnvironmentValues {
 
 private struct BottomBarInset: ViewModifier {
     @Environment(\.bottomBarInset) private var inset
+    @State private var keyboardShown = false
 
     func body(content: Content) -> some View {
-        content.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: inset) }
+        content
+            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: keyboardShown ? 0 : inset) }
+            // The keyboard covers the bar, so a composer should sit on the keyboard, not 50 pt above it.
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                withAnimation(.easeOut(duration: 0.25)) { keyboardShown = true }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                withAnimation(.easeOut(duration: 0.25)) { keyboardShown = false }
+            }
     }
 }
 

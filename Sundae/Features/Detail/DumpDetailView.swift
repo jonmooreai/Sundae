@@ -16,6 +16,7 @@ struct DumpDetailView: View {
     @State private var reporting = false
     @State private var isSending = false
     @State private var showFullScreen = false
+    @FocusState private var composing: Bool
 
     private var isOwn: Bool { dump?.author.id == model.currentUser?.id }
 
@@ -65,6 +66,9 @@ struct DumpDetailView: View {
             .padding(.bottom, 24)
         }
         .background(Theme.background)
+        // A drag or a tap outside the field puts the keyboard away.
+        .scrollDismissesKeyboard(.interactively)
+        .onTapGesture { composing = false }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dumpID)
@@ -152,6 +156,8 @@ struct DumpDetailView: View {
         HStack(spacing: 10) {
             TextField("Add a comment", text: $newComment)
                 .textFieldStyle(.plain)
+                .focused($composing)
+                .submitLabel(.send)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .background(Theme.surface, in: Capsule())
@@ -211,6 +217,7 @@ struct DumpDetailView: View {
             withAnimation(.snappy(duration: 0.35)) { comments.append(comment) }
             Haptics.light()
             newComment = ""
+            composing = false
             if var updated = dump {
                 updated.commentCount += 1
                 dump = updated
