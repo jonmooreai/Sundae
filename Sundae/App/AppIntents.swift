@@ -61,7 +61,7 @@ struct SundaeShortcuts: AppShortcutsProvider {
                 "What's my \(.applicationName) idea",
                 "What should I do today in \(.applicationName)",
             ],
-            shortTitle: "Today's idea",
+            shortTitle: "Sundae",
             systemImageName: "sun.max"
         )
         AppShortcut(
