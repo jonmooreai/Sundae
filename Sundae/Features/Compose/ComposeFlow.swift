@@ -127,6 +127,12 @@ struct FlowBottomBar<Leading: View>: View {
 struct DraftThumbnailStrip: View {
     let photos: [DraftPhoto]
     var side: CGFloat = 56
+    /// Centered in the available width when the strip fits; scrolls from the left when it does not.
+    var centered = false
+
+    private var contentWidth: CGFloat {
+        CGFloat(photos.count) * side + CGFloat(max(photos.count - 1, 0)) * 6 + Theme.pagePadding * 2
+    }
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -138,6 +144,9 @@ struct DraftThumbnailStrip: View {
                 }
             }
             .padding(.horizontal, Theme.pagePadding)
+            .containerRelativeFrame(.horizontal, alignment: .center) { length, _ in
+                centered ? max(length, contentWidth) : contentWidth
+            }
         }
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
@@ -280,7 +289,7 @@ struct PostedStep: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 12)
-            DraftThumbnailStrip(photos: compose.draft.photos, side: 64)
+            DraftThumbnailStrip(photos: compose.draft.photos, side: 64, centered: true)
                 .padding(.top, 8)
             Spacer()
             PrimaryButton(title: "See the feed") {

@@ -21,10 +21,16 @@ struct PhotoCarousel: View {
             ForEach(Array(photos.enumerated()), id: \.element.id) { offset, photo in
                 ZStack(alignment: .bottomLeading) {
                     PhotoView(source: photo.source)
-                    if showTags, !photo.visibleTags.isEmpty {
-                        TagChipRow(tags: photo.visibleTags)
-                            .padding(10)
-                            .transition(.opacity)
+                    if !photo.visibleTags.isEmpty {
+                        if showTags {
+                            TagChipRow(tags: photo.visibleTags)
+                                .padding(10)
+                                .transition(.opacity)
+                        } else {
+                            TagBadge()
+                                .padding(10)
+                                .transition(.opacity)
+                        }
                     }
                 }
                 .tag(offset)
@@ -70,6 +76,19 @@ struct TagChipRow: View {
                 .background(.regularMaterial, in: Capsule())
             }
         }
+    }
+}
+
+/// A small floating mark in the corner of a photo that has people tagged in it.
+struct TagBadge: View {
+    var size: CGFloat = 26
+
+    var body: some View {
+        Icon(Glyph.person, weight: .fill, size: size * 0.5)
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(Color.black.opacity(0.55), in: Circle())
+            .accessibilityLabel("Tagged friends")
     }
 }
 

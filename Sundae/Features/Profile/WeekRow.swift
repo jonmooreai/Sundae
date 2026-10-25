@@ -55,6 +55,11 @@ struct WeekRow: View {
                             ForEach(dump.photos.sorted { $0.order < $1.order }) { photo in
                                 NavigationLink(value: Route.dump(dump.id)) {
                                     cell(photo.source, aspect: photo.aspectRatio)
+                                        .overlay(alignment: .bottomLeading) {
+                                            if !photo.visibleTags.isEmpty {
+                                                TagBadge(size: isCurrent ? 28 : 24).padding(isCurrent ? 12 : 8)
+                                            }
+                                        }
                                 }
                                 .buttonStyle(.plain)
                                 .accessibilityLabel(photo.altText ?? "Photo")
