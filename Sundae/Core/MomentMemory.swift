@@ -2,7 +2,7 @@ import Foundation
 
 /// Which small moments have already had their moment, so each shows once. Device-only.
 enum MomentMemory {
-    private static let defaults = UserDefaults.standard
+    private static var defaults: UserDefaults { .standard }
 
     private enum Key {
         static let birthday = "moments.birthdayMonthDay"
