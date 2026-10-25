@@ -20,6 +20,14 @@ struct GeohashTests {
         #expect(a == b)
     }
 
+    @Test func decodesBackToTheMiddleOfTheCell() throws {
+        let center = try #require(Geohash.center("9q8yyk"))
+        #expect(abs(center.latitude - 37.7749) < 0.01)
+        #expect(abs(center.longitude - (-122.4194)) < 0.01)
+        #expect(Geohash.encode(latitude: center.latitude, longitude: center.longitude, precision: 6) == "9q8yyk")
+        #expect(Geohash.center("not a cell!") == nil)
+    }
+
     @Test func clampsInputAndNeverReturnsEmpty() {
         #expect(Geohash.encode(latitude: 0, longitude: 0, precision: 6) == "s00000")
         #expect(Geohash.encode(latitude: 95, longitude: 200, precision: 3) == Geohash.encode(latitude: 90, longitude: 180, precision: 3))

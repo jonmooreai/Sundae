@@ -124,9 +124,12 @@ struct WeekdayView: View {
                 .foregroundStyle(Color.accentColor)
             Text(walkLine(place))
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
             if let url = place.mapsURL {
                 Link("Open in Maps", destination: url)
                     .fontWeight(.medium)
+                    .fixedSize()
             }
         }
         .font(.subheadline)
@@ -135,8 +138,7 @@ struct WeekdayView: View {
 
     private func walkLine(_ place: Suggestion.Place) -> String {
         guard let minutes = place.walkMinutes else { return place.name }
-        let walk = minutes <= 1 ? "a minute away on foot" : "about \(minutes) minutes away on foot"
-        return "\(place.name), \(walk)"
+        return "\(place.name) · \(minutes) min walk"
     }
 
     private var actions: some View {

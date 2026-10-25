@@ -155,12 +155,21 @@ struct DumpDetailView: View {
                 }
                 .buttonStyle(.plain)
                 ForEach(comments.suffix(2)) { comment in
-                    HStack(alignment: .top, spacing: 8) {
-                        AvatarView(user: comment.author, size: 24)
-                        (Text(comment.author.username).fontWeight(.semibold) + Text("  ") + Text(comment.body))
-                            .font(.subheadline)
-                            .lineLimit(2)
+                    Button {
+                        focusComposer = false
+                        showComments = true
+                    } label: {
+                        HStack(alignment: .top, spacing: 8) {
+                            AvatarView(user: comment.author, size: 24)
+                            (Text(comment.author.username).fontWeight(.semibold) + Text("  ") + Text(comment.body))
+                                .font(.subheadline)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
