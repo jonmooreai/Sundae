@@ -138,7 +138,7 @@ struct SundaeWidget: Widget {
                                    startPoint: .top, endPoint: .bottom)
                 }
         }
-        .configurationDisplayName("Today's idea")
+        .configurationDisplayName("Sundae")
         .description("One thing to go do this week, and how long until Sunday.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
     }
