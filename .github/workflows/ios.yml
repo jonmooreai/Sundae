@@ -6,6 +6,12 @@ name: iOS
 on:
   push:
     branches: ["main", "claude/**"]
+    # Nothing here affects the app binary.
+    paths-ignore:
+      - "docs/**"
+      - "fastlane/**"
+      - ".github/workflows/testflight.yml"
+      - "README.md"
   workflow_dispatch:
     inputs:
       full:

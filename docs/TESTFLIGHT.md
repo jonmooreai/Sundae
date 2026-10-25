@@ -20,7 +20,14 @@ downloaded once. Keep that page open: you need the **Key ID** of the new key and
 **Issuer ID** shown above the list. Your **Team ID** is at
 https://developer.apple.com/account under Membership details.
 
-**2. Add five secrets** at https://github.com/jonmooreai/Sundae/settings/secrets/actions
+**2. Create the app record** at https://appstoreconnect.apple.com/apps: the plus button, then
+New App. Platforms iOS, Name Sundae (any name works if that one is taken; it can be changed before
+release), Primary language English (U.S.), Bundle ID "Sundae - com.jonmooreai.sundae", SKU
+`sundae-ios`. Apple's API can do everything else but not this; it is the one form that needs a
+browser. If the bundle id is not in the list yet, run the workflow once first: it registers the
+App IDs and then stops with this same instruction.
+
+**3. Add five secrets** at https://github.com/jonmooreai/Sundae/settings/secrets/actions
 (New repository secret, one at a time):
 
 | Secret | Value |
@@ -39,12 +46,11 @@ message contains `[skip ci]` never starts a build on any branch; push a new comm
 
 ## What the first run does
 
-Creates the App IDs `com.jonmooreai.sundae` and `com.jonmooreai.sundae.widget`, the App Store
-Connect app record (named Sundae, or a longer name if that one is taken; rename it any time
-before release), a distribution certificate and provisioning profiles, then builds and uploads.
-The certificate is stored encrypted with your `MATCH_PASSWORD` on a `certificates` branch of
-this private repository, so later runs reuse it. Later runs take about 15 minutes and only
-build and upload.
+Registers the App IDs `com.jonmooreai.sundae` and `com.jonmooreai.sundae.widget`, checks that
+the app record exists, creates a distribution certificate and provisioning profiles, then builds
+and uploads. The certificate is stored encrypted with your `MATCH_PASSWORD` on a `certificates`
+branch of this private repository, so later runs reuse it. Later runs take about 15 minutes and
+only build and upload.
 
 ## After the first upload
 
