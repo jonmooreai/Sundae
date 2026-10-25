@@ -15,6 +15,22 @@ final class WeekdayStore {
     /// Today's ideas for the user's area, when they asked for them. Preferred over the catalog.
     private(set) var local: [Suggestion] = []
     var justMarkedDone = false
+    /// Set when the tenth shuffle in a row lands on the only idea that cannot be shuffled away.
+    private(set) var restUntil: Date?
+    private var shuffles = 0
+
+    /// The Easter egg at the bottom of the shuffle well.
+    static let rest = Suggestion(id: "secret:rest", text: "Put the phone down.",
+                                 reason: "That's the idea. Come back in a minute.", categories: [.creative], timeOfDay: .any)
+
+    var isResting: Bool {
+        guard let restUntil else { return false }
+        return restUntil > Date()
+    }
+
+    func endRest() {
+        restUntil = nil
+    }
 
     init(api: any SundaeAPI, catalog: SuggestionCatalog) {
         self.api = api
@@ -72,6 +88,15 @@ final class WeekdayStore {
 
     func shuffle(clock: SundayClock) {
         let now = clock.now()
+        shuffles += 1
+        if shuffles >= 10 {
+            shuffles = 0
+            current = Self.rest
+            restUntil = Date().addingTimeInterval(60)
+            justMarkedDone = false
+            Haptics.light()
+            return
+        }
         let openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil }
         // Half the time a nearby idea, while any are left; the catalog otherwise.
         if let nearby = openLocal.randomElement(), Bool.random() {

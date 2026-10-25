@@ -345,7 +345,7 @@ actor MockSundaeAPI: SundaeAPI {
         try await latency()
         let rel = relationship(of: me.id, to: userID)
         let canSee = rel == .me || rel == .following || user.isPublic
-        let starts = clock.recentWeekStarts(count: 12)
+        let starts = clock.recentWeekStarts(count: rel == .me ? 53 : 12)
         var weeks: [ProfileWeek] = []
         if canSee {
             for start in starts {
@@ -630,8 +630,13 @@ actor MockSundaeAPI: SundaeAPI {
             ("u_lena", "lena", "Lena Fischer", "New in town. Show me around."),
         ]
         let avatarIDs = [47, 59, 32, 68, 25, 16]
+        // Sam's birthday falls in the current week, so the tag picker and the feed can show it.
+        let midweek = clock.calendar.date(byAdding: .day, value: 2, to: clock.weekStart()) ?? clock.weekStart()
+        let parts = clock.calendar.dateComponents([.month, .day], from: midweek)
+        let samBirthday = String(format: "%02d-%02d", parts.month ?? 1, parts.day ?? 1)
         let friends = friendSpecs.enumerated().map { i, s in
-            User(id: s.0, username: s.1, name: s.2, bio: s.3, avatar: avatar(avatarIDs[i]), isPublic: false, timezone: tz)
+            User(id: s.0, username: s.1, name: s.2, bio: s.3, avatar: avatar(avatarIDs[i]), isPublic: false, timezone: tz,
+                 birthday: i == 4 ? samBirthday : (i == 2 ? "03-14" : nil), invitedByMe: i == 5 ? true : nil)
         }
         let riley = User(id: "u_riley", username: "riley", name: "Riley Brooks", bio: "", avatar: avatar(36), isPublic: false, timezone: tz)
         let noor = User(id: "u_noor", username: "noor", name: "Noor Haddad", bio: "Street photos, mostly.", avatar: avatar(44), isPublic: true, timezone: tz)
@@ -700,7 +705,8 @@ actor MockSundaeAPI: SundaeAPI {
                 let createdAt = sunday.addingTimeInterval(3600 * 8 + Double(i) * 1500)
                 dumps[dumpID] = Dump(id: dumpID, author: friend, weekStart: start, caption: captions[(w + i) % captions.count],
                                      createdAt: createdAt, lockedAt: locked, photos: photos, commentsEnabled: true,
-                                     likedBy: likers, likedByMe: false, commentCount: 0)
+                                     likedBy: likers, likedByMe: false, commentCount: 0,
+                                     isAuthorsFirst: i == 5 && w == 0 ? true : nil)
                 if (w + i) % 3 == 0 {
                     let commenter = friends[(i + 2) % friends.count]
                     let replier = friends[(i + 4) % friends.count]
@@ -747,6 +753,20 @@ actor MockSundaeAPI: SundaeAPI {
                                      createdAt: sunday.addingTimeInterval(3600 * 10), lockedAt: locked, photos: photos,
                                      commentsEnabled: true, likedBy: Array(friends.prefix(2 + w % 3)), likedByMe: false, commentCount: 0)
             }
+        }
+        // A year ago this week, so Sunday can open on "A year ago today" and the year grid has a far end.
+        if let yearAgo = clock.calendar.date(byAdding: .day, value: -364, to: clock.weekStart()) {
+            let dumpID = "d_me_year"
+            let photos: [Photo] = (0..<4).map { n in
+                seedCounter += 1
+                let size = sizes[n % sizes.count]
+                return Photo(id: "\(dumpID)_p\(n)", dumpID: dumpID, order: n, source: photo(seedCounter, size),
+                             width: size.0, height: size.1, altText: nil, tags: [])
+            }
+            let sunday = clock.sundayStart(forWeekContaining: yearAgo)
+            dumps[dumpID] = Dump(id: dumpID, author: me, weekStart: yearAgo, caption: "A year ago: the long way home, on purpose.",
+                                 createdAt: sunday.addingTimeInterval(3600 * 10), lockedAt: clock.weekEnd(containing: yearAgo),
+                                 photos: photos, commentsEnabled: true, likedBy: Array(friends.prefix(3)), likedByMe: false, commentCount: 0)
         }
         return SeedData(users: users, follows: follows, dumps: dumps, comments: comments)
     }

@@ -278,7 +278,7 @@ struct OnboardingView: View {
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
             }
             Text(isOldEnough
-                 ? "Your birthday is checked once and not stored. No email is collected."
+                 ? "Your birthday is checked once. Only the day and month stay on this phone, for one small surprise a year. No email is collected."
                  : "Sundae is for people 16 and up.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -431,6 +431,7 @@ struct OnboardingView: View {
         do {
             try await model.signIn(method, username: username.lowercased().trimmingCharacters(in: .whitespaces),
                                    name: name.trimmingCharacters(in: .whitespaces))
+            MomentMemory.birthdayMonthDay = MomentMemory.monthDay(birthday, calendar: Calendar.current)
             if let avatarData {
                 try? await model.updateAvatar(avatarData)
             }
@@ -441,22 +442,6 @@ struct OnboardingView: View {
         } catch {
             self.error = error.localizedDescription
         }
-    }
-}
-
-/// A view that starts low and faint, then settles into place after `delay`.
-private struct RiseIn: ViewModifier {
-    let delay: Double
-    @State private var shown = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown ? 0 : 14)
-            .onAppear {
-                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.45).delay(delay)) { shown = true }
-            }
     }
 }
 

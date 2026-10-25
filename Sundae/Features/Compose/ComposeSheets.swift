@@ -8,6 +8,7 @@ struct TagPickerSheet: View {
     let users: [User]
     let onSave: ([User]) -> Void
 
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var selected: [User] = []
     @State private var query = ""
@@ -43,7 +44,7 @@ struct TagPickerSheet: View {
                             }
                         } label: {
                             HStack {
-                                UserRow(user: user)
+                                UserRow(user: user, subtitle: MomentMemory.birthday(user.birthday, fallsInWeekStarting: model.currentWeekStart, calendar: model.clock.calendar) ? "Birthday this week" : nil)
                                 ZStack {
                                     Circle().strokeBorder(isOn ? Color.accentColor : Theme.hairline, lineWidth: 1.5)
                                     if isOn {

@@ -21,6 +21,10 @@ struct User: Identifiable, Hashable, Codable, Sendable {
     var timezone: String
     /// Usernames of people the viewer follows who follow this user. Search and suggestions only.
     var followedBy: [String]? = nil
+    /// "MM-DD", shared with friends only when the user allows it. Never a year.
+    var birthday: String? = nil
+    /// True when this user joined from the viewer's invite link.
+    var invitedByMe: Bool? = nil
 
     var displayName: String { name.isEmpty ? username : name }
     /// "Bob Ewing • Followed by parker + 2", one line.
@@ -76,6 +80,8 @@ struct Dump: Identifiable, Hashable, Codable, Sendable {
     var likedBy: [User]
     var likedByMe: Bool
     var commentCount: Int
+    /// True for the author's first week ever. Friends see a small card for it.
+    var isAuthorsFirst: Bool? = nil
 
     var isLocked: Bool { lockedAt != nil }
     /// Everyone tagged anywhere in the dump, once each, for the "with Maya, Theo" line.

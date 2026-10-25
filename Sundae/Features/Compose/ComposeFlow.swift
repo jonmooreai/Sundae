@@ -332,6 +332,9 @@ struct PostedStep: View {
             DraftThumbnailStrip(photos: compose.draft.photos, side: 64, centered: true)
                 .padding(.top, 8)
             Spacer()
+            if !compose.queuedOffline, let dump = model.feed.dumps.first(where: { $0.author.id == model.currentUser?.id && $0.weekStart == model.currentWeekStart }) {
+                PostcardShareButton(dump: dump, line: dump.caption.isEmpty ? nil : dump.caption, kind: .secondary)
+            }
             PrimaryButton(title: "See the feed") {
                 compose.dismiss()
                 model.requestedTab = .feed

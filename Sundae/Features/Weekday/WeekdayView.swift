@@ -33,9 +33,18 @@ struct WeekdayView: View {
             }
             .padding(24)
         }
+        .goldenHour(calendar: model.clock.calendar)
+        .birthdayPaper(calendar: model.clock.calendar)
         .task {
             store.load(clock: model.clock)
             await nearby.refresh(clock: model.clock)
+        }
+        .onChange(of: store.restUntil) { _, until in
+            guard let until else { return }
+            Task {
+                try? await Task.sleep(for: .seconds(max(1, until.timeIntervalSinceNow)))
+                store.endRest()
+            }
         }
         .onChange(of: model.phase) { _, _ in store.load(clock: model.clock) }
         .onChange(of: nearby.ideas) { _, ideas in
@@ -67,7 +76,7 @@ struct WeekdayView: View {
             Color.clear.frame(width: 40, height: 40)
 
             Spacer()
-            SundaeMark(size: 30).wobbleOnTap()
+            LivingSundaeMark(size: 30, clock: model.clock).wobbleOnTap()
             Spacer()
 
             IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
@@ -174,7 +183,7 @@ struct WeekdayView: View {
                         }
                     }
                     .buttonStyle(.pill(.primary, fullWidth: true))
-                    .disabled(store.isCurrentDone)
+                    .disabled(store.isCurrentDone || store.isResting)
                 }
             }
             Text(countdown)
@@ -252,6 +261,7 @@ struct WeekdayView: View {
     }
 
     private var countdown: String {
+        if store.isResting { return "Done comes back in a minute. So do you." }
         switch model.phase {
         case .sunday: return "It's Sunday."
         case .weekday(let days):

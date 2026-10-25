@@ -42,7 +42,8 @@ Two sources, same shape, same rules:
   search (`MKLocalPointsOfInterestRequest`) around the middle of the cell, once within a walk
   and once within twenty miles, filtered to the kinds of places the copy knows about. The
   morning idea stays walkable; the afternoon and evening may be worth the drive, and the line
-  under the idea shows the distance instead of a walking time. The pick is seeded by `cell:day`
+  under the idea shows the distance instead of a walking time. The same cell center goes to
+  Open-Meteo, anonymously and without a key, so a wet day keeps to places with a roof. The pick is seeded by `cell:day`
   so the three ideas hold still all day. Apple sees a neighborhood center, not the fix, under the
   user's existing Apple Maps relationship; Sundae's servers see nothing, because there are none
   involved. Cost: zero at any scale. Limit: Apple throttles heavy MapKit use, and one search per
