@@ -43,6 +43,10 @@ struct PhotoCarousel: View {
                         .padding(10)
                     }
                 }
+                .contentShape(Rectangle())
+                // Declared first so two quick taps read as one double tap, not two singles.
+                .onTapGesture(count: 2) { doubleTap() }
+                .onTapGesture { singleTap() }
                 .tag(offset)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityLabel(for: photo, position: offset))
@@ -54,15 +58,11 @@ struct PhotoCarousel: View {
         .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .contentShape(Rectangle())
         .overlay {
             if burst > 0 {
                 HeartBurst().id(burst).transition(.opacity)
             }
         }
-        // Declared first so two quick taps read as one double tap, not two singles.
-        .onTapGesture(count: 2) { doubleTap() }
-        .onTapGesture { singleTap() }
         .transaction { t in if reduceMotion { t.animation = nil } }
     }
 

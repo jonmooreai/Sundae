@@ -110,7 +110,7 @@ struct DumpDetailView: View {
             .onLongPressGesture { showFullScreen = true }
 
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 18) {
+            HStack(spacing: 12) {
                 LikeButton(liked: dump.likedByMe) {
                     Task { await toggleLike() }
                 }
