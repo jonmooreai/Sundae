@@ -83,8 +83,8 @@ jobs:
           xcrun simctl bootstatus "$IPHONE_UDID" -b || true
           APP=$(find build/Build/Products -maxdepth 2 -name "Sundae.app" | head -1)
           [ -n "$APP" ] && xcrun simctl install "$IPHONE_UDID" "$APP" || true
-          xcrun simctl privacy "$IPHONE_UDID" grant photos com.sundae.app || true
-          xcrun simctl privacy "$IPHONE_UDID" grant contacts com.sundae.app || true
+          xcrun simctl privacy "$IPHONE_UDID" grant photos com.jonmooreai.sundae || true
+          xcrun simctl privacy "$IPHONE_UDID" grant contacts com.jonmooreai.sundae || true
           # A few real photos in the camera roll, dated today, so "this week" has something to pick.
           mkdir -p seed-photos
           for i in 1 2 3 4 5 6; do

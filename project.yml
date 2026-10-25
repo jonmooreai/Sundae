@@ -1,7 +1,7 @@
 # XcodeGen spec. Run `xcodegen generate` to produce Sundae.xcodeproj.
 name: Sundae
 options:
-  bundleIdPrefix: com.sundae
+  bundleIdPrefix: com.jonmooreai
   deploymentTarget:
     iOS: "26.0"
   xcodeVersion: "26.0"
@@ -33,7 +33,7 @@ targets:
       - path: Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.sundae.app
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonmooreai.sundae
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     info:
@@ -41,7 +41,7 @@ targets:
       properties:
         CFBundleDisplayName: Sundae
         SundaeAPIBaseURL: ""
-        # Set to group.com.sundae.shared (here and in the widget) once the App ID has the app group.
+        # Set to group.com.jonmooreai.sundae (here and in the widget) once the App ID has the app group.
         SundaeAppGroup: ""
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
@@ -80,7 +80,7 @@ targets:
       - path: Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.sundae.app.widget
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonmooreai.sundae.widget
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     info:
       path: SundaeWidget/Info.plist

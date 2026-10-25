@@ -4,7 +4,7 @@ import Security
 /// Session tokens live here with the this-device-only accessibility class.
 /// Never in UserDefaults, never in a file.
 enum Keychain {
-    private static let service = "com.sundae.app"
+    private static let service = "com.jonmooreai.sundae"
 
     static func set(_ value: String, for key: String) {
         guard let data = value.data(using: .utf8) else { return }

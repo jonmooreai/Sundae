@@ -1,17 +1,14 @@
 name: TestFlight
 
-# Started by hand. Builds a signed Release and uploads it to TestFlight.
-# Costs about 15 minutes of macOS runner time per build.
+# Started by hand only. Builds a signed Release and uploads it to TestFlight.
+# Costs about 15 minutes of macOS runner time per build (10x against the free allowance).
 on:
   workflow_dispatch:
-    inputs:
-      bundle_id:
-        description: Bundle identifier (must match the App ID in your developer account)
-        default: com.jonmooreai.sundae
-        required: true
 
+# contents: write lets fastlane match keep the encrypted signing certificate on the
+# "certificates" branch of this repository, so no second repo or token is needed.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   testflight:
@@ -19,18 +16,24 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     env:
-      BUNDLE_ID: ${{ inputs.bundle_id }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
-      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
-      MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
-      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       FASTLANE_SKIP_UPDATE_CHECK: "1"
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_CONTENT MATCH_PASSWORD; do
+            if [ -z "${!v:-}" ]; then echo "::error::Missing secret $v (see docs/TESTFLIGHT.md)"; missing=1; fi
+          done
+          [ "$missing" = 0 ]
 
       - name: Select newest Xcode
         run: |
@@ -39,21 +42,10 @@ jobs:
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
-      - name: Check secrets
-        run: |
-          set -euo pipefail
-          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_CONTENT MATCH_GIT_URL MATCH_PASSWORD; do
-            if [ -z "${!v:-}" ]; then echo "::error::Missing secret $v (see docs/TESTFLIGHT.md)"; exit 1; fi
-          done
-          if [ -z "${MATCH_GIT_TOKEN:-}" ] && [ -z "${MATCH_GIT_BASIC_AUTHORIZATION:-}" ]; then
-            echo "::error::Missing secret MATCH_GIT_TOKEN (see docs/TESTFLIGHT.md)"; exit 1
-          fi
-
-      - name: Generate project with the chosen bundle id
+      - name: Generate the Xcode project
         run: |
           set -euo pipefail
           brew install xcodegen
-          sed -i '' "s/com\.sundae\.app/${BUNDLE_ID}/g" project.yml
           xcodegen generate
 
       - name: Build, sign and upload

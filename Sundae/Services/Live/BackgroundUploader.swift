@@ -14,7 +14,7 @@ final class BackgroundUploader: NSObject, URLSessionDataDelegate, @unchecked Sen
     private let statuses = Mutex<[Int: Int]>([:])
 
     private lazy var session: URLSession = {
-        let configuration = URLSessionConfiguration.background(withIdentifier: "com.sundae.app.uploads")
+        let configuration = URLSessionConfiguration.background(withIdentifier: "com.jonmooreai.sundae.uploads")
         configuration.isDiscretionary = false
         configuration.sessionSendsLaunchEvents = true
         configuration.allowsCellularAccess = true

@@ -3,11 +3,12 @@
 # Needs these environment variables (GitHub secrets):
 #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT   App Store Connect API key (the .p8 contents, raw or base64)
 #   APPLE_TEAM_ID                                 Developer team id
-#   MATCH_GIT_URL, MATCH_GIT_TOKEN                Private repo holding signing certs, and a token that can push to it
-#   MATCH_PASSWORD                                Passphrase that encrypts them
-# Optional: BUNDLE_ID (default com.jonmooreai.sundae), APP_NAME (default Sundae),
-#           MATCH_GIT_BASIC_AUTHORIZATION (base64 "user:token") instead of MATCH_GIT_TOKEN,
-#           BUILD_NUMBER (default GITHUB_RUN_NUMBER)
+#   MATCH_PASSWORD                                Passphrase that encrypts the signing certificate
+#   GITHUB_TOKEN                                  Lets match keep the encrypted certificate on a branch of this repo
+# Optional:
+#   BUNDLE_ID (default com.jonmooreai.sundae), APP_NAME (default Sundae), BUILD_NUMBER (default GITHUB_RUN_NUMBER)
+#   MATCH_GIT_URL, MATCH_GIT_BRANCH, MATCH_GIT_TOKEN or MATCH_GIT_BASIC_AUTHORIZATION to keep the
+#   certificate somewhere other than the "certificates" branch of this repository
 
 require "base64"
 
@@ -31,35 +32,56 @@ platform :ios do
       is_key_content_base64: !key_content.start_with?("-----BEGIN")
     )
 
-    # GitHub ignores the username when the password is a personal access token.
-    git_auth = ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
-    git_auth = Base64.strict_encode64("x-access-token:#{ENV['MATCH_GIT_TOKEN']}") if git_auth.to_s.empty?
-
     # App IDs and the App Store Connect record. Idempotent: skips what already exists.
-    produce(
-      api_key: api_key,
-      app_identifier: bundle_id,
-      app_name: ENV["APP_NAME"] || "Sundae",
-      language: "en-US",
-      sku: "sundae-ios",
-      team_id: team_id
-    )
+    # App names are unique across the whole App Store, so fall back to longer names if "Sundae" is taken.
+    # The name can be changed in App Store Connect at any time before release.
+    base_name = ENV["APP_NAME"] || "Sundae"
+    candidates = [base_name, "#{base_name} Photo Dump", "#{base_name} #{team_id}"]
+    created = false
+    candidates.each do |app_name|
+      begin
+        produce(
+          api_key: api_key,
+          app_identifier: bundle_id,
+          app_name: app_name,
+          language: "en-US",
+          sku: "sundae-ios",
+          team_id: team_id
+        )
+        created = true
+        break
+      rescue => e
+        raise e unless e.message =~ /already|in use|not available|been used/i
+        UI.important("App name '#{app_name}' is taken, trying the next one")
+      end
+    end
+    UI.user_error!("Could not create the App Store Connect record; every app name was taken") unless created
+
     produce(
       api_key: api_key,
       app_identifier: widget_id,
-      app_name: "Sundae Widget",
+      app_name: "#{base_name} Widget",
       skip_itc: true,
       team_id: team_id
     )
 
-    # Distribution certificate and profiles, created on first run and kept encrypted in the certs repo.
+    # The distribution certificate and profiles, created on first run and kept encrypted on a
+    # branch of this repository (private). GitHub ignores the username when the password is a token.
+    git_url = ENV["MATCH_GIT_URL"]
+    git_url = "https://github.com/#{ENV['GITHUB_REPOSITORY']}.git" if git_url.to_s.empty?
+    git_auth = ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
+    if git_auth.to_s.empty?
+      token = ENV["MATCH_GIT_TOKEN"].to_s.empty? ? ENV["GITHUB_TOKEN"] : ENV["MATCH_GIT_TOKEN"]
+      git_auth = Base64.strict_encode64("x-access-token:#{token}")
+    end
     match(
       type: "appstore",
       app_identifier: [bundle_id, widget_id],
       api_key: api_key,
       team_id: team_id,
       readonly: false,
-      git_url: ENV["MATCH_GIT_URL"],
+      git_url: git_url,
+      git_branch: ENV["MATCH_GIT_BRANCH"] || "certificates",
       git_basic_authorization: git_auth
     )
 

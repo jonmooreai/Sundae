@@ -1,42 +1,48 @@
 # Sundae on your iPhone via TestFlight
 
 The `TestFlight` workflow builds a signed Release on a GitHub macOS runner and uploads it to
-App Store Connect. No Mac needed. One-time setup below, then every build is one button.
+App Store Connect. No Mac needed. Two things need your Apple and GitHub logins; everything
+else is automated.
 
-## One-time setup
+## Your part, once
 
-**1. Apple Developer Program.** Enroll at developer.apple.com/programs (99 USD a year). Approval
-can take a day or two. Note your Team ID from Membership details.
+**1. Create an App Store Connect API key.** Open
+https://appstoreconnect.apple.com/access/integrations/api, choose Team Keys, and click
+Generate (or the plus button). Name it anything, pick the **Admin** role so the key can create
+the signing certificate on the first run, then download the `.p8` file. It can only be
+downloaded once. Keep that page open: you need the **Key ID** of the new key and the
+**Issuer ID** shown above the list. Your **Team ID** is at
+https://developer.apple.com/account under Membership details.
 
-**2. App Store Connect API key.** At appstoreconnect.apple.com → Users and Access → Integrations
-→ App Store Connect API → Team Keys → Generate. Role: Admin, so the key can create the signing
-certificate and profiles on the first run. Download the `.p8` file once (it cannot be downloaded
-again). Note the Key ID and the Issuer ID shown on that page.
-
-**3. A private repo for signing certificates.** Create an empty private repository, for example
-`sundae-certificates`. fastlane match keeps the distribution certificate and profiles there,
-encrypted. Then create a fine-grained personal access token (github.com → Settings → Developer
-settings → Fine-grained tokens) with Contents: read and write on that one repo.
-
-**4. GitHub secrets on the Sundae repo** (Settings → Secrets and variables → Actions):
+**2. Add five secrets** at https://github.com/jonmooreai/Sundae/settings/secrets/actions
+(New repository secret, one at a time):
 
 | Secret | Value |
 | --- | --- |
 | `APPLE_TEAM_ID` | Your 10-character Team ID |
 | `ASC_KEY_ID` | The API key's Key ID |
 | `ASC_ISSUER_ID` | The Issuer ID |
-| `ASC_KEY_CONTENT` | The contents of the `.p8` file, pasted as-is (open it in any text editor) |
-| `MATCH_GIT_URL` | `https://github.com/<you>/sundae-certificates.git` |
-| `MATCH_GIT_TOKEN` | The fine-grained token from step 3 |
-| `MATCH_PASSWORD` | Any passphrase you choose; it encrypts the certificates |
+| `ASC_KEY_CONTENT` | The contents of the `.p8` file, pasted as text (open it in any text editor) |
+| `MATCH_PASSWORD` | Any passphrase you choose; it encrypts the signing certificate |
 
-**5. Run the workflow.** Actions → TestFlight → Run workflow. Pick a bundle identifier that is
-yours, like `com.jonmooreai.sundae`. The first run creates the App IDs, the App Store Connect
-app record, the certificate and the profiles, then builds and uploads. Later runs reuse them.
+That's it. Say so in the Claude session and the first build will be started for you, or start it
+yourself: Actions → TestFlight → Run workflow.
 
-**6. Add yourself as a tester.** In App Store Connect → your app → TestFlight → Internal Testing
-→ create a group and add your Apple ID. Builds appear there a few minutes after upload, then
-show up in the TestFlight app on your phone.
+## What the first run does
+
+Creates the App IDs `com.jonmooreai.sundae` and `com.jonmooreai.sundae.widget`, the App Store
+Connect app record (named Sundae, or a longer name if that one is taken; rename it any time
+before release), a distribution certificate and provisioning profiles, then builds and uploads.
+The certificate is stored encrypted with your `MATCH_PASSWORD` on a `certificates` branch of
+this private repository, so later runs reuse it. Later runs take about 15 minutes and only
+build and upload.
+
+## After the first upload
+
+In App Store Connect open the Sundae app, go to TestFlight, then Internal Testing, and create a
+group with "Enable automatic distribution" on. Add yourself as a tester. Every build then
+lands in the TestFlight app on your phone a few minutes after processing. The phone needs
+iOS 26.
 
 ## What the build contains
 

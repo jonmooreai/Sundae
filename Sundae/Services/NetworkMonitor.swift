@@ -20,6 +20,6 @@ final class NetworkMonitor {
                 self.onChange?(online)
             }
         }
-        monitor.start(queue: DispatchQueue(label: "com.sundae.app.network"))
+        monitor.start(queue: DispatchQueue(label: "com.jonmooreai.sundae.network"))
     }
 }

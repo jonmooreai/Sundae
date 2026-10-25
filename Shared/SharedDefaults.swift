@@ -5,7 +5,7 @@ import Foundation
 ///
 /// `UserDefaults` is documented thread-safe but not marked `Sendable`; the struct holds nothing else.
 public struct SharedDefaults: @unchecked Sendable {
-    public static let appGroup = "group.com.sundae.shared"
+    public static let appGroup = "group.com.jonmooreai.sundae"
 
     /// The app group named in the bundle's Info.plist (`SundaeAppGroup`), or nil when the build has no
     /// app group entitlement. Writing to an unentitled suite is silently dropped, so a build without
