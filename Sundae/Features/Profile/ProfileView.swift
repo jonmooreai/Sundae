@@ -298,7 +298,7 @@ struct EditProfileSheet: View {
             .navigationTitle("Edit profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.textButtonTint() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
@@ -311,6 +311,7 @@ struct EditProfileSheet: View {
                         }
                     }
                     .disabled(username.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .textButtonTint()
                 }
             }
             .onAppear {

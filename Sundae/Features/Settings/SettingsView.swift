@@ -69,6 +69,7 @@ struct SettingsView: View {
             Section {
                 Button("Export my data") { }
                     .disabled(true)
+                    .textButtonTint()
                 Button("Delete account", role: .destructive) {
                     Task { if await freshAuthentication() { confirmDelete = true } }
                 }
@@ -96,12 +97,13 @@ struct SettingsView: View {
 
             Section {
                 Button("Sign out") { Task { await model.signOut() } }
+                    .textButtonTint()
             }
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.textButtonTint() }
         }
         .task {
             settings = model.accountSettings

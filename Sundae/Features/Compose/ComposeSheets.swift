@@ -64,12 +64,13 @@ struct TagPickerSheet: View {
             .navigationTitle("Tag friends")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.textButtonTint() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         onSave(selected)
                         dismiss()
                     }
+                    .textButtonTint()
                 }
             }
             .onAppear { selected = photo.taggedUsers }
@@ -103,7 +104,7 @@ struct ReorderSheet: View {
             .navigationTitle("Reorder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.textButtonTint() }
             }
         }
         .presentationDetents([.medium, .large])
@@ -134,12 +135,13 @@ struct AltTextSheet: View {
             .navigationTitle("Alt text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.textButtonTint() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         onSave(text.trimmingCharacters(in: .whitespacesAndNewlines))
                         dismiss()
                     }
+                    .textButtonTint()
                 }
             }
             .onAppear { text = photo.altText }

@@ -253,7 +253,7 @@ struct ReportSheet: View {
             .navigationTitle("Report")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.textButtonTint() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Send") {
                         Task {
@@ -261,6 +261,7 @@ struct ReportSheet: View {
                             dismiss()
                         }
                     }
+                    .textButtonTint()
                 }
             }
         }

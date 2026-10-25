@@ -80,14 +80,16 @@ struct PillButtonStyle: ButtonStyle {
         let fullWidth: Bool
         let configuration: Configuration
         @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.colorScheme) private var colorScheme
 
         var body: some View {
             configuration.label
                 .font(size == .small ? .subheadline.weight(.semibold) : .body.weight(.semibold))
                 .lineLimit(1)
-                .frame(maxWidth: fullWidth ? .infinity : nil)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: fullWidth ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, size == .small ? 16 : 22)
-                .frame(height: size == .small ? 36 : 50)
+                .frame(height: size == .small ? 36 : 50, alignment: .center)
                 .background(background, in: Capsule())
                 .foregroundStyle(foreground)
                 .opacity(isEnabled ? 1 : 0.45)
@@ -105,15 +107,29 @@ struct PillButtonStyle: ButtonStyle {
             }
         }
 
+        /// White on every pill at night; by day the quiet kind steps back to gray.
         private var foreground: Color {
             switch kind {
             case .primary: .white
-            case .secondary: .primary
-            case .quiet: .secondary
+            case .secondary: colorScheme == .dark ? .white : .primary
+            case .quiet: colorScheme == .dark ? .white : .secondary
             case .destructive: Theme.cherry
             }
         }
     }
+}
+
+/// Text-only buttons in forms and toolbars: the accent by day, white at night.
+private struct TextButtonTint: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content.tint(colorScheme == .dark ? Color.white : Color.accentColor)
+    }
+}
+
+extension View {
+    func textButtonTint() -> some View { modifier(TextButtonTint()) }
 }
 
 extension ButtonStyle where Self == PillButtonStyle {
