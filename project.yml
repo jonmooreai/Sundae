@@ -40,6 +40,7 @@ targets:
       path: Sundae/Info.plist
       properties:
         CFBundleDisplayName: Sundae
+        CFBundleName: Sundae
         # XcodeGen would write literal 1 / 1.0 here; these follow the build settings instead,
         # so CI can stamp each TestFlight build with its run number.
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"

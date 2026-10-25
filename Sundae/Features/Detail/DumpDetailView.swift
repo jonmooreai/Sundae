@@ -16,6 +16,7 @@ struct DumpDetailView: View {
     @State private var showFullScreen = false
     @State private var showComments = false
     @State private var focusComposer = false
+    @State private var profileToOpen: ID?
 
     private var isOwn: Bool { dump?.author.id == model.currentUser?.id }
 
@@ -71,11 +72,17 @@ struct DumpDetailView: View {
         }
         .sheet(isPresented: $showComments, onDismiss: { Task { await reloadComments() } }) {
             if let dump {
-                CommentsSheet(dump: dump, focusOnOpen: focusComposer) { count in
+                CommentsSheet(dump: dump, focusOnOpen: focusComposer, onCountChange: { count in
                     self.dump?.commentCount = count
-                }
+                }, onOpenProfile: { user in
+                    showComments = false
+                    profileToOpen = user.id
+                })
                 .environment(model)
             }
+        }
+        .navigationDestination(item: $profileToOpen) { id in
+            RouteView(route: .profile(id))
         }
         .fullScreenCover(isPresented: $showFullScreen) {
             if let dump, dump.photos.indices.contains(page) {
