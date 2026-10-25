@@ -82,7 +82,8 @@ platform :ios do
         git_url: git_url,
         git_branch: ENV["MATCH_GIT_BRANCH"] || "certificates",
         git_basic_authorization: git_auth,
-        skip_confirmation: true
+        skip_confirmation: true,
+        readonly: false
       )
     end
 
