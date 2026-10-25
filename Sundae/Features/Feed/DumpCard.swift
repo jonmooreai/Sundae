@@ -88,8 +88,11 @@ struct DumpCard: View {
             }
         }
         .sheet(isPresented: $showComments) {
-            CommentsSheet(dump: dump, focusOnOpen: focusComposer)
-                .environment(model)
+            CommentsSheet(dump: dump, focusOnOpen: focusComposer, onOpenProfile: { user in
+                showComments = false
+                open(.profile(user.id))
+            })
+            .environment(model)
         }
     }
 

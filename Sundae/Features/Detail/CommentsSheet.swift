@@ -13,6 +13,8 @@ struct CommentsSheet: View {
     var focusOnOpen = false
     /// Called with the new total whenever a comment is added or removed.
     var onCountChange: ((Int) -> Void)? = nil
+    /// Tapping a commenter's face or name. The caller closes the drawer and opens the profile.
+    var onOpenProfile: ((User) -> Void)? = nil
 
     @State private var comments: [Comment] = []
     @State private var hasLoaded = false
@@ -96,7 +98,8 @@ struct CommentsSheet: View {
                 }
                 ForEach(comments) { comment in
                     let isMine = comment.author.id == meID
-                    CommentRow(comment: comment, now: model.clock.now(), isMine: isMine) {
+                    CommentRow(comment: comment, now: model.clock.now(), isMine: isMine,
+                               onOpenProfile: onOpenProfile.map { open in { open(comment.author) } }) {
                         Task { await toggleLike(comment) }
                     }
                     .id(comment.id)
@@ -354,16 +357,24 @@ struct CommentRow: View {
     let comment: Comment
     let now: Date
     var isMine = false
+    var onOpenProfile: (() -> Void)? = nil
     let onLike: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            AvatarView(user: comment.author, size: 32)
+            Button { onOpenProfile?() } label: {
+                AvatarView(user: comment.author, size: 32)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(comment.author.displayName)'s profile")
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(isMine ? "you" : comment.author.username)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
+                    Button { onOpenProfile?() } label: {
+                        Text(isMine ? "you" : comment.author.username)
+                            .font(.subheadline.weight(.semibold))
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
                     Text(relativeTime(comment.createdAt, now: now))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -391,7 +402,7 @@ struct CommentRow: View {
             .padding(.top, 2)
             .animation(.snappy(duration: 0.25), value: comment.likeCount)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
