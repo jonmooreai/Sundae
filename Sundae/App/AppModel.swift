@@ -95,7 +95,7 @@ final class AppModel {
         self.compose = ComposeStore(api: api)
         self.approvals = ApprovalsStore(api: api)
         self.weekday = WeekdayStore(api: api, catalog: catalog)
-        self.localIdeas = LocalIdeasStore(api: api)
+        self.localIdeas = LocalIdeasStore(api: api, onDevice: mock != nil)
     }
 
     // MARK: - Lifecycle

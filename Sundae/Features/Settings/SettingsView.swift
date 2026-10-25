@@ -47,7 +47,7 @@ struct SettingsView: View {
             } header: {
                 Text("Weekday ideas")
             } footer: {
-                Text("Monday to Saturday, today's idea can come from your neighborhood. Your exact location never leaves this phone: Sundae sends a neighborhood-sized area, about a kilometer across, with no account attached, and only when you open the app on a weekday. Never on Sunday, never on your photos, never shown to anyone.")
+                Text("Monday to Saturday, today's idea can come from your neighborhood. Your exact location never leaves this phone: only a neighborhood-sized area, about a kilometer across, is looked up, with no account attached, and only when you open the app on a weekday. Never on Sunday, never on your photos, never shown to anyone.")
             }
 
             Section {

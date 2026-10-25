@@ -26,6 +26,9 @@ final class LocalIdeasStore {
     }
 
     private let api: any SundaeAPI
+    /// True when ideas come from Apple Maps on the phone (no Sundae server involved at all);
+    /// false when a server is configured and `api.localIdeas` answers.
+    private let onDevice: Bool
     private let shared: SharedDefaults
     private static let enabledKey = "localIdeas.enabled"
 
@@ -35,8 +38,9 @@ final class LocalIdeasStore {
     private(set) var ideas: [Suggestion] = []
     private var inFlight: Task<Void, Never>?
 
-    init(api: any SundaeAPI, shared: SharedDefaults = SharedDefaults()) {
+    init(api: any SundaeAPI, onDevice: Bool, shared: SharedDefaults = SharedDefaults()) {
         self.api = api
+        self.onDevice = onDevice
         self.shared = shared
         let enabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
         isEnabled = enabled
@@ -113,7 +117,9 @@ final class LocalIdeasStore {
         guard !Task.isCancelled, isEnabled, !clock.isSunday() else { return }
         status = .loading
         do {
-            let fresh = try await api.localIdeas(cell: cell, day: clock.now())
+            let fresh = onDevice
+                ? try await NearbyIdeas.ideas(cell: cell, day: clock.now(), calendar: clock.calendar)
+                : try await api.localIdeas(cell: cell, day: clock.now())
             guard !Task.isCancelled, isEnabled else { return }
             ideas = fresh
             shared.setLocalIdeas(fresh, at: clock.now())

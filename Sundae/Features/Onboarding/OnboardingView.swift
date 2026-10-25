@@ -299,7 +299,7 @@ struct OnboardingView: View {
                 valueRow(Glyph.calendar, "Weekdays only",
                          "When you open Sundae on a weekday, it looks once to pick today's idea near you. On Sunday it never looks, whatever this is set to.", index: 0)
                 valueRow(Glyph.lock, "A neighborhood, not a pin",
-                         "Your exact spot stays on this phone. Sundae sends only an area about a kilometer across, with no account attached.", index: 1)
+                         "Your exact spot stays on this phone. Only an area about a kilometer across is looked up, with no account attached.", index: 1)
                 valueRow(Glyph.block, "Nowhere else",
                          "Never on your photos, never shown to friends, never saved. Turn it off any time in Settings.", index: 2)
             }

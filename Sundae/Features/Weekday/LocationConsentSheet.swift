@@ -12,7 +12,7 @@ struct LocationConsentSheet: View {
                 .init(glyph: Glyph.calendar,
                       text: "Monday to Saturday only. When you open Sundae on a weekday, it looks once to pick today's idea from your neighborhood. On Sunday it never looks, whatever this is set to."),
                 .init(glyph: Glyph.lock,
-                      text: "Your exact spot stays on this phone. Sundae sends only a neighborhood-sized area, about a kilometer across, and sends it with no account attached."),
+                      text: "Your exact spot stays on this phone. Only a neighborhood-sized area, about a kilometer across, is looked up, with no account attached."),
                 .init(glyph: Glyph.block,
                       text: "Never on your photos, never shown to friends, never saved. Turn it off any time in Settings."),
             ],

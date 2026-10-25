@@ -33,4 +33,32 @@ public enum Geohash {
         }
         return hash
     }
+
+    /// The box a cell covers, or nil for a string that is not a geohash.
+    public static func bounds(_ hash: String) -> (latitude: ClosedRange<Double>, longitude: ClosedRange<Double>)? {
+        var latRange = (low: -90.0, high: 90.0)
+        var lonRange = (low: -180.0, high: 180.0)
+        var evenBit = true
+        for character in hash.lowercased() {
+            guard let index = base32.firstIndex(of: character) else { return nil }
+            for bit in stride(from: 4, through: 0, by: -1) {
+                let on = (index >> bit) & 1 == 1
+                if evenBit {
+                    let mid = (lonRange.low + lonRange.high) / 2
+                    if on { lonRange.low = mid } else { lonRange.high = mid }
+                } else {
+                    let mid = (latRange.low + latRange.high) / 2
+                    if on { latRange.low = mid } else { latRange.high = mid }
+                }
+                evenBit.toggle()
+            }
+        }
+        return (latRange.low...latRange.high, lonRange.low...lonRange.high)
+    }
+
+    public static func center(_ hash: String) -> (latitude: Double, longitude: Double)? {
+        guard let box = bounds(hash) else { return nil }
+        return ((box.latitude.lowerBound + box.latitude.upperBound) / 2,
+                (box.longitude.lowerBound + box.longitude.upperBound) / 2)
+    }
 }

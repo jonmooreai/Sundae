@@ -34,6 +34,24 @@ fix per look, with the accuracy iOS gives when asked for a hundred meters; and a
    nearby idea in for the automatic catalog pick (never over something the user shuffled to or
    finished). The widget shows the same idea.
 
+## Where the places come from
+
+Two sources, same shape, same rules:
+
+- **On the phone, from Apple Maps (the default).** `NearbyIdeas` runs one points-of-interest
+  search (`MKLocalPointsOfInterestRequest`) around the middle of the cell, within a walking
+  radius, filtered to the kinds of places the copy knows about. The pick is seeded by `cell:day`
+  so the three ideas hold still all day. Apple sees a neighborhood center, not the fix, under the
+  user's existing Apple Maps relationship; Sundae's servers see nothing, because there are none
+  involved. Cost: zero at any scale. Limit: Apple throttles heavy MapKit use, and one search per
+  user per day is far below that.
+- **From a server, when `SUNDAE_API_BASE_URL` is set.** `LiveSundaeAPI.localIdeas` asks the
+  anonymous endpoint below. This is for curated or licensed places data, or for copy that changes
+  without an app update.
+
+The store switches between them at launch (`LocalIdeasStore(onDevice:)`). Everything above
+about the Sunday rule, the cell, and the ids holds for both.
+
 ## How the server does it cheaply
 
 The whole cost argument is one observation: **the answer is a function of (cell, day), not of

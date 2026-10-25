@@ -64,13 +64,6 @@ struct CommentsSheet: View {
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
             Text("Comments").font(Theme.display(26))
-            if !comments.isEmpty {
-                Text("\(comments.count)")
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-            }
             Spacer()
             IconButton(glyph: Glyph.close, label: "Close", size: 20) { dismiss() }
                 .padding(.trailing, -8)
@@ -78,7 +71,6 @@ struct CommentsSheet: View {
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 18)
         .padding(.bottom, 6)
-        .animation(.snappy(duration: 0.25), value: comments.count)
     }
 
     private var list: some View {
