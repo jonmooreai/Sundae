@@ -47,7 +47,7 @@ struct FeedList: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) {
-                    LivingSundaeMark(size: 30, clock: model.clock)
+                    CherryMark(size: 36, clock: model.clock)
                         .wobbleOnTap()
                         .background {
                             // Pull to refresh scatters a few sprinkles from the mark.
