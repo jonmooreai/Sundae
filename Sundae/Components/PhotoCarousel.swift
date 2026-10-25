@@ -112,9 +112,8 @@ private struct HeartBurst: View {
     }
 }
 
-/// The people in a photo, one chip each, fanning open above the badge: each chip swings up
-/// from the badge's corner with a little rotation, the nearest first, and settles one step
-/// further right than the one below it, like a hand of cards.
+/// The people in a photo, one chip each, stacked above the badge and left aligned. They rise
+/// into place one after another from the badge upward, and fade out the same way.
 struct TagChips: View {
     let tags: [Tag]
     var linksToProfiles = false
@@ -125,14 +124,13 @@ struct TagChips: View {
             // The last chip sits next to the badge; the first is at the top of the fan.
             let rank = tags.count - 1 - position
             chip(tag)
-                .padding(.leading, CGFloat(rank) * 10)
                 .transition(.asymmetric(
-                    insertion: .modifier(active: FanStep(angle: -22, lift: 18 + CGFloat(rank) * 6, opacity: 0),
+                    insertion: .modifier(active: FanStep(angle: 0, lift: 12, opacity: 0),
                                          identity: FanStep(angle: 0, lift: 0, opacity: 1))
-                        .animation(.bouncy(duration: 0.45, extraBounce: 0.08).delay(Double(rank) * 0.06)),
-                    removal: .modifier(active: FanStep(angle: -12, lift: 10, opacity: 0),
+                        .animation(.easeOut(duration: 0.3).delay(Double(rank) * 0.05)),
+                    removal: .modifier(active: FanStep(angle: 0, lift: 8, opacity: 0),
                                        identity: FanStep(angle: 0, lift: 0, opacity: 1))
-                        .animation(.easeIn(duration: 0.15))))
+                        .animation(.easeIn(duration: 0.12))))
         }
     }
 

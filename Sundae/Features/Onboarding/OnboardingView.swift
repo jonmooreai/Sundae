@@ -1,15 +1,17 @@
 import AuthenticationServices
+import PhotosUI
 import SwiftUI
 import PhosphorSwift
 
-/// Signup is built around inviting a group, not a single person. Four steps: what Sundae is,
-/// sign in, who you are, bring your friends. Sign in with Apple and passkeys are primary;
-/// phone is the labeled fallback.
+/// Four short steps on cream paper: what Sundae is, sign in, who you are, bring your group.
+/// Every step says plainly what happens next; nothing is sent to anyone without a tap that
+/// says so. Sign in with Apple is primary; phone is the labeled fallback, folded away.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum Step { case welcome, signIn, profile, invite }
+    private enum Step: Int, CaseIterable { case welcome, signIn, profile, friends }
 
     @State private var step: Step = .welcome
     @State private var pendingMethod: SignInMethod?
@@ -19,6 +21,12 @@ struct OnboardingView: View {
     @State private var phone = ""
     @State private var code = ""
     @State private var codeSent = false
+    @State private var showPhone = false
+    @State private var avatarItem: PhotosPickerItem?
+    @State private var avatarImage: UIImage?
+    @State private var avatarData: Data?
+    @State private var wantsContactsMatch = false
+    @State private var showContactsConsent = false
     @State private var error: String?
     @State private var isWorking = false
 
@@ -29,49 +37,119 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            VStack {
-                Spacer(minLength: 0)
-                Group {
-                    switch step {
-                    case .welcome: welcome
-                    case .signIn: signIn
-                    case .profile: profile
-                    case .invite: invite
+            VStack(spacing: 0) {
+                topBar
+                ScrollView {
+                    Group {
+                        switch step {
+                        case .welcome: welcome
+                        case .signIn: signIn
+                        case .profile: profile
+                        case .friends: friends
+                        }
                     }
+                    .id(step)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)))
+                    .frame(maxWidth: 480)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 32)
                 }
-                .frame(maxWidth: 480)
-                .animation(.default, value: step)
-                Spacer(minLength: 0)
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .padding(24)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: step)
+        }
+        .filmGrain()
+        .sheet(isPresented: $showContactsConsent) {
+            ContactsConsentSheet {
+                wantsContactsMatch = true
+            }
+        }
+    }
+
+    // MARK: Chrome
+
+    /// Back on every step but the first, and four small dots that fill as you go.
+    private var topBar: some View {
+        HStack {
+            if step != .welcome {
+                IconButton(glyph: Glyph.back, label: "Back", size: 22) { goBack() }
+            } else {
+                Color.clear.frame(width: 40, height: 40)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                ForEach(Step.allCases, id: \.rawValue) { s in
+                    Capsule()
+                        .fill(s.rawValue <= step.rawValue ? Color.accentColor : Theme.hairline)
+                        .frame(width: s == step ? 18 : 6, height: 6)
+                }
+            }
+            .animation(.snappy(duration: 0.3), value: step)
+            .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+            Spacer()
+            Color.clear.frame(width: 40, height: 40)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private func goBack() {
+        error = nil
+        switch step {
+        case .welcome: break
+        case .signIn: step = .welcome
+        case .profile: step = .signIn
+        case .friends: step = .profile
         }
     }
 
     // MARK: Steps
 
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            SundaeMark(size: 72)
-            Text("Sundae")
-                .font(Theme.display(44))
-            Text("A photo dump app that only opens on Sundays.")
-                .font(.title2)
-            VStack(alignment: .leading, spacing: 12) {
-                bullet("Monday to Saturday, the feed is closed. You get one idea for something to go do.")
-                bullet("Sunday, post the week's photos, tag the friends who were there, and see everyone else's week.")
-                bullet("Over time, your profile becomes a week-by-week archive of your life.")
+        VStack(alignment: .leading, spacing: 28) {
+            SundaeMark(size: 96)
+                .wobbleOnTap()
+                .padding(.top, 24)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Sundays only.")
+                    .font(Theme.display(44))
+                Text("A photo dump app that opens once a week. Six days to live it, one day to share it.")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
             }
-            .font(.body)
-            .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 16) {
+                valueRow(Glyph.sun, "One idea a day", "Monday to Saturday the feed is closed. You get a single thing worth going to do.", index: 0)
+                valueRow(Glyph.photos, "Post your week", "On Sunday, pick the photos, tag who was there, and see everyone else's week.", index: 1)
+                valueRow(Glyph.calendar, "A life in weeks", "Your profile becomes a week-by-week archive of what you did.", index: 2)
+            }
             PrimaryButton(title: "Get started") { step = .signIn }
+                .padding(.top, 8)
         }
+        .padding(.top, 12)
+    }
+
+    /// Each row drifts up into place a beat after the one above it.
+    private func valueRow(_ glyph: Ph, _ title: String, _ detail: String, index: Int) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Icon(glyph, weight: .bold, size: 20)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 36, height: 36)
+                .background(Theme.surface, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.body.weight(.semibold))
+                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+            }
+        }
+        .modifier(RiseIn(delay: 0.25 + Double(index) * 0.12))
     }
 
     private var signIn: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Sign in").font(Theme.display(34))
-            Text("No passwords. Nothing to leak, nothing to reset.")
-                .foregroundStyle(.secondary)
+            heading("Sign in", "No passwords. Nothing to leak, nothing to reset.")
 
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.fullName]
@@ -91,38 +169,7 @@ struct OnboardingView: View {
             }
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 50)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Or use your phone number")
-                    .font(.subheadline.weight(.medium))
-                Text("SMS codes are the least secure option and only here for people without an Apple ID on a shared device.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                if codeSent {
-                    TextField("6-digit code", text: $code)
-                        .keyboardType(.numberPad)
-                        .textContentType(.oneTimeCode)
-                        .padding(12)
-                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-                    Button("Continue") {
-                        pendingMethod = .phone(number: phone, code: code)
-                        step = .profile
-                    }
-                    .buttonStyle(.pill(.secondary, size: .small))
-                    .disabled(code.count != 6)
-                } else {
-                    TextField("Phone number", text: $phone)
-                        .keyboardType(.phonePad)
-                        .textContentType(.telephoneNumber)
-                        .padding(12)
-                        .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-                    Button("Send code") { codeSent = true }
-                        .buttonStyle(.pill(.secondary, size: .small))
-                        .disabled(phone.filter(\.isNumber).count < 10)
-                }
-            }
-            .padding(.top, 8)
+            .clipShape(Capsule())
 
             if model.isUsingMock {
                 VStack(spacing: 6) {
@@ -135,7 +182,41 @@ struct OnboardingView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.top, 8)
+            }
+
+            if showPhone {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Phone number")
+                        .font(.subheadline.weight(.medium))
+                    Text("A text with a code is the least secure way in. It is here for people without an Apple ID on a shared device.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if codeSent {
+                        field("6-digit code", text: $code)
+                            .keyboardType(.numberPad)
+                            .textContentType(.oneTimeCode)
+                        Button("Continue") {
+                            pendingMethod = .phone(number: phone, code: code)
+                            step = .profile
+                        }
+                        .buttonStyle(.pill(.secondary, size: .small))
+                        .disabled(code.count != 6)
+                    } else {
+                        field("Phone number", text: $phone)
+                            .keyboardType(.phonePad)
+                            .textContentType(.telephoneNumber)
+                        Button("Text me a code") { codeSent = true }
+                            .buttonStyle(.pill(.secondary, size: .small))
+                            .disabled(phone.filter(\.isNumber).count < 10)
+                    }
+                }
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            } else {
+                Button("Use a phone number instead") {
+                    withAnimation(.snappy(duration: 0.3)) { showPhone = true }
+                }
+                .buttonStyle(.pill(.quiet, fullWidth: true))
             }
 
             if let error {
@@ -146,78 +227,176 @@ struct OnboardingView: View {
 
     private var profile: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Who are you?").font(Theme.display(34))
+            heading("Who are you?", "A face and a name so friends know it's you.")
+
+            HStack(spacing: 16) {
+                PhotosPicker(selection: $avatarItem, matching: .images) {
+                    ZStack {
+                        if let avatarImage {
+                            Image(uiImage: avatarImage)
+                                .resizable()
+                                .scaledToFill()
+                        } else {
+                            Theme.surface
+                            Icon(Glyph.plus, weight: .bold, size: 22).foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(width: 84, height: 84)
+                    .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(avatarImage == nil ? "Add a profile photo" : "Change profile photo")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(avatarImage == nil ? "Add a photo" : "Looking good")
+                        .font(.body.weight(.semibold))
+                    Text("Optional. You can change it any time.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .onChange(of: avatarItem) { _, item in
+                guard let item else { return }
+                Task { await loadAvatar(item) }
+            }
+
             VStack(spacing: 10) {
-                TextField("Name (optional)", text: $name)
+                field("Name (optional)", text: $name)
                     .textContentType(.name)
-                    .padding(12)
-                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
-                TextField("Username", text: $username)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .textContentType(.username)
-                    .padding(12)
-                    .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+                HStack(spacing: 2) {
+                    Text("@").foregroundStyle(.secondary)
+                    TextField("username", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .textContentType(.username)
+                }
+                .padding(12)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                 DatePicker("Birthday", selection: $birthday, in: ...Date(), displayedComponents: .date)
                     .padding(12)
                     .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
             }
-            if !isOldEnough {
-                Text("Sundae is for people 16 and up.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Text("Your birthday is checked once and not stored. Name and bio are optional; no email is collected.")
+            Text(isOldEnough
+                 ? "Your birthday is checked once and not stored. No email is collected."
+                 : "Sundae is for people 16 and up.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
             PrimaryButton(title: "Continue",
                           isEnabled: isOldEnough && username.trimmingCharacters(in: .whitespaces).count >= 2) {
-                step = .invite
+                step = .friends
             }
         }
     }
 
-    private var invite: some View {
+    /// Nothing here happens on its own. Each choice says who is involved before you tap.
+    private var friends: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Bring your group").font(Theme.display(34))
-            Text("Sundae is empty with fewer than five friends and great with ten. Send the link to the people you actually spend your weeks with.")
-                .foregroundStyle(.secondary)
-            Text("Once you're in, Search can check your contacts for people already here. Numbers are hashed on your phone and never stored.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            ShareLink(item: URL(string: "https://sundae.app/join")!,
-                      subject: Text("Join me on Sundae"),
-                      message: Text("Sundays only. Come post your week with us.")) {
-                HStack(spacing: 8) {
-                    Icon(Glyph.share, weight: .bold, size: 18)
-                    Text("Invite your group")
+            heading("Bring your group", "Sundae is quiet with two friends and great with ten. Invite the people you actually spend your weeks with.")
+
+            VStack(alignment: .leading, spacing: 14) {
+                choice(
+                    Glyph.share, "Send the link to a few friends",
+                    "Opens the share sheet. You pick who gets it. Nobody is messaged on their own."
+                ) {
+                    ShareLink(item: URL(string: "https://sundae.app/join")!,
+                              subject: Text("Join me on Sundae"),
+                              message: Text("Sundays only. Come post your week with us.")) {
+                        Text("Choose who to invite").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.pill(.secondary, fullWidth: true))
+                }
+
+                choice(
+                    Glyph.personAdd, "Find friends already here",
+                    wantsContactsMatch
+                        ? "Your contacts will be checked once Sundae opens. Nothing is sent to them."
+                        : "Checks your contacts for people already on Sundae. Numbers are scrambled on this phone and never stored. Nothing is sent to your contacts."
+                ) {
+                    Button {
+                        if wantsContactsMatch {
+                            wantsContactsMatch = false
+                        } else {
+                            showContactsConsent = true
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            if wantsContactsMatch { Icon(Glyph.done, weight: .bold, size: 14) }
+                            Text(wantsContactsMatch ? "Will check my contacts" : "Check my contacts")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.pill(.secondary, fullWidth: true))
                 }
             }
-            .buttonStyle(.pill(.primary, fullWidth: true))
+
             Button {
                 Task { await finishSignIn() }
             } label: {
                 ZStack {
                     Text("Open Sundae").opacity(isWorking ? 0 : 1)
-                    if isWorking { ProgressView() }
+                    if isWorking { ProgressView().tint(.white) }
                 }
             }
-            .buttonStyle(.pill(.secondary, fullWidth: true))
+            .buttonStyle(.pill(.primary, fullWidth: true))
             .disabled(isWorking)
+            .padding(.top, 8)
+
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
 
-    private func bullet(_ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            Circle().fill(Color.accentColor).frame(width: 6, height: 6).offset(y: -3)
-            Text(text)
+    // MARK: Pieces
+
+    private func heading(_ title: String, _ subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(Theme.display(34))
+            Text(subtitle).font(.body).foregroundStyle(.secondary)
+        }
+        .padding(.top, 12)
+    }
+
+    private func field(_ placeholder: String, text: Binding<String>) -> some View {
+        TextField(placeholder, text: text)
+            .padding(12)
+            .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+    }
+
+    /// One option on the friends step: what it is, what it does, and the button that does it.
+    private func choice<Action: View>(_ glyph: Ph, _ title: String, _ detail: String,
+                                      @ViewBuilder action: () -> Action) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Icon(glyph, weight: .bold, size: 18)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 32, height: 32)
+                    .background(Theme.surface, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.body.weight(.semibold))
+                    Text(detail).font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            action()
+        }
+        .padding(14)
+        .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                .strokeBorder(Theme.hairline, lineWidth: 0.5)
         }
     }
 
-    /// Signs in. Once the model flips `isSignedIn`, RootView moves on to the app.
+    // MARK: Actions
+
+    private func loadAvatar(_ item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else { return }
+        avatarData = data
+        avatarImage = image
+    }
+
+    /// Signs in, then applies the photo and starts the contacts check if you asked for it.
+    /// Once the model flips `isSignedIn`, RootView moves on to the app.
     private func finishSignIn() async {
         guard let method = pendingMethod else { return }
         isWorking = true
@@ -225,8 +404,73 @@ struct OnboardingView: View {
         do {
             try await model.signIn(method, username: username.lowercased().trimmingCharacters(in: .whitespaces),
                                    name: name.trimmingCharacters(in: .whitespaces))
+            if let avatarData {
+                try? await model.updateAvatar(avatarData)
+            }
+            if wantsContactsMatch {
+                let matcher = ContactsMatcher(api: model.api)
+                await matcher.match()
+            }
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// A view that starts low and faint, then settles into place after `delay`.
+private struct RiseIn: ViewModifier {
+    let delay: Double
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown ? 0 : 14)
+            .onAppear {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.45).delay(delay)) { shown = true }
+            }
+    }
+}
+
+/// Exactly what checking contacts does, before it does it. Plain words, two buttons.
+struct ContactsConsentSheet: View {
+    let onAgree: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Check your contacts?")
+                .font(Theme.display(28))
+                .padding(.top, 24)
+            VStack(alignment: .leading, spacing: 12) {
+                point(Glyph.lock, "Phone numbers from your contacts are scrambled on this phone. The scrambled versions are compared with Sundae's and then thrown away.")
+                point(Glyph.person, "You see which of your contacts already have Sundae. They are not told you looked.")
+                point(Glyph.block, "Nobody is messaged, invited, or added. Your contacts are never stored.")
+            }
+            Spacer(minLength: 0)
+            PrimaryButton(title: "Check my contacts") {
+                onAgree()
+                dismiss()
+            }
+            Button("Not now") { dismiss() }
+                .buttonStyle(.pill(.quiet, fullWidth: true))
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.background)
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.background)
+    }
+
+    private func point(_ glyph: Ph, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Icon(glyph, weight: .bold, size: 18)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 28)
+            Text(text).font(.subheadline)
         }
     }
 }
