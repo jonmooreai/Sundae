@@ -26,11 +26,13 @@ enum DTO {
         let avatarUrl: URL?
         let isPublic: Bool
         let timezone: String?
+        let birthday: String?
+        let invitedByMe: Bool?
 
         var model: Sundae.User {
             Sundae.User(id: id, username: username, name: name ?? "", bio: bio ?? "",
                         avatar: avatarUrl.map { .remote($0) }, isPublic: isPublic,
-                        timezone: timezone ?? TimeZone.current.identifier)
+                        timezone: timezone ?? TimeZone.current.identifier, birthday: birthday, invitedByMe: invitedByMe)
         }
     }
 
@@ -76,12 +78,13 @@ enum DTO {
         let likedBy: [User]
         let likedByMe: Bool
         let commentCount: Int
+        let isAuthorsFirst: Bool?
 
         var model: Sundae.Dump {
             Sundae.Dump(id: id, author: author.model, weekStart: DTO.weekDate(weekStart), caption: caption ?? "",
                         createdAt: createdAt, lockedAt: lockedAt, photos: photos.map(\.model).sorted { $0.order < $1.order },
                         commentsEnabled: commentsEnabled, likedBy: likedBy.map(\.model), likedByMe: likedByMe,
-                        commentCount: commentCount)
+                        commentCount: commentCount, isAuthorsFirst: isAuthorsFirst)
         }
     }
 

@@ -43,9 +43,11 @@ enum NearbyIdeas {
         // the corner café. Ask twice and merge.
         async let near = search(around: origin, radius: walkMeters)
         async let far = search(around: origin, radius: radiusMeters)
+        async let sky = Weather.sky(latitude: origin.latitude, longitude: origin.longitude)
         var seen = Set<String>()
         let places = try await (near + far).filter { seen.insert($0.id).inserted }
-        return pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar)
+        let wet = await sky == .wet
+        return pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar, wet: wet)
     }
 
     // MARK: - Maps
@@ -93,8 +95,11 @@ enum NearbyIdeas {
 
     // MARK: - Picking
 
+    /// Places that are still a good idea in the rain.
+    private static let indoor: Set<Theme> = [.cafe, .bakery, .library, .museum, .market]
+
     private static func pick(from places: [Place], origin: (latitude: Double, longitude: Double),
-                             cell: String, day: Date, calendar: Calendar) -> [Suggestion] {
+                             cell: String, day: Date, calendar: Calendar, wet: Bool = false) -> [Suggestion] {
         let parts = calendar.dateComponents([.year, .month, .day], from: day)
         let dayString = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
         var random = SeededRandom(seed: "\(cell):\(dayString)")
@@ -109,7 +114,12 @@ enum NearbyIdeas {
         var ideas: [Suggestion] = []
         let slots: [Suggestion.TimeOfDay] = [.morning, .afternoon, .evening]
         for (index, slot) in slots.enumerated() {
-            let candidates = nearby.filter { !usedPlaces.contains($0.place.id) && !(lines[$0.place.theme]?[slot] ?? []).isEmpty }
+            var candidates = nearby.filter { !usedPlaces.contains($0.place.id) && !(lines[$0.place.theme]?[slot] ?? []).isEmpty }
+            // A wet day keeps to places with a roof, as long as there are any.
+            if wet {
+                let dry = candidates.filter { indoor.contains($0.place.theme) }
+                if !dry.isEmpty { candidates = dry }
+            }
             guard !candidates.isEmpty else { continue }
             // A theme not used yet today, then chance. The morning idea stays close to home;
             // the afternoon and evening may be worth the drive.
@@ -118,7 +128,8 @@ enum NearbyIdeas {
             let pool = index == 0 ? Array(ranked.prefix(8)) : ranked
             let choice = pool[Int(random.next() % UInt64(pool.count))]
             guard let variants = lines[choice.place.theme]?[slot], !variants.isEmpty else { continue }
-            let line = variants[Int(random.next() % UInt64(variants.count))]
+            var line = variants[Int(random.next() % UInt64(variants.count))]
+            if wet, let rainy = rainLines[choice.place.theme], random.next() % 2 == 0 { line = rainy }
             usedPlaces.insert(choice.place.id)
             usedThemes.insert(choice.place.theme)
             ideas.append(Suggestion(
@@ -134,6 +145,15 @@ enum NearbyIdeas {
         }
         return ideas
     }
+
+    /// One line per roofed place for a rainy day, used about half the time it rains.
+    private static let rainLines: [Theme: Line] = [
+        .cafe: Line(text: "Wait out the rain at {name}.", reason: "Window seat. Photograph the drops on the glass and whoever is running past."),
+        .bakery: Line(text: "Rain means {name}.", reason: "Something warm, eaten by the window. Shoot the fogged glass."),
+        .library: Line(text: "Spend the wet afternoon at {name}.", reason: "The reading room on a rainy day is the best room in the city. Shoot the windows."),
+        .museum: Line(text: "A rainy day is a museum day. Go to {name}.", reason: "One room, slowly. Photograph the umbrellas by the door on your way out."),
+        .market: Line(text: "Duck into {name} and shop for dinner.", reason: "Three things, no list. Photograph the wet pavement outside with the bag in frame."),
+    ]
 
     /// What to do at each kind of place, by time of day. {name} is the place.
     private static let lines: [Theme: [Suggestion.TimeOfDay: [Line]]] = [

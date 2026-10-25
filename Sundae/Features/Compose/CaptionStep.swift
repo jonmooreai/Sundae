@@ -73,22 +73,45 @@ struct CaptionStep: View {
         }
     }
 
-    /// "On Thursday you did: ..." when a weekday suggestion was marked done.
+    /// A caption written from the ideas you finished this week. Editable, often kept.
     @ViewBuilder
     private var donePrompt: some View {
         let done = model.weekday.doneThisWeek(clock: model.clock)
-        if !compose.hasPosted, let first = done.first {
-            let day = model.clock.weekdayName(first.day)
-            VStack(alignment: .leading, spacing: 8) {
-                Text("\(day): \u{201C}\(first.suggestion.text)\u{201D}")
+        if !compose.hasPosted, !done.isEmpty, let suggested = Self.caption(from: done.map { $0.suggestion }) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(suggested)
                     .font(.subheadline.weight(.medium))
-                Text("You marked this done. Worth a mention?")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("From what you marked done this week.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Use it") { compose.setCaption(suggested) }
+                        .buttonStyle(.pill(.secondary, size: .small))
+                        .disabled(compose.draft.caption == suggested)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .card(padding: 14)
         }
+    }
+
+    /// "Tartine, the lookout, and a walk through a neighborhood I didn't know."
+    static func caption(from suggestions: [Suggestion]) -> String? {
+        let items = suggestions.prefix(4).map { suggestion -> String in
+            if let place = suggestion.place { return place.name }
+            return shortLabel(suggestion.text)
+        }
+        guard !items.isEmpty else { return nil }
+        let joined = ListFormatter.localizedString(byJoining: items)
+        return joined.prefix(1).uppercased() + String(joined.dropFirst()) + "."
+    }
+
+    /// The first clause of an idea, lowercased, trimmed to a few words.
+    private static func shortLabel(_ text: String) -> String {
+        let clause = text.split(whereSeparator: { ".,;:!?".contains($0) }).first.map(String.init) ?? text
+        let words = clause.split(separator: " ").prefix(5)
+        return words.joined(separator: " ").lowercased()
     }
 
     private func post() async {

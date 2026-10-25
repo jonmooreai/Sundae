@@ -35,9 +35,13 @@ struct LikesLabel: View {
 struct LikeButton: View {
     let liked: Bool
     var size: CGFloat = 26
+    /// True when this like is the one that takes the week to ten. A cherry drops onto the heart.
+    var celebrates = false
     let action: () -> Void
 
     @State private var pulse = false
+    @State private var cherryShown = false
+    @State private var cherryLanded = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -45,6 +49,14 @@ struct LikeButton: View {
             Icon(Glyph.heart, weight: liked ? .fill : .regular, size: size)
                 .foregroundStyle(liked ? Theme.cherry : .primary)
                 .scaleEffect(pulse ? 1.3 : 1)
+                .overlay(alignment: .top) {
+                    if cherryShown {
+                        CherryDot(size: size * 0.5)
+                            .offset(y: cherryLanded ? -size * 0.1 : -size * 1.6)
+                            .opacity(cherryLanded ? 1 : 0.4)
+                            .allowsHitTesting(false)
+                    }
+                }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(liked ? "Unlike" : "Like")
@@ -55,6 +67,17 @@ struct LikeButton: View {
                 try? await Task.sleep(for: .milliseconds(160))
                 withAnimation(.bouncy(duration: 0.3)) { pulse = false }
             }
+            if celebrates { dropCherry() }
+        }
+    }
+
+    private func dropCherry() {
+        cherryShown = true
+        cherryLanded = false
+        withAnimation(.bouncy(duration: 0.55, extraBounce: 0.25).delay(0.1)) { cherryLanded = true }
+        Task {
+            try? await Task.sleep(for: .milliseconds(1600))
+            withAnimation(.easeOut(duration: 0.35)) { cherryShown = false }
         }
     }
 }

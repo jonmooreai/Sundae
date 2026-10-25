@@ -39,8 +39,11 @@ fix per look, with the accuracy iOS gives when asked for a hundred meters; and a
 Two sources, same shape, same rules:
 
 - **On the phone, from Apple Maps (the default).** `NearbyIdeas` runs one points-of-interest
-  search (`MKLocalPointsOfInterestRequest`) around the middle of the cell, within a walking
-  radius, filtered to the kinds of places the copy knows about. The pick is seeded by `cell:day`
+  search (`MKLocalPointsOfInterestRequest`) around the middle of the cell, once within a walk
+  and once within twenty miles, filtered to the kinds of places the copy knows about. The
+  morning idea stays walkable; the afternoon and evening may be worth the drive, and the line
+  under the idea shows the distance instead of a walking time. The same cell center goes to
+  Open-Meteo, anonymously and without a key, so a wet day keeps to places with a roof. The pick is seeded by `cell:day`
   so the three ideas hold still all day. Apple sees a neighborhood center, not the fix, under the
   user's existing Apple Maps relationship; Sundae's servers see nothing, because there are none
   involved. Cost: zero at any scale. Limit: Apple throttles heavy MapKit use, and one search per
@@ -67,9 +70,10 @@ never has to know who asked. So:
   Nothing needs to be stored to be consistent.
 - **The data is static and pre-sharded.** Places come from an open dataset (Overture Maps Places
   or Foursquare Open Source Places, both free), filtered once to the dozen categories the copy
-  knows about, and written as one small JSON file per five-character geohash cell (about 5 km
-  square) in R2. A miss reads one shard, occasionally two to four at a boundary, filters to a
-  walking radius around the cell's center, and picks. A few milliseconds of CPU.
+  knows about, and written as one JSON file per four-character geohash cell (about 39 km by
+  20 km) in R2. A miss reads the cell's shard and the ones a twenty-mile box touches, usually
+  two or three, filters to twenty miles around the cell's center, and picks. A few milliseconds
+  of CPU.
 - **No model in the request path.** The copy is a template catalog written once per category and
   time of day. An LLM can be used offline to write or refresh that catalog, which costs the
   same whether there are ten users or ten million.
@@ -114,9 +118,8 @@ runs to dollars per thousand users per day and gets worse with scale.
 
 ## Edges
 
-- **Quiet areas.** A rural cell may have nothing within a short walk. The server returns an empty
-  list and the app shows a catalog idea with a footnote. A later version can widen the radius
-  with a "worth the drive" line rather than inventing places.
+- **Quiet areas.** A rural cell may have nothing within twenty miles that the copy knows about.
+  The server returns an empty list and the app shows a catalog idea with a footnote.
 - **Approximate location.** If the user granted only approximate location, the cell is five
   characters (about 5 km) and the walking times are rough. The app does not ask for temporary
   precise location; the user can grant it in iOS Settings if they want tighter ideas.

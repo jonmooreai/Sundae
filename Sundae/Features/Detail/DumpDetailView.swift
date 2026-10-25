@@ -110,7 +110,7 @@ struct DumpDetailView: View {
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
-                LikeButton(liked: dump.likedByMe) {
+                LikeButton(liked: dump.likedByMe, celebrates: dump.likedBy.count >= 10) {
                     Task { await toggleLike() }
                 }
                 Button {
@@ -131,6 +131,12 @@ struct DumpDetailView: View {
 
             if !dump.caption.isEmpty {
                 Text(dump.caption).fixedSize(horizontal: false, vertical: true)
+            }
+
+            if isOwn {
+                SealRow(dump: dump)
+                PostcardShareButton(dump: dump, line: dump.caption.isEmpty ? nil : dump.caption)
+                    .padding(.top, 4)
             }
         }
         .padding(.horizontal, Theme.pagePadding)

@@ -30,7 +30,7 @@ struct DumpCard: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
-                    LikeButton(liked: dump.likedByMe, action: onLike)
+                    LikeButton(liked: dump.likedByMe, celebrates: dump.likedBy.count >= 10, action: onLike)
 
                     Button {
                         focusComposer = true

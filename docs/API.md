@@ -116,11 +116,12 @@ The server computes the same HMAC over its stored normalized numbers with that k
 ## Shapes
 
 ```
-user:     {id, username, name?, bio?, avatar_url?, is_public, timezone?}
+user:     {id, username, name?, bio?, avatar_url?, is_public, timezone?,
+           birthday?: "MM-DD" (friends only, never a year), invited_by_me?}
 tag:      {id, photo_id, tagger_id, tagged_user: user, status: pending|approved|declined|removed, responded_at?}
 photo:    {id, dump_id, order, url, width, height, alt_text?, tags: [tag]}
 dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photos: [photo],
-           comments_enabled, liked_by: [user], liked_by_me, comment_count}
+           comments_enabled, liked_by: [user], liked_by_me, comment_count, is_authors_first?}
 comment:  {id, dump_id, author: user, body, created_at, edited_at?, like_count, liked_by_me}
 profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week],
            follower_count?, following_count?}      counts only when relationship is "me"
