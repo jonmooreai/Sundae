@@ -26,6 +26,8 @@ permissions:
 jobs:
   build-test-screenshots:
     name: Build, test, screenshots
+    # A [testflight] push runs the TestFlight workflow instead; no need to build twice.
+    if: ${{ !contains(github.event.head_commit.message, '[testflight]') }}
     runs-on: macos-latest
     timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 45 || 15 }}
     steps:

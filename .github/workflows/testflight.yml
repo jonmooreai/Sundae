@@ -1,9 +1,12 @@
 name: TestFlight
 
-# Started by hand only. Builds a signed Release and uploads it to TestFlight.
+# Builds a signed Release and uploads it to TestFlight. Runs when started by hand, or on a
+# push whose commit message contains [testflight]. Never on an ordinary push.
 # Costs about 15 minutes of macOS runner time per build (10x against the free allowance).
 on:
   workflow_dispatch:
+  push:
+    branches: ["main", "claude/**"]
 
 # contents: write lets fastlane match keep the encrypted signing certificate on the
 # "certificates" branch of this repository, so no second repo or token is needed.
@@ -13,6 +16,7 @@ permissions:
 jobs:
   testflight:
     name: Build and upload
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[testflight]') }}
     runs-on: macos-latest
     timeout-minutes: 45
     env:

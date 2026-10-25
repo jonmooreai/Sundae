@@ -25,8 +25,9 @@ https://developer.apple.com/account under Membership details.
 | `ASC_KEY_CONTENT` | The contents of the `.p8` file, pasted as text (open it in any text editor) |
 | `MATCH_PASSWORD` | Any passphrase you choose; it encrypts the signing certificate |
 
-That's it. Say so in the Claude session and the first build will be started for you, or start it
-yourself: Actions → TestFlight → Run workflow.
+That's it. Say so in the Claude session and the build will be started for you, or start it
+yourself: Actions → TestFlight → Run workflow. A push whose commit message contains
+`[testflight]` starts one too, and skips the ordinary CI build for that commit.
 
 ## What the first run does
 
