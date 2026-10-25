@@ -47,7 +47,8 @@ targets:
         SundaeAPIBaseURL: ""
         # Set to group.com.jonmooreai.sundae (here and in the widget) once the App ID has the app group.
         SundaeAppGroup: ""
-        UILaunchScreen: {}
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

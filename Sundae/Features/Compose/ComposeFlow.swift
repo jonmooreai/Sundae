@@ -211,10 +211,12 @@ struct SundayPromptStep: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.8)
-                Text("It's Sunday.\nPost your week.")
+                Text(compose.hasPosted ? "It's Sunday.\nYour week is up." : "It's Sunday.\nPost your week.")
                     .font(Theme.display(44))
                     .lineSpacing(2)
-                Text("Pick the photos, tag who was there, and say how it went. You have until midnight.")
+                Text(compose.hasPosted
+                     ? "Add a photo, fix the caption, or tag someone you missed. You have until midnight."
+                     : "Pick the photos, tag who was there, and say how it went. You have until midnight.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
@@ -233,11 +235,16 @@ struct SundayPromptStep: View {
 
             Spacer(minLength: 20)
 
-            PrimaryButton(title: "Pick your photos") {
+            PrimaryButton(title: compose.hasPosted ? "Edit your week" : "Pick your photos") {
                 Haptics.light()
-                path.append(.pick)
+                if compose.hasPosted {
+                    compose.entry = .arrange
+                    path = []
+                } else {
+                    path.append(.pick)
+                }
             }
-            Button("Show me the feed first") { notNow() }
+            Button(compose.hasPosted ? "See the feed" : "Show me the feed first") { notNow() }
                 .buttonStyle(.pill(.quiet, fullWidth: true))
                 .padding(.top, 4)
         }

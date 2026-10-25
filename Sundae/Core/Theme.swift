@@ -2,8 +2,8 @@ import SwiftUI
 import UIKit
 import PhosphorSwift
 
-/// One accent, neutral grays, serif display type, pill buttons. Photos carry the color;
-/// the chrome stays quiet in either theme. Nothing here is a stock iOS control.
+/// Cream paper, warm grays, a sage accent, serif display type, pill buttons. Photos carry
+/// the color; the chrome stays quiet in either theme. Nothing here is a stock iOS control.
 enum Theme {
     static let radius: CGFloat = 16
     static let smallRadius: CGFloat = 10
@@ -16,19 +16,21 @@ enum Theme {
     static let gap: CGFloat = 8
     static let pagePadding: CGFloat = 16
 
-    static var background: Color { Color(uiColor: .systemBackground) }
-    /// Neutral surface for fields and quiet containers.
-    static var surface: Color { dynamic(light: 0.96, dark: 0.11) }
-    static var surfaceRaised: Color { dynamic(light: 1.0, dark: 0.15) }
-    /// Neutral fill for secondary buttons.
-    static var fill: Color { dynamic(light: 0.93, dark: 0.17) }
-    static var hairline: Color { dynamic(light: 0.88, dark: 0.22) }
+    /// Cream paper by day, warm charcoal at night. Same cream as the app icon.
+    static var background: Color { warm((251, 248, 243), (25, 23, 20)) }
+    /// Surface for fields and quiet containers.
+    static var surface: Color { warm((242, 237, 228), (36, 33, 31)) }
+    static var surfaceRaised: Color { warm((255, 253, 249), (43, 40, 38)) }
+    /// Fill for secondary buttons.
+    static var fill: Color { warm((236, 229, 217), (48, 44, 41)) }
+    static var hairline: Color { warm((227, 220, 207), (59, 54, 49)) }
     /// The cherry on the sundae, and the color of a like. The only red in the app.
     static let cherry = Color(red: 0.86, green: 0.26, blue: 0.30)
 
-    private static func dynamic(light: CGFloat, dark: CGFloat) -> Color {
+    private static func warm(_ light: (CGFloat, CGFloat, CGFloat), _ dark: (CGFloat, CGFloat, CGFloat)) -> Color {
         Color(uiColor: UIColor { trait in
-            UIColor(white: trait.userInterfaceStyle == .dark ? dark : light, alpha: 1)
+            let c = trait.userInterfaceStyle == .dark ? dark : light
+            return UIColor(red: c.0 / 255, green: c.1 / 255, blue: c.2 / 255, alpha: 1)
         })
     }
 
@@ -108,7 +110,7 @@ struct PillButtonStyle: ButtonStyle {
             case .primary: .white
             case .secondary: .primary
             case .quiet: .secondary
-            case .destructive: .red
+            case .destructive: Theme.cherry
             }
         }
     }

@@ -32,6 +32,7 @@ enum SundayTab: Hashable, CaseIterable {
 /// with its own bar hidden; the bar you see is `SundaeTabBar`.
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var scenePhase
     @State private var tab: SundayTab = .feed
     @State private var barHeight: CGFloat = 50
 
@@ -62,10 +63,17 @@ struct SundayShell: View {
         .task {
             // Sunday opens on the prompt until you have posted, so you can start right away.
             await compose.load(weekStart: model.currentWeekStart)
-            if compose.shouldShowPrompt(weekStart: model.currentWeekStart) {
-                compose.present(.prompt)
-            }
+            presentPromptIfNeeded()
         }
+        .onChange(of: scenePhase) { _, phase in
+            // Coming back from the background counts as opening the app.
+            if phase == .active, compose.loadedWeekStart != nil { presentPromptIfNeeded() }
+        }
+    }
+
+    private func presentPromptIfNeeded() {
+        guard !compose.isPresented, compose.shouldShowPrompt(weekStart: model.currentWeekStart) else { return }
+        compose.present(.prompt)
     }
 
     private func openCompose() {

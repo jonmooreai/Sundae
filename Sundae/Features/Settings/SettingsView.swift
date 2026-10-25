@@ -85,10 +85,12 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+                    Toggle("Always open on the post screen",
+                           isOn: Binding(get: { model.compose.alwaysShowPrompt }, set: { model.compose.alwaysShowPrompt = $0 }))
                 } header: {
                     Text("Demo")
                 } footer: {
-                    Text("This build runs on built-in demo data. Move the clock to see the Sunday screens on any day.")
+                    Text("This build runs on built-in demo data. Move the clock to see the Sunday screens on any day. The post screen normally shows once per Sunday until you post or wave it away; the switch shows it on every open.")
                 }
             }
 

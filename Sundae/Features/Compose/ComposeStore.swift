@@ -21,6 +21,12 @@ final class ComposeStore {
     private let api: any SundaeAPI
     private let pendingStore = PendingPostStore()
     private static let promptDismissedKey = "sundayPrompt.dismissedWeekStart"
+    private static let alwaysPromptKey = "sundayPrompt.always"
+
+    /// Show the full-screen post prompt every time the app opens on Sunday, posted or not.
+    var alwaysShowPrompt = UserDefaults.standard.bool(forKey: ComposeStore.alwaysPromptKey) {
+        didSet { UserDefaults.standard.set(alwaysShowPrompt, forKey: Self.alwaysPromptKey) }
+    }
 
     /// Whether the full-screen posting flow is on screen, and where it opened.
     private(set) var isPresented = false
@@ -73,8 +79,10 @@ final class ComposeStore {
         isPresented = false
     }
 
-    /// The Sunday prompt shows once per Sunday until the user posts or waves it away.
+    /// The Sunday prompt shows once per Sunday until the user posts or waves it away,
+    /// or every time when the switch in Settings is on.
     func shouldShowPrompt(weekStart: Date) -> Bool {
+        if alwaysShowPrompt { return true }
         guard !hasPosted, !queuedOffline else { return false }
         let dismissed = UserDefaults.standard.object(forKey: Self.promptDismissedKey) as? Date
         return dismissed != weekStart
