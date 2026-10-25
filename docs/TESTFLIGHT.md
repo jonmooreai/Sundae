@@ -6,6 +6,12 @@ else is automated.
 
 ## Your part, once
 
+**0. Accept the current developer agreement.** Open https://developer.apple.com/account and
+accept any agreement banner at the top, then check https://appstoreconnect.apple.com/agreements
+for anything marked pending. Apple's API refuses every request ("A required agreement is
+missing or has expired") until the Account Holder has accepted the latest Apple Developer
+Program License Agreement. The free apps agreement is enough; paid apps is not needed.
+
 **1. Create an App Store Connect API key.** Open
 https://appstoreconnect.apple.com/access/integrations/api, choose Team Keys, and click
 Generate (or the plus button). Name it anything, pick the **Admin** role so the key can create
@@ -26,8 +32,9 @@ https://developer.apple.com/account under Membership details.
 | `MATCH_PASSWORD` | Any passphrase you choose; it encrypts the signing certificate |
 
 That's it. Say so in the Claude session and the build will be started for you, or start it
-yourself: Actions → TestFlight → Run workflow. A push whose commit message contains
-`[testflight]` starts one too, and skips the ordinary CI build for that commit.
+yourself: Actions → TestFlight → Run workflow. Any push to the `testflight` branch starts one
+too (`git push -f origin HEAD:testflight`), as does a commit whose message contains
+`[testflight]`; the latter skips the ordinary CI build for that commit.
 
 ## What the first run does
 
