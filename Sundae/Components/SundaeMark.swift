@@ -104,6 +104,25 @@ struct LivingSundaeMark: View {
     }
 }
 
+/// The cherry from the app icon, for the top right of Sunday's home. It sags a little as the
+/// night goes on, like the drawn mark does.
+struct CherryMark: View {
+    var size: CGFloat = 34
+    let clock: SundayClock
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            let melt = LivingSundaeMark.melt(at: context.date, clock: clock)
+            Image("Cherry")
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .scaleEffect(x: 1 + 0.18 * melt, y: 1 - 0.3 * melt, anchor: .bottom)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 /// Tap the sundae and it wobbles, cherry and all. Nothing happens otherwise; that is the point.
 private struct WobbleOnTap: ViewModifier {
     @State private var taps = 0
