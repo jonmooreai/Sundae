@@ -18,13 +18,18 @@ struct ComposeFlow: View {
     var body: some View {
         NavigationStack(path: $path) {
             root
+                .swipeBackEnabled()
                 .navigationDestination(for: ComposeStep.self) { step in
-                    switch step {
-                    case .pick: PickPhotosStep(library: library, path: $path)
-                    case .arrange: ArrangeStep(library: library, path: $path)
-                    case .caption: CaptionStep(path: $path)
-                    case .posted: PostedStep(path: $path)
+                    Group {
+                        switch step {
+                        case .pick: PickPhotosStep(library: library, path: $path)
+                        case .arrange: ArrangeStep(library: library, path: $path)
+                        case .caption: CaptionStep(path: $path)
+                        case .posted: PostedStep(path: $path)
+                        }
                     }
+                    // Once the week is up there is nothing to go back to.
+                    .swipeBackEnabled(step != .posted)
                 }
         }
         .task {

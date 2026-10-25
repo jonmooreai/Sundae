@@ -53,7 +53,7 @@ struct WeekRow: View {
                     HStack(spacing: Theme.gap) {
                         if let dump = week.dump {
                             ForEach(dump.photos.sorted { $0.order < $1.order }) { photo in
-                                NavigationLink(value: Route.dump(dump.id)) {
+                                NavigationLink(value: Route.dump(dump.id, photo: photo.id)) {
                                     cell(photo.source, aspect: photo.aspectRatio)
                                         .overlay(alignment: .bottomLeading) {
                                             if !photo.visibleTags.isEmpty {
@@ -66,7 +66,7 @@ struct WeekRow: View {
                             }
                         }
                         ForEach(week.tagged) { tagged in
-                            NavigationLink(value: Route.dump(tagged.photo.dumpID)) {
+                            NavigationLink(value: Route.dump(tagged.photo.dumpID, photo: tagged.photo.id)) {
                                 cell(tagged.photo.source, aspect: tagged.photo.aspectRatio)
                                     .overlay(alignment: .bottomLeading) { AttributionChip(user: tagged.from).padding(4) }
                             }

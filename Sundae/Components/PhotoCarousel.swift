@@ -8,6 +8,8 @@ struct PhotoCarousel: View {
     let photos: [Photo]
     @Binding var index: Int
     var cornerRadius: CGFloat = 0
+    /// Called with the photo's position when a photo is tapped. Without it a tap toggles the tag chips.
+    var onTap: ((Int) -> Void)? = nil
 
     @State private var showTags = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,20 +24,26 @@ struct PhotoCarousel: View {
                 ZStack(alignment: .bottomLeading) {
                     PhotoView(source: photo.source)
                     if !photo.visibleTags.isEmpty {
-                        if showTags {
-                            TagChipRow(tags: photo.visibleTags)
-                                .padding(10)
-                                .transition(.opacity)
-                        } else {
-                            TagBadge()
-                                .padding(10)
-                                .transition(.opacity)
+                        Button(action: toggleTags) {
+                            if showTags {
+                                TagChipRow(tags: photo.visibleTags)
+                                    .transition(.opacity)
+                            } else {
+                                TagBadge()
+                                    .transition(.opacity)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .padding(10)
+                        .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
                     }
                 }
                 .tag(offset)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityLabel(for: photo, position: offset))
+                .accessibilityAddTraits(onTap == nil ? AccessibilityTraits() : .isButton)
+                .accessibilityAction { if let onTap { onTap(offset) } else { toggleTags() } }
+                .accessibilityAction(named: "Show tagged friends") { toggleTags() }
             }
         }
         .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
@@ -43,9 +51,13 @@ struct PhotoCarousel: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { showTags.toggle() }
+            if let onTap { onTap(index) } else { toggleTags() }
         }
         .transaction { t in if reduceMotion { t.animation = nil } }
+    }
+
+    private func toggleTags() {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { showTags.toggle() }
     }
 
     private func accessibilityLabel(for photo: Photo, position: Int) -> String {

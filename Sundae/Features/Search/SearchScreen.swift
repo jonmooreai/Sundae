@@ -7,6 +7,7 @@ struct SearchScreen: View {
             SearchView()
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                .swipeBackEnabled()
         }
     }
 }

@@ -27,6 +27,7 @@ struct FeedScreen: View {
                 FeedList(open: { path.append($0) }, onPost: onPost)
                     .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                    .swipeBackEnabled()
             }
         }
     }

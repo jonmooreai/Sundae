@@ -165,12 +165,15 @@ struct RouteView: View {
     let route: Route
 
     var body: some View {
-        switch route {
-        case .dump(let id):
-            DumpDetailView(dumpID: id)
-        case .profile(let id):
-            ProfileView(userID: id)
+        Group {
+            switch route {
+            case .dump(let id, let photoID):
+                DumpDetailView(dumpID: id, photoID: photoID)
+            case .profile(let id):
+                ProfileView(userID: id)
+            }
         }
+        .swipeBackEnabled()
     }
 }
 
@@ -182,6 +185,7 @@ struct RouteStack: View {
         NavigationStack {
             RouteView(route: root)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                .swipeBackEnabled()
         }
     }
 }

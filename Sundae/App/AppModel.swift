@@ -20,7 +20,8 @@ enum DebugDay: String, CaseIterable, Identifiable {
 }
 
 enum Route: Hashable {
-    case dump(ID)
+    /// A dump, opened on a particular photo when one is given.
+    case dump(ID, photo: ID? = nil)
     case profile(ID)
 }
 

@@ -5,6 +5,8 @@ import PhosphorSwift
 struct DumpDetailView: View {
     @Environment(AppModel.self) private var model
     let dumpID: ID
+    /// The photo to show first, when the dump was opened by tapping one.
+    var photoID: ID? = nil
 
     @State private var dump: Dump?
     @State private var comments: [Comment] = []
@@ -194,7 +196,11 @@ struct DumpDetailView: View {
 
     private func load() async {
         do {
-            dump = try await model.api.dump(id: dumpID)
+            let loaded = try await model.api.dump(id: dumpID)
+            if let photoID, let index = loaded.photos.firstIndex(where: { $0.id == photoID }) {
+                page = index
+            }
+            dump = loaded
             comments = try await model.api.comments(dumpID: dumpID)
         } catch {
             errorMessage = error.localizedDescription

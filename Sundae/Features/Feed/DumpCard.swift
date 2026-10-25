@@ -16,8 +16,11 @@ struct DumpCard: View {
         VStack(alignment: .leading, spacing: 10) {
             header.padding(.horizontal, Theme.pagePadding)
 
-            PhotoCarousel(photos: dump.photos, index: $page)
-                .onTapGesture(count: 2) { if !dump.likedByMe { onLike() } }
+            PhotoCarousel(photos: dump.photos, index: $page) { position in
+                guard dump.photos.indices.contains(position) else { return }
+                open(.dump(dump.id, photo: dump.photos[position].id))
+            }
+            .onTapGesture(count: 2) { if !dump.likedByMe { onLike() } }
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 18) {
