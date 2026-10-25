@@ -121,9 +121,6 @@ struct DumpDetailView: View {
                 }
                 .accessibilityLabel("Comments")
                 .disabled(!dump.commentsEnabled)
-                if isOwn {
-                    PostcardShareIcon(dump: dump)
-                }
                 LikesLabel(dump: dump, meID: model.currentUser?.id)
                 Spacer(minLength: 8)
                 if dump.photos.count > 1 {

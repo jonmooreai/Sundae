@@ -61,13 +61,8 @@ struct ProfileView: View {
                     }
                 }
                 if let profile {
-                    ProfileHeader(profile: profile,
-                                  streak: Streak.compute(weeks: profile.weeks, currentWeekStart: model.currentWeekStart),
-                                  onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
+                    ProfileHeader(profile: profile, onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
                         .padding(.horizontal, Theme.pagePadding)
-                    if canSeeWeeks(profile), profile.weeks.contains(where: { $0.dump != nil }) {
-                        YearInWeeks(profile: profile)
-                    }
                     weekRows(for: profile)
                 } else if let errorMessage {
                     ErrorBanner(message: errorMessage).padding(.horizontal, Theme.pagePadding)
@@ -124,10 +119,6 @@ struct ProfileView: View {
                 }
             }
         }
-    }
-
-    private func canSeeWeeks(_ profile: Profile) -> Bool {
-        !(profile.relationship == .notFollowing || profile.relationship == .requested) || profile.user.isPublic
     }
 
     private func emptyState(_ glyph: Ph, _ title: String, _ text: String) -> some View {
@@ -205,7 +196,6 @@ enum ProfileRowItem: Identifiable {
 
 struct ProfileHeader: View {
     let profile: Profile
-    var streak: Streak = .none
     let onFollow: () -> Void
     let onEdit: () -> Void
 
@@ -236,7 +226,6 @@ struct ProfileHeader: View {
                     .font(.subheadline)
                     .lineLimit(2)
             }
-            StreakCherries(streak: streak)
             if profile.relationship == .me {
                 Button("Edit profile", action: onEdit)
                     .buttonStyle(.pill(.secondary, size: .small, fullWidth: true))

@@ -345,7 +345,7 @@ actor MockSundaeAPI: SundaeAPI {
         try await latency()
         let rel = relationship(of: me.id, to: userID)
         let canSee = rel == .me || rel == .following || user.isPublic
-        let starts = clock.recentWeekStarts(count: rel == .me ? 53 : 12)
+        let starts = clock.recentWeekStarts(count: 12)
         var weeks: [ProfileWeek] = []
         if canSee {
             for start in starts {
