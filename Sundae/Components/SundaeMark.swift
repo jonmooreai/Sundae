@@ -53,6 +53,37 @@ struct SundaeMark: View {
     }
 }
 
+/// Tap the sundae and it wobbles, cherry and all. Nothing happens otherwise; that is the point.
+private struct WobbleOnTap: ViewModifier {
+    @State private var taps = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .keyframeAnimator(initialValue: 0.0, trigger: taps) { view, angle in
+                view.rotationEffect(.degrees(angle), anchor: .bottom)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    CubicKeyframe(-12, duration: 0.10)
+                    CubicKeyframe(9, duration: 0.12)
+                    CubicKeyframe(-5, duration: 0.10)
+                    CubicKeyframe(2, duration: 0.08)
+                    CubicKeyframe(0, duration: 0.10)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !reduceMotion else { return }
+                Haptics.light()
+                taps += 1
+            }
+    }
+}
+
+extension View {
+    func wobbleOnTap() -> some View { modifier(WobbleOnTap()) }
+}
+
 /// Three fanned, rounded photo cards. Used where the app asks for photos.
 struct PhotoStackIcon: View {
     var size: CGFloat = 72

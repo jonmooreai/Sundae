@@ -27,6 +27,7 @@ struct FeedScreen: View {
                 FeedList(open: { path.append($0) }, onPost: onPost)
                     .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                    .aboveBottomBar()
                     .swipeBackEnabled()
             }
         }
@@ -44,7 +45,7 @@ struct FeedList: View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) {
-                    SundaeMark(size: 30)
+                    SundaeMark(size: 30).wobbleOnTap()
                 }
                 .accessibilityElement(children: .contain)
 
@@ -62,6 +63,7 @@ struct FeedList: View {
                     )
                     .padding(.top, 18)
                     .padding(.bottom, 10)
+                    .transition(.opacity)
                     .task { await feed.loadMoreIfNeeded(current: dump) }
                 }
 
@@ -82,6 +84,7 @@ struct FeedList: View {
             .padding(.bottom, 24)
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
+            .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
         }
         .background(Theme.background)
         .refreshable {

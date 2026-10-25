@@ -130,14 +130,21 @@ struct DumpCard: View {
         return HStack(spacing: 0) {
             Text("with ").foregroundStyle(.secondary)
             ForEach(Array(users.enumerated()), id: \.element.id) { i, user in
-                Button(user.firstName) { open(.profile(user.id)) }
-                    .buttonStyle(.plain)
-                    .fontWeight(.medium)
+                Button {
+                    open(.profile(user.id))
+                } label: {
+                    HStack(spacing: 4) {
+                        AvatarView(user: user, size: 18)
+                        Text(user.firstName).fontWeight(.medium)
+                    }
+                }
+                .buttonStyle(.plain)
                 if i < users.count - 1 {
                     Text(i == users.count - 2 ? " and " : ", ").foregroundStyle(.secondary)
                 }
             }
         }
         .font(.subheadline)
+        .lineLimit(1)
     }
 }

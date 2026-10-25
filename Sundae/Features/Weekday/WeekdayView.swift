@@ -7,7 +7,6 @@ struct WeekdayView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var showApprovals = false
     @State private var showSettings = false
 
     private var store: WeekdayStore { model.weekday }
@@ -32,9 +31,6 @@ struct WeekdayView: View {
         }
         .task { store.load(clock: model.clock) }
         .onChange(of: model.phase) { _, _ in store.load(clock: model.clock) }
-        .sheet(isPresented: $showApprovals) {
-            NavigationStack { ApprovalsView() }
-        }
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
         }
@@ -44,26 +40,11 @@ struct WeekdayView: View {
 
     private var topBar: some View {
         HStack {
-            Button {
-                showApprovals = true
-            } label: {
-                HStack(spacing: 6) {
-                    Icon(Glyph.approvals, size: 22)
-                    if model.pendingApprovalCount > 0 {
-                        Text("\(model.pendingApprovalCount)")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                }
-                .padding(.horizontal, model.pendingApprovalCount > 0 ? 12 : 9)
-                .frame(height: 40)
-                .background(Theme.fill, in: Capsule())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(model.pendingApprovalCount > 0 ? "\(model.pendingApprovalCount) tags waiting for approval" : "Tag approvals")
-            .opacity(model.pendingApprovalCount > 0 ? 1 : 0.6)
+            // Approvals wait for Sunday's bar; weekdays stay quiet. This keeps the mark centered.
+            Color.clear.frame(width: 40, height: 40)
 
             Spacer()
-            SundaeMark(size: 30)
+            SundaeMark(size: 30).wobbleOnTap()
             Spacer()
 
             IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }

@@ -33,19 +33,24 @@ struct FollowButton: View {
     let action: () -> Void
 
     var body: some View {
-        switch relationship {
-        case .notFollowing:
-            Button(action: action) { Text("Follow").frame(width: 70) }
-                .buttonStyle(.pill(.primary, size: .small))
-        case .requested:
-            Button(action: action) { Text("Requested").frame(width: 70) }
-                .buttonStyle(.pill(.secondary, size: .small))
-        case .following:
-            Button(action: action) { Text("Following").frame(width: 70) }
-                .buttonStyle(.pill(.secondary, size: .small))
-        case .me, .blocked:
-            EmptyView()
+        Group {
+            switch relationship {
+            case .notFollowing:
+                Button(action: action) { Text("Follow").frame(width: 70) }
+                    .buttonStyle(.pill(.primary, size: .small))
+            case .requested:
+                Button(action: action) { Text("Requested").frame(width: 70) }
+                    .buttonStyle(.pill(.secondary, size: .small))
+            case .following:
+                Button(action: action) { Text("Following").frame(width: 70) }
+                    .buttonStyle(.pill(.secondary, size: .small))
+            case .me, .blocked:
+                EmptyView()
+            }
         }
+        .id(relationship)
+        .transition(.scale(scale: 0.9).combined(with: .opacity))
+        .animation(.bouncy(duration: 0.35), value: relationship)
     }
 }
 

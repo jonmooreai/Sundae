@@ -7,6 +7,7 @@ struct ApprovalsScreen: View {
             ApprovalsView()
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                .aboveBottomBar()
                 .swipeBackEnabled()
         }
     }

@@ -31,14 +31,14 @@ struct PhotoCarousel: View {
                 ZStack(alignment: .bottomLeading) {
                     PhotoView(source: photo.source)
                     if !photo.visibleTags.isEmpty {
-                        // The badge stays put; the people fan out beside it.
-                        HStack(spacing: 6) {
-                            Button(action: toggleTags) { TagBadge(isOpen: showTags) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
+                        // The badge stays put; the people stack up above it, clear of the page dots.
+                        VStack(alignment: .leading, spacing: 6) {
                             if showTags {
                                 TagChips(tags: photo.visibleTags, linksToProfiles: tagsLinkToProfiles, onTap: onTapTag)
                             }
+                            Button(action: toggleTags) { TagBadge(isOpen: showTags) }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
                         }
                         .padding(10)
                     }
@@ -112,7 +112,7 @@ private struct HeartBurst: View {
     }
 }
 
-/// The people in a photo, one chip each, sliding out from the badge one after another.
+/// The people in a photo, one chip each, rising from the badge one after another.
 struct TagChips: View {
     let tags: [Tag]
     var linksToProfiles = false
@@ -122,8 +122,8 @@ struct TagChips: View {
         ForEach(Array(tags.enumerated()), id: \.element.id) { position, tag in
             chip(tag)
                 .transition(.asymmetric(
-                    insertion: .move(edge: .leading).combined(with: .opacity)
-                        .animation(.bouncy(duration: 0.35).delay(Double(position) * 0.05)),
+                    insertion: .move(edge: .bottom).combined(with: .opacity)
+                        .animation(.bouncy(duration: 0.35).delay(Double(tags.count - 1 - position) * 0.05)),
                     removal: .opacity.animation(.easeOut(duration: 0.12))))
         }
     }

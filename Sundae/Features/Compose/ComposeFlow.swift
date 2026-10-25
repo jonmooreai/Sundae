@@ -32,6 +32,7 @@ struct ComposeFlow: View {
                     .swipeBackEnabled(step != .posted)
                 }
         }
+        .filmGrain()
         .task {
             await compose.load(weekStart: model.currentWeekStart)
             library.refreshStatus()
@@ -49,6 +50,32 @@ struct ComposeFlow: View {
 }
 
 // MARK: - Shared pieces
+
+/// A handful of sprinkles that scatter from the check when the week goes up.
+struct Sprinkles: View {
+    let fired: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let colors: [Color] = [Theme.cherry, Color.accentColor, Color(red: 0.93, green: 0.76, blue: 0.40), Color(red: 0.62, green: 0.74, blue: 0.86)]
+
+    var body: some View {
+        ZStack {
+            ForEach(0..<18, id: \.self) { i in
+                let angle = Double(i) * 20 + Double(i % 3) * 7
+                let distance = fired ? 86.0 + Double(i % 4) * 16 : 10
+                Capsule()
+                    .fill(colors[i % colors.count])
+                    .frame(width: 5, height: 13)
+                    .rotationEffect(.degrees(angle + (fired ? 140 : 0)))
+                    .offset(x: cos(angle * .pi / 180) * distance, y: sin(angle * .pi / 180) * distance)
+                    .opacity(fired ? 0 : 1)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.9).delay(0.15 + Double(i % 5) * 0.03), value: fired)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
 
 /// Top of a flow step: back or close on the left, a serif title, chrome on the right.
 struct FlowHeader<Trailing: View>: View {
@@ -291,6 +318,7 @@ struct PostedStep: View {
                 .foregroundStyle(Color.accentColor)
                 .scaleEffect(appeared ? 1 : 0.6)
                 .animation(.bouncy(duration: 0.5), value: appeared)
+                .background { Sprinkles(fired: appeared) }
             Text(compose.queuedOffline ? "Saved for when you're back online." : "Your week is up.")
                 .font(Theme.display(36))
                 .multilineTextAlignment(.center)

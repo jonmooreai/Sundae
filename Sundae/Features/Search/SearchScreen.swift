@@ -7,6 +7,7 @@ struct SearchScreen: View {
             SearchView()
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                .aboveBottomBar()
                 .swipeBackEnabled()
         }
     }
@@ -22,6 +23,9 @@ struct SearchView: View {
     @State private var relationships: [ID: Relationship] = [:]
     @State private var isSearching = false
     @State private var contacts: ContactsMatcher?
+    /// Requests just confirmed, showing their moment before the row leaves.
+    @State private var confirmed: Set<ID> = []
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -35,14 +39,27 @@ struct SearchView: View {
                         ForEach(requests) { user in
                             HStack(spacing: 8) {
                                 UserRow(user: user, subtitle: user.name)
-                                Button("Confirm") { Task { await respond(user, accept: true) } }
-                                    .buttonStyle(.pill(.primary, size: .small))
-                                Button("Delete") { Task { await respond(user, accept: false) } }
-                                    .buttonStyle(.pill(.secondary, size: .small))
+                                if confirmed.contains(user.id) {
+                                    HStack(spacing: 5) {
+                                        Icon(Glyph.done, weight: .bold, size: 14)
+                                        Text("Friends")
+                                    }
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(Color.accentColor)
+                                    .frame(height: 36)
+                                    .transition(.scale(scale: 0.8).combined(with: .opacity))
+                                } else {
+                                    Button("Confirm") { respond(user, accept: true) }
+                                        .buttonStyle(.pill(.primary, size: .small))
+                                    Button("Delete") { respond(user, accept: false) }
+                                        .buttonStyle(.pill(.secondary, size: .small))
+                                }
                             }
                             .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
                             .listRowInsets(rowInsets)
                             .listRowSeparator(.hidden)
+                            .transition(.asymmetric(insertion: .opacity,
+                                                    removal: .move(edge: .trailing).combined(with: .opacity)))
                         }
                     } header: {
                         header("Follow requests")
@@ -198,9 +215,22 @@ struct SearchView: View {
         }
     }
 
-    private func respond(_ user: User, accept: Bool) async {
-        requests.removeAll { $0.id == user.id }
-        try? await model.api.respondToFollowRequest(from: user.id, accept: accept)
-        await model.compose.refreshTaggable()
+    /// Confirm shows a brief "Friends" before the row slides away; Delete just slides away.
+    private func respond(_ user: User, accept: Bool) {
+        if accept {
+            Haptics.success()
+            withAnimation(reduceMotion ? nil : .bouncy(duration: 0.4)) { _ = confirmed.insert(user.id) }
+        } else {
+            Haptics.light()
+        }
+        Task {
+            if accept, !reduceMotion {
+                try? await Task.sleep(for: .milliseconds(700))
+            }
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.35)) { requests.removeAll { $0.id == user.id } }
+            confirmed.remove(user.id)
+            try? await model.api.respondToFollowRequest(from: user.id, accept: accept)
+            await model.compose.refreshTaggable()
+        }
     }
 }

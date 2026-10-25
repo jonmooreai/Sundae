@@ -16,12 +16,17 @@ struct LikesLabel: View {
         }
     }
 
+    /// Up to three names in full; past that, two names and a count; past ten, just the count.
     private var text: String? {
         let likers = dump.likedBy
         if likers.isEmpty { return nil }
         if likers.count > 10 { return "\(likers.count) likes" }
         var names = likers.filter { $0.id != meID }.map(\.firstName)
         if dump.likedByMe { names.insert("you", at: 0) }
+        if names.count > 3 {
+            let rest = names.count - 2
+            return "Liked by \(names[0]), \(names[1]) and \(rest) others"
+        }
         return "Liked by " + ListFormatter.localizedString(byJoining: names)
     }
 }

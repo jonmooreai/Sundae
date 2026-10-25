@@ -82,6 +82,25 @@ final class FeedStore {
         dumps.removeAll { $0.id == dumpID }
     }
 
+    /// A user changed (name, photo): update every copy already on screen.
+    func replaceUser(_ user: User) {
+        dumps = dumps.map { dump in
+            var dump = dump
+            if dump.author.id == user.id { dump.author = user }
+            dump.likedBy = dump.likedBy.map { $0.id == user.id ? user : $0 }
+            dump.photos = dump.photos.map { photo in
+                var photo = photo
+                photo.tags = photo.tags.map { tag in
+                    var tag = tag
+                    if tag.taggedUser.id == user.id { tag.taggedUser = user }
+                    return tag
+                }
+                return photo
+            }
+            return dump
+        }
+    }
+
     /// A freshly posted dump goes straight to the top so the author sees it without a refresh.
     func insertOwn(_ dump: Dump) {
         dumps.removeAll { $0.id == dump.id }

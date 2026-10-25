@@ -214,15 +214,19 @@ final class AppModel {
     }
 
     func updateProfile(name: String, username: String, bio: String) async throws {
-        currentUser = try await api.updateProfile(name: name, username: username, bio: bio)
-        cacheUser(currentUser)
+        let user = try await api.updateProfile(name: name, username: username, bio: bio)
+        currentUser = user
+        cacheUser(user)
+        feed.replaceUser(user)
     }
 
     /// Re-encodes the picked image to a 600 px square on device, then sends only that.
     func updateAvatar(_ data: Data) async throws {
         guard let photo = await PhotoProcessor.processAvatarInBackground(data) else { throw SundaeError.invalidPhoto }
-        currentUser = try await api.updateAvatar(photo)
-        cacheUser(currentUser)
+        let user = try await api.updateAvatar(photo)
+        currentUser = user
+        cacheUser(user)
+        feed.replaceUser(user)
     }
 
     func saveAccountSettings(_ settings: AccountSettings) async {

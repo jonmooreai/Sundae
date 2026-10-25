@@ -90,7 +90,21 @@ struct PillButtonStyle: ButtonStyle {
                 .frame(maxWidth: fullWidth ? .infinity : nil, alignment: .center)
                 .padding(.horizontal, size == .small ? 16 : 22)
                 .frame(height: size == .small ? 36 : 50, alignment: .center)
-                .background(background, in: Capsule())
+                .background {
+                    ZStack {
+                        Capsule().fill(background)
+                        if kind == .primary {
+                            // A whisper of light from above, a darker rim, and a bright top edge.
+                            Capsule().fill(LinearGradient(
+                                colors: [.white.opacity(0.16), .white.opacity(0.02), .black.opacity(0.10)],
+                                startPoint: .top, endPoint: .bottom))
+                            Capsule().strokeBorder(Color.black.opacity(0.16), lineWidth: 1)
+                            Capsule().inset(by: 1).strokeBorder(LinearGradient(
+                                colors: [.white.opacity(0.38), .white.opacity(0)],
+                                startPoint: .top, endPoint: .center), lineWidth: 1)
+                        }
+                    }
+                }
                 .foregroundStyle(foreground)
                 .opacity(isEnabled ? 1 : 0.45)
                 .scaleEffect(configuration.isPressed ? 0.97 : 1)
@@ -117,6 +131,25 @@ struct PillButtonStyle: ButtonStyle {
             }
         }
     }
+}
+
+/// A very fine, tiled film grain over everything, so flat cream reads like paper.
+private struct FilmGrain: ViewModifier {
+    func body(content: Content) -> some View {
+        content.overlay {
+            Image("Grain")
+                .resizable(resizingMode: .tile)
+                .opacity(0.07)
+                .blendMode(.overlay)
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+extension View {
+    func filmGrain() -> some View { modifier(FilmGrain()) }
 }
 
 /// Text-only buttons in forms and toolbars: the accent by day, white at night.

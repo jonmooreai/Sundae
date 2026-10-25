@@ -26,13 +26,46 @@ actor MockSundaeAPI: SundaeAPI {
     private var settings = AccountSettings()
     private var signedInUserID: ID?
 
+    private static let avatarKey = "mock.avatarData"
+
     init(clock: SundayClock) {
         self.clock = clock
-        let seed = Self.makeSeed(clock: clock)
+        var seed = Self.makeSeed(clock: clock)
+        // A profile photo chosen in an earlier run comes back, so the demo feels saved.
+        if let data = UserDefaults.standard.data(forKey: Self.avatarKey), var me = seed.users[Self.meID] {
+            me.avatar = .data(data)
+            Self.propagate(me, users: &seed.users, dumps: &seed.dumps, comments: &seed.comments)
+        }
         users = seed.users
         follows = seed.follows
         dumps = seed.dumps
         comments = seed.comments
+    }
+
+    /// Every copy of a user (authors, likers, tagged people, commenters) takes the new value.
+    private static func propagate(_ user: User, users: inout [ID: User], dumps: inout [ID: Dump], comments: inout [ID: [Comment]]) {
+        users[user.id] = user
+        for (id, var dump) in dumps {
+            if dump.author.id == user.id { dump.author = user }
+            dump.likedBy = dump.likedBy.map { $0.id == user.id ? user : $0 }
+            dump.photos = dump.photos.map { photo in
+                var photo = photo
+                photo.tags = photo.tags.map { tag in
+                    var tag = tag
+                    if tag.taggedUser.id == user.id { tag.taggedUser = user }
+                    return tag
+                }
+                return photo
+            }
+            dumps[id] = dump
+        }
+        for (id, list) in comments {
+            comments[id] = list.map { comment in
+                var comment = comment
+                if comment.author.id == user.id { comment.author = user }
+                return comment
+            }
+        }
     }
 
     /// The debug "pretend it's Sunday" switch moves the mock's clock too, so the gate agrees with the UI.
@@ -107,22 +140,15 @@ actor MockSundaeAPI: SundaeAPI {
         me.name = name
         me.username = username
         me.bio = bio
-        users[me.id] = me
-        for (id, var dump) in dumps where dump.author.id == me.id {
-            dump.author = me
-            dumps[id] = dump
-        }
+        Self.propagate(me, users: &users, dumps: &dumps, comments: &comments)
         return me
     }
 
     func updateAvatar(_ photo: ProcessedPhoto) async throws -> User {
         var me = try requireSignedIn()
         me.avatar = .data(photo.data)
-        users[me.id] = me
-        for (id, var dump) in dumps where dump.author.id == me.id {
-            dump.author = me
-            dumps[id] = dump
-        }
+        Self.propagate(me, users: &users, dumps: &dumps, comments: &comments)
+        UserDefaults.standard.set(photo.data, forKey: Self.avatarKey)
         return me
     }
 
@@ -570,7 +596,12 @@ actor MockSundaeAPI: SundaeAPI {
                                      likedBy: likers, likedByMe: false, commentCount: 0)
                 if (w + i) % 3 == 0 {
                     let commenter = friends[(i + 2) % friends.count]
-                    let body = ["the third one!!", "ok that view", "we need to go back", "bread looked great actually"][(w + i) % 4]
+                    let body = [
+                        "The third one is my favorite. You can tell the light was about to go and nobody wanted to leave yet. Put that one on the fridge.",
+                        "Ok that view. I had no idea that was twenty minutes from your place. We are doing this next Sunday and I am bringing the good coffee.",
+                        "We need to go back when the trees have turned. Also I am fairly sure that is the same bench from Theo's week, which is a little funny.",
+                        "The bread looked great actually, do not let anyone tell you otherwise. Save me a slice if there is a next time and I will bring the butter.",
+                    ][(w + i) % 4]
                     comments[dumpID] = [Comment(id: "c_\(dumpID)", dumpID: dumpID, author: commenter, body: body, createdAt: createdAt.addingTimeInterval(5400))]
                     dumps[dumpID]?.commentCount = 1
                 }

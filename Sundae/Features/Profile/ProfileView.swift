@@ -11,6 +11,7 @@ struct ProfileScreen: View {
             if let id = model.currentUser?.id {
                 ProfileView(userID: id, isRoot: true)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
+                    .aboveBottomBar()
                     .swipeBackEnabled()
             }
         }

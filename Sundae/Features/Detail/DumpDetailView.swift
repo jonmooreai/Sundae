@@ -141,6 +141,7 @@ struct DumpDetailView: View {
                         Text(comment.body).font(.subheadline)
                     }
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .padding(.horizontal, Theme.pagePadding)
@@ -207,7 +208,8 @@ struct DumpDetailView: View {
         defer { isSending = false }
         do {
             let comment = try await model.api.addComment(dumpID: dumpID, body: body)
-            comments.append(comment)
+            withAnimation(.snappy(duration: 0.35)) { comments.append(comment) }
+            Haptics.light()
             newComment = ""
             if var updated = dump {
                 updated.commentCount += 1

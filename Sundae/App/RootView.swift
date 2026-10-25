@@ -51,6 +51,7 @@ struct SundayShell: View {
             SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
         }
+        .filmGrain()
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
             tab = requested
@@ -81,11 +82,37 @@ struct SundayShell: View {
     }
 }
 
+/// Height of our bottom bar, handed to every screen under it. Safe area insets set on the
+/// TabView or on a stack never reach pushed screens, so each screen reserves the room itself.
+private struct BottomBarInsetKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    var bottomBarInset: CGFloat {
+        get { self[BottomBarInsetKey.self] }
+        set { self[BottomBarInsetKey.self] = newValue }
+    }
+}
+
+private struct BottomBarInset: ViewModifier {
+    @Environment(\.bottomBarInset) private var inset
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: inset) }
+    }
+}
+
+extension View {
+    /// Keeps this screen's bottom edge, composers included, above the tab bar.
+    func aboveBottomBar() -> some View { modifier(BottomBarInset()) }
+}
+
 private extension View {
-    /// A tab page under our own bar: the system bar hidden, and room kept for ours.
+    /// A tab page under our own bar: the system bar hidden, our height in the environment.
     func tabPage(barHeight: CGFloat) -> some View {
         toolbar(.hidden, for: .tabBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: barHeight) }
+            .environment(\.bottomBarInset, barHeight)
     }
 }
 
@@ -96,6 +123,8 @@ struct SundaeTabBar: View {
     let pendingApprovals: Int
     let user: User?
     let onPost: () -> Void
+    @State private var bumped: SundayTab?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 0) {
@@ -129,9 +158,12 @@ struct SundaeTabBar: View {
         let isSelected = selected == which
         return Button {
             selected = which
+            bump(which)
         } label: {
             Icon(glyph, weight: isSelected ? .fill : .regular, size: 27)
                 .foregroundStyle(.primary)
+                .scaleEffect(bumped == which ? 1.18 : 1)
+                .animation(.bouncy(duration: 0.35), value: bumped)
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {
                         Text("\(badge)")
@@ -180,6 +212,18 @@ struct SundaeTabBar: View {
     }
 }
 
+extension SundaeTabBar {
+    /// A small hop on the icon you just chose.
+    fileprivate func bump(_ which: SundayTab) {
+        guard !reduceMotion else { return }
+        bumped = which
+        Task {
+            try? await Task.sleep(for: .milliseconds(180))
+            if bumped == which { bumped = nil }
+        }
+    }
+}
+
 /// Resolves a `Route` to its screen. Used by both the compact stack and the regular-width detail column.
 struct RouteView: View {
     let route: Route
@@ -193,6 +237,7 @@ struct RouteView: View {
                 ProfileView(userID: id)
             }
         }
+        .aboveBottomBar()
         .swipeBackEnabled()
     }
 }
