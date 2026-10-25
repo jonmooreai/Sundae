@@ -66,6 +66,13 @@ group with "Enable automatic distribution" on. Add yourself as a tester. Every b
 lands in the TestFlight app on your phone a few minutes after processing. The phone needs
 iOS 26.
 
+## If the certificate store was ever exposed
+
+Set a new `MATCH_PASSWORD` secret, then push a commit whose message contains both
+`[rotate-signing]` and `[testflight]`. That run revokes the distribution certificate and
+profiles, creates new ones encrypted with the new passphrase, and builds as usual. Builds
+already in TestFlight keep working.
+
 ## What the build contains
 
 Without a server, the app runs on its built-in demo data. Onboarding offers "Continue in demo

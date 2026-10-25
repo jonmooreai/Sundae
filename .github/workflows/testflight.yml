@@ -29,6 +29,7 @@ jobs:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+      ROTATE_SIGNING: ${{ contains(github.event.head_commit.message, '[rotate-signing]') }}
       FASTLANE_SKIP_UPDATE_CHECK: "1"
     steps:
       - uses: actions/checkout@v4

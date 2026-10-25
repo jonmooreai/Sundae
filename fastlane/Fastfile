@@ -71,6 +71,21 @@ platform :ios do
       token = ENV["MATCH_GIT_TOKEN"].to_s.empty? ? ENV["GITHUB_TOKEN"] : ENV["MATCH_GIT_TOKEN"]
       git_auth = Base64.strict_encode64("x-access-token:#{token}")
     end
+    # [rotate-signing] in the commit message revokes the distribution certificate and profiles
+    # and starts fresh, for when the encrypted store may have been exposed. Set a new
+    # MATCH_PASSWORD first; the new certificate is encrypted with it.
+    if ENV["ROTATE_SIGNING"] == "true"
+      match_nuke(
+        type: "appstore",
+        api_key: api_key,
+        team_id: team_id,
+        git_url: git_url,
+        git_branch: ENV["MATCH_GIT_BRANCH"] || "certificates",
+        git_basic_authorization: git_auth,
+        skip_confirmation: true
+      )
+    end
+
     match(
       type: "appstore",
       app_identifier: [bundle_id, widget_id],
