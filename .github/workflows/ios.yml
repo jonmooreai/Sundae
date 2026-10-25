@@ -49,7 +49,8 @@ jobs:
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
-          MAJOR=$(xcodebuild -version | head -1 | awk '{print $2}' | cut -d. -f1)
+          # awk reads everything, so xcodebuild never hits a closed pipe (head -1 made it abort once).
+          MAJOR=$(xcodebuild -version 2>/dev/null | awk 'NR==1 {print $2}' | cut -d. -f1)
           echo "XCODE_MAJOR=$MAJOR" >> "$GITHUB_ENV"
           # The project targets iOS 26. Older Xcodes build it for iOS 18, which every API in use supports.
           if [ "$MAJOR" -lt 26 ]; then
