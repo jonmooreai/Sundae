@@ -91,6 +91,33 @@ struct Comment: Identifiable, Hashable, Codable, Sendable {
     var author: User
     var body: String
     var createdAt: Date
+    var editedAt: Date?
+    var likeCount: Int
+    var likedByMe: Bool
+
+    init(id: ID, dumpID: ID, author: User, body: String, createdAt: Date,
+         editedAt: Date? = nil, likeCount: Int = 0, likedByMe: Bool = false) {
+        self.id = id
+        self.dumpID = dumpID
+        self.author = author
+        self.body = body
+        self.createdAt = createdAt
+        self.editedAt = editedAt
+        self.likeCount = likeCount
+        self.likedByMe = likedByMe
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(ID.self, forKey: .id)
+        dumpID = try c.decode(ID.self, forKey: .dumpID)
+        author = try c.decode(User.self, forKey: .author)
+        body = try c.decode(String.self, forKey: .body)
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        editedAt = try c.decodeIfPresent(Date.self, forKey: .editedAt)
+        likeCount = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
+        likedByMe = try c.decodeIfPresent(Bool.self, forKey: .likedByMe) ?? false
+    }
 }
 
 struct Follow: Hashable, Codable, Sendable {

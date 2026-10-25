@@ -157,6 +157,25 @@ actor LiveSundaeAPI: SundaeAPI {
         return comments.map(\.model)
     }
 
+    func updateComment(id: ID, body: String) async throws -> Comment {
+        let comment: DTO.Comment = try await client.patch("v1/comments/\(id)", body: DTO.CommentBody(body: body))
+        return comment.model
+    }
+
+    func deleteComment(id: ID) async throws {
+        let _: HTTPClient.Empty = try await client.delete("v1/comments/\(id)")
+    }
+
+    func setCommentLike(id: ID, liked: Bool) async throws -> Comment {
+        let comment: DTO.Comment
+        if liked {
+            comment = try await client.put("v1/comments/\(id)/like")
+        } else {
+            comment = try await client.delete("v1/comments/\(id)/like")
+        }
+        return comment.model
+    }
+
     func addComment(dumpID: ID, body: String) async throws -> Comment {
         let comment: DTO.Comment = try await client.post("v1/dumps/\(dumpID)/comments", body: DTO.CommentBody(body: body))
         return comment.model

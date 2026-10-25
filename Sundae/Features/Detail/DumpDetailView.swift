@@ -10,13 +10,12 @@ struct DumpDetailView: View {
 
     @State private var dump: Dump?
     @State private var comments: [Comment] = []
-    @State private var newComment = ""
     @State private var page = 0
     @State private var errorMessage: String?
     @State private var reporting = false
-    @State private var isSending = false
     @State private var showFullScreen = false
-    @FocusState private var composing: Bool
+    @State private var showComments = false
+    @State private var focusComposer = false
 
     private var isOwn: Bool { dump?.author.id == model.currentUser?.id }
 
@@ -66,21 +65,21 @@ struct DumpDetailView: View {
             .padding(.bottom, 24)
         }
         .background(Theme.background)
-        // A drag or a tap outside the field puts the keyboard away.
-        .scrollDismissesKeyboard(.interactively)
-        .onTapGesture { composing = false }
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dumpID)
         }
+        .sheet(isPresented: $showComments, onDismiss: { Task { await reloadComments() } }) {
+            if let dump {
+                CommentsSheet(dump: dump, focusOnOpen: focusComposer) { count in
+                    self.dump?.commentCount = count
+                }
+                .environment(model)
+            }
+        }
         .fullScreenCover(isPresented: $showFullScreen) {
             if let dump, dump.photos.indices.contains(page) {
                 FullScreenPhotoView(photo: dump.photos[page], caption: dump.caption)
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            if let dump, dump.commentsEnabled {
-                commentField
             }
         }
         .task(id: dumpID) { await load() }
@@ -114,6 +113,14 @@ struct DumpDetailView: View {
                 LikeButton(liked: dump.likedByMe) {
                     Task { await toggleLike() }
                 }
+                Button {
+                    focusComposer = true
+                    showComments = true
+                } label: {
+                    Icon(Glyph.comment, size: 26).foregroundStyle(.primary)
+                }
+                .accessibilityLabel("Comments")
+                .disabled(!dump.commentsEnabled)
                 LikesLabel(dump: dump, meID: model.currentUser?.id)
                 Spacer(minLength: 8)
                 if dump.photos.count > 1 {
@@ -128,60 +135,41 @@ struct DumpDetailView: View {
         }
         .padding(.horizontal, Theme.pagePadding)
 
-        VStack(alignment: .leading, spacing: 14) {
+        // The last two comments as a taste; the drawer has the whole conversation.
+        VStack(alignment: .leading, spacing: 12) {
             if !dump.commentsEnabled {
                 Text("Comments are off for this week.").font(.footnote).foregroundStyle(.secondary)
-            } else if comments.isEmpty {
-                Text("No comments yet.").font(.footnote).foregroundStyle(.secondary)
-            }
-            ForEach(comments) { comment in
-                HStack(alignment: .top, spacing: 10) {
-                    AvatarView(user: comment.author, size: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(comment.author.displayName).font(.subheadline.weight(.semibold))
-                            Text(comment.createdAt, style: .time).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Text(comment.body).font(.subheadline)
+            } else {
+                Button {
+                    focusComposer = comments.isEmpty
+                    showComments = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Text(dump.commentCount == 0 ? "Add a comment"
+                             : dump.commentCount == 1 ? "1 comment" : "\(dump.commentCount) comments")
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        Icon(Glyph.chevronRight, weight: .bold, size: 13).foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                ForEach(comments.suffix(2)) { comment in
+                    HStack(alignment: .top, spacing: 8) {
+                        AvatarView(user: comment.author, size: 24)
+                        (Text(comment.author.username).fontWeight(.semibold) + Text("  ") + Text(comment.body))
+                            .font(.subheadline)
+                            .lineLimit(2)
                     }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 8)
     }
 
-    private var commentField: some View {
-        HStack(spacing: 10) {
-            TextField("Add a comment", text: $newComment)
-                .textFieldStyle(.plain)
-                .focused($composing)
-                .submitLabel(.send)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Theme.surface, in: Capsule())
-                .onSubmit { Task { await send() } }
-            Button {
-                Task { await send() }
-            } label: {
-                Icon(Glyph.send, weight: .bold, size: 18)
-                    .foregroundStyle(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Color.accentColor, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(newComment.trimmingCharacters(in: .whitespaces).isEmpty || isSending)
-            .opacity(newComment.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
-            .accessibilityLabel("Send comment")
-        }
-        .padding(.horizontal, Theme.pagePadding)
-        .padding(.vertical, 10)
-        .background {
-            Theme.background
-                .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
-                .ignoresSafeArea(edges: .bottom)
-        }
+    private func reloadComments() async {
+        comments = (try? await model.api.comments(dumpID: dumpID)) ?? comments
     }
 
     private func load() async {
@@ -207,26 +195,6 @@ struct DumpDetailView: View {
         }
     }
 
-    private func send() async {
-        let body = newComment.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !body.isEmpty, !isSending else { return }
-        isSending = true
-        defer { isSending = false }
-        do {
-            let comment = try await model.api.addComment(dumpID: dumpID, body: body)
-            withAnimation(.snappy(duration: 0.35)) { comments.append(comment) }
-            Haptics.light()
-            newComment = ""
-            composing = false
-            if var updated = dump {
-                updated.commentCount += 1
-                dump = updated
-                model.feed.replace(updated)
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
 }
 
 /// Report is available on every photo, dump, comment and profile.

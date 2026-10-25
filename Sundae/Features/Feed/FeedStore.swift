@@ -82,6 +82,12 @@ final class FeedStore {
         dumps.removeAll { $0.id == dumpID }
     }
 
+    func setCommentCount(dumpID: ID, count: Int) {
+        if let index = dumps.firstIndex(where: { $0.id == dumpID }) {
+            dumps[index].commentCount = count
+        }
+    }
+
     /// A user changed (name, photo): update every copy already on screen.
     func replaceUser(_ user: User) {
         dumps = dumps.map { dump in

@@ -12,6 +12,8 @@ struct DumpCard: View {
     @State private var page = 0
     @State private var reporting = false
     @State private var showPeople = false
+    @State private var showComments = false
+    @State private var focusComposer = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -30,7 +32,10 @@ struct DumpCard: View {
                 HStack(spacing: 12) {
                     LikeButton(liked: dump.likedByMe, action: onLike)
 
-                    Button { open(.dump(dump.id)) } label: {
+                    Button {
+                        focusComposer = true
+                        showComments = true
+                    } label: {
                         Icon(Glyph.comment, size: 26)
                             .foregroundStyle(.primary)
                     }
@@ -61,7 +66,8 @@ struct DumpCard: View {
 
                 if dump.commentCount > 0 {
                     Button {
-                        open(.dump(dump.id))
+                        focusComposer = false
+                        showComments = true
                     } label: {
                         Text(dump.commentCount == 1 ? "View 1 comment" : "View all \(dump.commentCount) comments")
                             .font(.subheadline)
@@ -80,6 +86,10 @@ struct DumpCard: View {
                 showPeople = false
                 open(.profile(user.id))
             }
+        }
+        .sheet(isPresented: $showComments) {
+            CommentsSheet(dump: dump, focusOnOpen: focusComposer)
+                .environment(model)
         }
     }
 

@@ -91,9 +91,13 @@ enum DTO {
         let author: User
         let body: String
         let createdAt: Date
+        let editedAt: Date?
+        let likeCount: Int?
+        let likedByMe: Bool?
 
         var model: Sundae.Comment {
-            Sundae.Comment(id: id, dumpID: dumpId, author: author.model, body: body, createdAt: createdAt)
+            Sundae.Comment(id: id, dumpID: dumpId, author: author.model, body: body, createdAt: createdAt,
+                           editedAt: editedAt, likeCount: likeCount ?? 0, likedByMe: likedByMe ?? false)
         }
     }
 

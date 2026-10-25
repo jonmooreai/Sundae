@@ -26,6 +26,11 @@ protocol SundaeAPI: Sendable {
     func setLike(dumpID: ID, liked: Bool) async throws -> Dump
     func comments(dumpID: ID) async throws -> [Comment]
     func addComment(dumpID: ID, body: String) async throws -> Comment
+    /// Only the author may edit. Returns the comment with `editedAt` set.
+    func updateComment(id: ID, body: String) async throws -> Comment
+    /// The author or the dump's author may delete.
+    func deleteComment(id: ID) async throws
+    func setCommentLike(id: ID, liked: Bool) async throws -> Comment
     func profile(userID: ID) async throws -> Profile
     func searchUsers(_ query: String) async throws -> [User]
     func suggestedUsers() async throws -> [User]

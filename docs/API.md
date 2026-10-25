@@ -53,6 +53,9 @@ Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challe
 | DELETE | `dumps/{id}` | allowed any day |
 | PUT | `dumps/{id}/like` | `{liked: bool}`, returns the dump |
 | GET / POST | `dumps/{id}/comments` | POST body `{body}` |
+| PATCH | `comments/{id}` | `{body}`; author only; sets `edited_at` |
+| DELETE | `comments/{id}` | author, or the dump's author |
+| PUT / DELETE | `comments/{id}/like` | returns the comment with `like_count` and `liked_by_me` |
 | GET | `users/{id}/profile` | profile object below |
 | GET | `users/search?q=` | name or username only |
 | GET | `users/suggested` | friends of people the caller follows |
@@ -110,7 +113,7 @@ tag:      {id, photo_id, tagger_id, tagged_user: user, status: pending|approved|
 photo:    {id, dump_id, order, url, width, height, alt_text?, tags: [tag]}
 dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photos: [photo],
            comments_enabled, liked_by: [user], liked_by_me, comment_count}
-comment:  {id, dump_id, author: user, body, created_at}
+comment:  {id, dump_id, author: user, body, created_at, edited_at?, like_count, liked_by_me}
 profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week],
            follower_count?, following_count?}      counts only when relationship is "me"
 week:     {week_start, dump?, tagged: [{photo, from: user, tag}]}

@@ -21,6 +21,8 @@ actor MockSundaeAPI: SundaeAPI {
     private var follows: [Follow] = []
     private var dumps: [ID: Dump] = [:]
     private var comments: [ID: [Comment]] = [:]
+    /// Comment id to the people who liked it. Seeded likes live in `likeCount` on the comment.
+    private var commentLikes: [ID: Set<ID>] = [:]
     private var done: [SuggestionDone] = []
     private var blocked: Set<ID> = []
     private var settings = AccountSettings()
@@ -268,7 +270,58 @@ actor MockSundaeAPI: SundaeAPI {
         let me = try requireSignedIn()
         try requireSunday()
         guard let dump = dumps[dumpID], canRead(dump, as: me.id) else { throw SundaeError.notFound }
-        return (comments[dumpID] ?? []).sorted { $0.createdAt < $1.createdAt }
+        return (comments[dumpID] ?? []).sorted { $0.createdAt < $1.createdAt }.map { withLikes($0, viewer: me.id) }
+    }
+
+    private func withLikes(_ comment: Comment, viewer: ID) -> Comment {
+        var comment = comment
+        comment.likedByMe = commentLikes[comment.id]?.contains(viewer) ?? false
+        return comment
+    }
+
+    private func locateComment(_ id: ID) -> (dumpID: ID, index: Int)? {
+        for (dumpID, list) in comments {
+            if let index = list.firstIndex(where: { $0.id == id }) { return (dumpID, index) }
+        }
+        return nil
+    }
+
+    func updateComment(id: ID, body: String) async throws -> Comment {
+        let me = try requireSignedIn()
+        try requireSunday()
+        guard let located = locateComment(id) else { throw SundaeError.notFound }
+        let (dumpID, index) = located
+        guard comments[dumpID]![index].author.id == me.id else { throw SundaeError.notAuthorized }
+        comments[dumpID]![index].body = body
+        comments[dumpID]![index].editedAt = clock.now()
+        return withLikes(comments[dumpID]![index], viewer: me.id)
+    }
+
+    func deleteComment(id: ID) async throws {
+        let me = try requireSignedIn()
+        try requireSunday()
+        guard let located = locateComment(id), var dump = dumps[located.dumpID] else { throw SundaeError.notFound }
+        let (dumpID, index) = located
+        let comment = comments[dumpID]![index]
+        guard comment.author.id == me.id || dump.author.id == me.id else { throw SundaeError.notAuthorized }
+        comments[dumpID]!.remove(at: index)
+        commentLikes[id] = nil
+        dump.commentCount = max(0, dump.commentCount - 1)
+        dumps[dumpID] = dump
+    }
+
+    func setCommentLike(id: ID, liked: Bool) async throws -> Comment {
+        let me = try requireSignedIn()
+        try requireSunday()
+        guard let located = locateComment(id) else { throw SundaeError.notFound }
+        let (dumpID, index) = located
+        var likers = commentLikes[id] ?? []
+        let was = likers.contains(me.id)
+        if liked { likers.insert(me.id) } else { likers.remove(me.id) }
+        commentLikes[id] = likers
+        if liked && !was { comments[dumpID]![index].likeCount += 1 }
+        if !liked && was { comments[dumpID]![index].likeCount = max(0, comments[dumpID]![index].likeCount - 1) }
+        return withLikes(comments[dumpID]![index], viewer: me.id)
     }
 
     func addComment(dumpID: ID, body: String) async throws -> Comment {
@@ -596,14 +649,26 @@ actor MockSundaeAPI: SundaeAPI {
                                      likedBy: likers, likedByMe: false, commentCount: 0)
                 if (w + i) % 3 == 0 {
                     let commenter = friends[(i + 2) % friends.count]
+                    let replier = friends[(i + 4) % friends.count]
                     let body = [
                         "The third one is my favorite. You can tell the light was about to go and nobody wanted to leave yet. Put that one on the fridge.",
                         "Ok that view. I had no idea that was twenty minutes from your place. We are doing this next Sunday and I am bringing the good coffee.",
                         "We need to go back when the trees have turned. Also I am fairly sure that is the same bench from Theo's week, which is a little funny.",
                         "The bread looked great actually, do not let anyone tell you otherwise. Save me a slice if there is a next time and I will bring the butter.",
                     ][(w + i) % 4]
-                    comments[dumpID] = [Comment(id: "c_\(dumpID)", dumpID: dumpID, author: commenter, body: body, createdAt: createdAt.addingTimeInterval(5400))]
-                    dumps[dumpID]?.commentCount = 1
+                    let reply = [
+                        "Seconded on the fridge. Also whoever took the one of the bikes, that is the best photo any of us has taken this year.",
+                        "Count me in for next Sunday. I will bring the folding chairs so nobody has to sit on the wet grass again.",
+                        "The bench is definitely the same bench. We should start a bench tag.",
+                        "I was there and I can confirm the bread was great. The crust alone.",
+                    ][(w + i) % 4]
+                    comments[dumpID] = [
+                        Comment(id: "c_\(dumpID)", dumpID: dumpID, author: commenter, body: body,
+                                createdAt: createdAt.addingTimeInterval(5400), likeCount: (w + i) % 5 + 2),
+                        Comment(id: "c_\(dumpID)_2", dumpID: dumpID, author: replier, body: reply,
+                                createdAt: createdAt.addingTimeInterval(9000), likeCount: (w + i) % 3),
+                    ]
+                    dumps[dumpID]?.commentCount = 2
                 }
             }
 
