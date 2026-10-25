@@ -124,13 +124,19 @@ struct OnboardingView: View {
             }
             .padding(.top, 8)
 
-            #if DEBUG
-            Button("Continue in demo mode") {
-                pendingMethod = .demo
-                step = .profile
+            if model.isUsingMock {
+                VStack(spacing: 6) {
+                    Button("Continue in demo mode") {
+                        pendingMethod = .demo
+                        step = .profile
+                    }
+                    .buttonStyle(.pill(.secondary, fullWidth: true))
+                    Text("No server yet: this build runs on built-in demo data.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
             }
-            .font(.footnote)
-            #endif
 
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.secondary)

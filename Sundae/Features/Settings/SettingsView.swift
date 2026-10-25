@@ -78,19 +78,19 @@ struct SettingsView: View {
                 Text("Export arrives within 24 hours as a zip of your photos, captions, tags and settings. Deletion completes within 30 days.")
             }
 
-            #if DEBUG
-            Section {
-                Picker("Day", selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) })) {
-                    ForEach(DebugDay.allCases) { Text($0.label).tag($0) }
+            if model.isUsingMock {
+                Section {
+                    Picker("Day", selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) })) {
+                        ForEach(DebugDay.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                    .labelsHidden()
+                } header: {
+                    Text("Demo")
+                } footer: {
+                    Text("This build runs on built-in demo data. Move the clock to see the Sunday screens on any day.")
                 }
-                .pickerStyle(.inline)
-                .labelsHidden()
-            } header: {
-                Text("Developer")
-            } footer: {
-                Text("Moves the clock so the Sunday screens can be worked on during the week. Debug builds only.")
             }
-            #endif
 
             Section {
                 Button("Sign out") { Task { await model.signOut() } }

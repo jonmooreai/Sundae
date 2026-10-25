@@ -7,9 +7,18 @@ import Foundation
 public struct SharedDefaults: @unchecked Sendable {
     public static let appGroup = "group.com.sundae.shared"
 
+    /// The app group named in the bundle's Info.plist (`SundaeAppGroup`), or nil when the build has no
+    /// app group entitlement. Writing to an unentitled suite is silently dropped, so a build without
+    /// the capability keeps its state in standard defaults instead.
+    public static var configuredAppGroup: String? {
+        guard let name = Bundle.main.object(forInfoDictionaryKey: "SundaeAppGroup") as? String,
+              !name.isEmpty else { return nil }
+        return name
+    }
+
     private let defaults: UserDefaults
 
-    public init(suite: String? = SharedDefaults.appGroup) {
+    public init(suite: String? = SharedDefaults.configuredAppGroup) {
         if let suite, let d = UserDefaults(suiteName: suite) {
             defaults = d
         } else {

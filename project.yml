@@ -41,6 +41,8 @@ targets:
       properties:
         CFBundleDisplayName: Sundae
         SundaeAPIBaseURL: ""
+        # Set to group.com.sundae.shared (here and in the widget) once the App ID has the app group.
+        SundaeAppGroup: ""
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -59,14 +61,11 @@ targets:
         UIBackgroundModes:
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
+    # Sign in with Apple, app groups and push need capabilities on the App ID before they can be
+    # signed. They come back once the developer account has them (see docs/TESTFLIGHT.md).
     entitlements:
       path: Sundae/Sundae.entitlements
-      properties:
-        com.apple.developer.applesignin:
-          - Default
-        com.apple.security.application-groups:
-          - group.com.sundae.shared
-        aps-environment: development
+      properties: {}
     dependencies:
       - target: SundaeWidget
         embed: true
@@ -87,13 +86,12 @@ targets:
       path: SundaeWidget/Info.plist
       properties:
         CFBundleDisplayName: Sundae
+        SundaeAppGroup: ""
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: SundaeWidget/SundaeWidget.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.com.sundae.shared
+      properties: {}
   SundaeTests:
     type: bundle.unit-test
     platform: iOS

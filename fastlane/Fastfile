@@ -1,0 +1,110 @@
+# TestFlight from CI, no Mac required.
+#
+# Needs these environment variables (GitHub secrets):
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT   App Store Connect API key (the .p8 contents, raw or base64)
+#   APPLE_TEAM_ID                                 Developer team id
+#   MATCH_GIT_URL, MATCH_GIT_TOKEN                Private repo holding signing certs, and a token that can push to it
+#   MATCH_PASSWORD                                Passphrase that encrypts them
+# Optional: BUNDLE_ID (default com.jonmooreai.sundae), APP_NAME (default Sundae),
+#           MATCH_GIT_BASIC_AUTHORIZATION (base64 "user:token") instead of MATCH_GIT_TOKEN,
+#           BUILD_NUMBER (default GITHUB_RUN_NUMBER)
+
+require "base64"
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build the app, sign it, and upload to TestFlight"
+  lane :beta do
+    bundle_id = ENV["BUNDLE_ID"] || "com.jonmooreai.sundae"
+    widget_id = "#{bundle_id}.widget"
+    team_id = ENV["APPLE_TEAM_ID"]
+
+    setup_ci
+
+    # The secret may hold the .p8 file as pasted or base64 encoded; either works.
+    key_content = ENV["ASC_KEY_CONTENT"].to_s.strip
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: key_content,
+      is_key_content_base64: !key_content.start_with?("-----BEGIN")
+    )
+
+    # GitHub ignores the username when the password is a personal access token.
+    git_auth = ENV["MATCH_GIT_BASIC_AUTHORIZATION"]
+    git_auth = Base64.strict_encode64("x-access-token:#{ENV['MATCH_GIT_TOKEN']}") if git_auth.to_s.empty?
+
+    # App IDs and the App Store Connect record. Idempotent: skips what already exists.
+    produce(
+      api_key: api_key,
+      app_identifier: bundle_id,
+      app_name: ENV["APP_NAME"] || "Sundae",
+      language: "en-US",
+      sku: "sundae-ios",
+      team_id: team_id
+    )
+    produce(
+      api_key: api_key,
+      app_identifier: widget_id,
+      app_name: "Sundae Widget",
+      skip_itc: true,
+      team_id: team_id
+    )
+
+    # Distribution certificate and profiles, created on first run and kept encrypted in the certs repo.
+    match(
+      type: "appstore",
+      app_identifier: [bundle_id, widget_id],
+      api_key: api_key,
+      team_id: team_id,
+      readonly: false,
+      git_url: ENV["MATCH_GIT_URL"],
+      git_basic_authorization: git_auth
+    )
+
+    update_code_signing_settings(
+      path: "Sundae.xcodeproj",
+      use_automatic_signing: false,
+      team_id: team_id,
+      code_sign_identity: "Apple Distribution",
+      targets: ["Sundae"],
+      bundle_identifier: bundle_id,
+      profile_name: "match AppStore #{bundle_id}"
+    )
+    update_code_signing_settings(
+      path: "Sundae.xcodeproj",
+      use_automatic_signing: false,
+      team_id: team_id,
+      code_sign_identity: "Apple Distribution",
+      targets: ["SundaeWidget"],
+      bundle_identifier: widget_id,
+      profile_name: "match AppStore #{widget_id}"
+    )
+
+    # Each upload needs a higher build number; the workflow run number only goes up.
+    build_number = ENV["BUILD_NUMBER"] || ENV["GITHUB_RUN_NUMBER"] || "1"
+
+    build_app(
+      project: "Sundae.xcodeproj",
+      scheme: "Sundae",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build/testflight",
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
+      export_options: {
+        provisioningProfiles: {
+          bundle_id => "match AppStore #{bundle_id}",
+          widget_id => "match AppStore #{widget_id}"
+        }
+      }
+    )
+
+    # Not waiting for processing keeps the runner minutes down; the build shows up in
+    # App Store Connect a few minutes after upload.
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
