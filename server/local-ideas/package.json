@@ -1,0 +1,12 @@
+{
+  "name": "sundae-local-ideas",
+  "private": true,
+  "type": "module",
+  "description": "Anonymous, cacheable weekday ideas for a neighborhood-sized geohash cell.",
+  "scripts": {
+    "test": "node --test",
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
+    "shards": "node scripts/build-shards.mjs"
+  }
+}

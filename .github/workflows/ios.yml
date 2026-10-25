@@ -9,6 +9,7 @@ on:
     # Nothing here affects the app binary.
     paths-ignore:
       - "docs/**"
+      - "server/**"
       - "fastlane/**"
       - ".github/workflows/testflight.yml"
       - "README.md"

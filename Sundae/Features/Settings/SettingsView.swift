@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var taggable: [User] = []
     @State private var confirmDelete = false
     @State private var confirmSignOut = false
+    @State private var showLocationConsent = false
 
     var body: some View {
         Form {
@@ -30,6 +31,23 @@ struct SettingsView: View {
                 Text(settings.isPublic
                      ? "Anyone can follow you without asking and see your weeks."
                      : "People ask to follow you and you decide. Your weeks are only visible to people you accept.")
+            }
+
+            Section {
+                Toggle("Ideas near me", isOn: Binding(
+                    get: { model.localIdeas.isEnabled },
+                    set: { on in
+                        if on { showLocationConsent = true } else { model.localIdeas.disable() }
+                    }))
+                if model.localIdeas.isEnabled, model.localIdeas.isDenied,
+                   let url = URL(string: UIApplication.openSettingsURLString) {
+                    Link("Location is off for Sundae in iOS Settings. Open Settings", destination: url)
+                        .textButtonTint()
+                }
+            } header: {
+                Text("Weekday ideas")
+            } footer: {
+                Text("Monday to Saturday, today's idea can come from your neighborhood. Your exact location never leaves this phone: Sundae sends a neighborhood-sized area, about a kilometer across, with no account attached, and only when you open the app on a weekday. Never on Sunday, never on your photos, never shown to anyone.")
             }
 
             Section {
@@ -113,6 +131,9 @@ struct SettingsView: View {
         .onChange(of: settings) { _, new in
             guard loaded else { return }
             Task { await model.saveAccountSettings(new) }
+        }
+        .sheet(isPresented: $showLocationConsent) {
+            LocationConsentSheet { model.localIdeas.enable() }
         }
         .confirmationDialog("Sign out of every device?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out everywhere", role: .destructive) { Task { await model.signOut() } }

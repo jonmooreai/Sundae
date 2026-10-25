@@ -17,19 +17,54 @@ public struct Suggestion: Codable, Identifiable, Hashable, Sendable {
         }
     }
 
+    /// A real place near the user. Only ideas from the local ideas endpoint carry one.
+    /// The position here is the place's, which is public. The user's position is never stored.
+    public struct Place: Codable, Hashable, Sendable {
+        public let name: String
+        /// Walking time from the middle of the user's area, rounded. Nil when unknown.
+        public let walkMinutes: Int?
+        public let latitude: Double?
+        public let longitude: Double?
+
+        public init(name: String, walkMinutes: Int? = nil, latitude: Double? = nil, longitude: Double? = nil) {
+            self.name = name
+            self.walkMinutes = walkMinutes
+            self.latitude = latitude
+            self.longitude = longitude
+        }
+
+        /// Apple Maps, searching the name and pinning the place itself.
+        public var mapsURL: URL? {
+            guard let query = name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else { return nil }
+            var string = "maps://?q=\(query)"
+            if let latitude, let longitude {
+                string += "&ll=\(latitude),\(longitude)"
+            }
+            return URL(string: string)
+        }
+    }
+
+    /// Ideas picked for the user's area start with this, so stores can tell them from the catalog.
+    /// The id never contains the area: it is `local:<day>:<n>`, safe to send with an account.
+    public static let nearbyPrefix = "local:"
+
     public let id: String
     public let text: String
     public let reason: String
     public let categories: [Category]
     public let timeOfDay: TimeOfDay
+    public let place: Place?
 
-    public init(id: String, text: String, reason: String, categories: [Category], timeOfDay: TimeOfDay) {
+    public init(id: String, text: String, reason: String, categories: [Category], timeOfDay: TimeOfDay, place: Place? = nil) {
         self.id = id
         self.text = text
         self.reason = reason
         self.categories = categories
         self.timeOfDay = timeOfDay
+        self.place = place
     }
+
+    public var isNearby: Bool { id.hasPrefix(Self.nearbyPrefix) }
 }
 
 /// The curated list, bundled as JSON. Server-managed later; fixed for v1.

@@ -32,6 +32,10 @@ public struct SharedDefaults: @unchecked Sendable {
         static let doneIDs = "weekday.doneIDs"
         static let pendingApprovals = "approvals.pendingCount"
         static let postedWeekStart = "sunday.postedWeekStart"
+        static let localIdeas = "weekday.localIdeas"
+        static let localIdeasDay = "weekday.localIdeasDay"
+        static let localIdeasFetchedAt = "weekday.localIdeasFetchedAt"
+        static let localDone = "weekday.localDone"
     }
 
     /// The suggestion the user is currently looking at, valid only for the day it was chosen.
@@ -65,5 +69,50 @@ public struct SharedDefaults: @unchecked Sendable {
     public var postedWeekStart: Date? {
         get { defaults.object(forKey: Key.postedWeekStart) as? Date }
         nonmutating set { defaults.set(newValue, forKey: Key.postedWeekStart) }
+    }
+
+    // MARK: Ideas near you
+
+    /// Today's ideas for the user's area, if any were fetched today. They carry place names and the
+    /// places' positions, never the user's position or the cell that was sent.
+    public func localIdeas(on day: Date, calendar: Calendar) -> [Suggestion]? {
+        guard let stored = defaults.object(forKey: Key.localIdeasDay) as? Date,
+              calendar.isDate(stored, inSameDayAs: day),
+              let data = defaults.data(forKey: Key.localIdeas),
+              let ideas = try? JSONDecoder().decode([Suggestion].self, from: data) else { return nil }
+        return ideas
+    }
+
+    public func setLocalIdeas(_ ideas: [Suggestion], at moment: Date) {
+        guard let data = try? JSONEncoder().encode(ideas) else { return }
+        defaults.set(data, forKey: Key.localIdeas)
+        defaults.set(moment, forKey: Key.localIdeasDay)
+        defaults.set(moment, forKey: Key.localIdeasFetchedAt)
+    }
+
+    /// When the area was last looked at. Drives the once-in-a-while refresh.
+    public var localIdeasFetchedAt: Date? {
+        defaults.object(forKey: Key.localIdeasFetchedAt) as? Date
+    }
+
+    /// Turning the feature off leaves nothing behind.
+    public func clearLocalIdeas() {
+        defaults.removeObject(forKey: Key.localIdeas)
+        defaults.removeObject(forKey: Key.localIdeasDay)
+        defaults.removeObject(forKey: Key.localIdeasFetchedAt)
+    }
+
+    /// Ideas near you that were marked done this week. The catalog cannot look them up, so the
+    /// whole idea is kept for the Sunday prompt.
+    public func doneLocalSuggestions() -> [Suggestion] {
+        guard let data = defaults.data(forKey: Key.localDone),
+              let ideas = try? JSONDecoder().decode([Suggestion].self, from: data) else { return [] }
+        return ideas
+    }
+
+    public func setDoneLocalSuggestions(_ ideas: [Suggestion]) {
+        if let data = try? JSONEncoder().encode(ideas) {
+            defaults.set(data, forKey: Key.localDone)
+        }
     }
 }

@@ -33,6 +33,7 @@ enum Glyph {
     static var altText: Ph { .textAa }
     static var plus: Ph { .plus }
     static var send: Ph { .arrowUp }
+    static var pin: Ph { .mapPin }
 }
 
 enum IconWeight {

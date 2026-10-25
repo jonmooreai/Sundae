@@ -1,0 +1,13 @@
+name = "sundae-local-ideas"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+# The places index: one JSON file per five-character geohash cell, built by scripts/build-shards.mjs.
+[[r2_buckets]]
+binding = "PLACES"
+bucket_name = "sundae-places"
+
+# No invocation logs. A request line would pair a cell with an IP address, which is the one thing
+# this service promises never to have. Count requests with analytics if you need a number.
+[observability]
+enabled = false

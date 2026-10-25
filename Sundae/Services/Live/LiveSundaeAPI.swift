@@ -260,6 +260,18 @@ actor LiveSundaeAPI: SundaeAPI {
         let _: HTTPClient.Empty = try await client.put("v1/me/suggestions/\(id)/done", body: DTO.DoneBody(doneOn: day))
     }
 
+    // MARK: - Ideas near you (weekdays, anonymous)
+
+    /// No bearer token, by design: the server sees a cell and a day, never who asked.
+    func localIdeas(cell: String, day: Date) async throws -> [Suggestion] {
+        let ideas: [DTO.LocalIdea] = try await client.get(
+            "v1/ideas/local",
+            query: [URLQueryItem(name: "cell", value: cell), URLQueryItem(name: "day", value: DTO.weekString(day))],
+            authenticated: false
+        )
+        return ideas.map(\.model)
+    }
+
     func block(userID: ID) async throws {
         let _: HTTPClient.Empty = try await client.post("v1/users/\(userID)/block")
     }

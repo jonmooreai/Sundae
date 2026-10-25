@@ -50,7 +50,8 @@ struct SuggestionProvider: TimelineProvider {
         let clock = SundayClock(now: { date })
         let isSunday = clock.isSunday()
         let suggestion: Suggestion?
-        if let id = shared.currentSuggestionID(on: date, calendar: clock.calendar), let s = catalog.suggestion(id: id) {
+        if let id = shared.currentSuggestionID(on: date, calendar: clock.calendar),
+           let s = shared.localIdeas(on: date, calendar: clock.calendar)?.first(where: { $0.id == id }) ?? catalog.suggestion(id: id) {
             suggestion = s
         } else {
             suggestion = catalog.suggestion(forDay: date, calendar: clock.calendar)
