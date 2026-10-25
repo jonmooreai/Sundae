@@ -3,7 +3,7 @@ import PhotosUI
 import SwiftUI
 import PhosphorSwift
 
-/// Four short steps on cream paper: what Sundae is, sign in, who you are, bring your group.
+/// Five short steps on cream paper: what Sundae is, sign in, who you are, ideas near you, bring your group.
 /// Every step says plainly what happens next; nothing is sent to anyone without a tap that
 /// says so. Sign in with Apple is primary; phone is the labeled fallback, folded away.
 struct OnboardingView: View {
@@ -11,7 +11,7 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum Step: Int, CaseIterable { case welcome, signIn, profile, friends }
+    private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, friends }
 
     @State private var step: Step = .welcome
     @State private var pendingMethod: SignInMethod?
@@ -45,6 +45,7 @@ struct OnboardingView: View {
                         case .welcome: welcome
                         case .signIn: signIn
                         case .profile: profile
+                        case .ideas: ideas
                         case .friends: friends
                         }
                     }
@@ -103,7 +104,8 @@ struct OnboardingView: View {
         case .welcome: break
         case .signIn: step = .welcome
         case .profile: step = .signIn
-        case .friends: step = .profile
+        case .ideas: step = .profile
+        case .friends: step = .ideas
         }
     }
 
@@ -282,8 +284,33 @@ struct OnboardingView: View {
                 .foregroundStyle(.secondary)
             PrimaryButton(title: "Continue",
                           isEnabled: isOldEnough && username.trimmingCharacters(in: .whitespaces).count >= 2) {
+                step = .ideas
+            }
+        }
+    }
+
+    /// The one permission about place, explained before iOS is involved. Agreeing here turns it
+    /// on; iOS itself asks on the first weekday look. Saying no changes nothing and costs nothing.
+    private var ideas: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            heading("Ideas near you?", "Monday to Saturday, Sundae gives you one thing worth doing. With your location, it can be one thing a short walk away.")
+
+            VStack(alignment: .leading, spacing: 16) {
+                valueRow(Glyph.calendar, "Weekdays only",
+                         "When you open Sundae on a weekday, it looks once to pick today's idea near you. On Sunday it never looks, whatever this is set to.", index: 0)
+                valueRow(Glyph.lock, "A neighborhood, not a pin",
+                         "Your exact spot stays on this phone. Sundae sends only an area about a kilometer across, with no account attached.", index: 1)
+                valueRow(Glyph.block, "Nowhere else",
+                         "Never on your photos, never shown to friends, never saved. Turn it off any time in Settings.", index: 2)
+            }
+
+            PrimaryButton(title: "Use my location on weekdays") {
+                model.localIdeas.enable()
                 step = .friends
             }
+            .padding(.top, 8)
+            Button("Not now") { step = .friends }
+                .buttonStyle(.pill(.quiet, fullWidth: true))
         }
     }
 
