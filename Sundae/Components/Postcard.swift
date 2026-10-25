@@ -22,8 +22,8 @@ struct PostcardPhoto {
     let image: UIImage?
     let seed: Int
 
-    @ViewBuilder
-    func view(cornerRadius: CGFloat) -> some View {
+    /// Fills the box and is clipped to it, so a tall photo never spills over the card.
+    func view(width: CGFloat, height: CGFloat, cornerRadius: CGFloat) -> some View {
         Group {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
@@ -31,6 +31,8 @@ struct PostcardPhoto {
                 PlaceholderPhoto(seed: seed)
             }
         }
+        .frame(width: width, height: height)
+        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
@@ -85,18 +87,18 @@ struct WeekPostcard: View {
         case 0:
             RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Theme.surface).frame(width: width, height: 700)
         case 1:
-            photos[0].view(cornerRadius: radius).frame(width: width, height: 760)
+            photos[0].view(width: width, height: 760, cornerRadius: radius)
         case 2:
             HStack(spacing: gap) {
-                photos[0].view(cornerRadius: radius).frame(width: (width - gap) / 2, height: 640)
-                photos[1].view(cornerRadius: radius).frame(width: (width - gap) / 2, height: 640)
+                photos[0].view(width: (width - gap) / 2, height: 640, cornerRadius: radius)
+                photos[1].view(width: (width - gap) / 2, height: 640, cornerRadius: radius)
             }
         default:
             VStack(spacing: gap) {
-                photos[0].view(cornerRadius: radius).frame(width: width, height: 500)
+                photos[0].view(width: width, height: 500, cornerRadius: radius)
                 HStack(spacing: gap) {
-                    photos[1].view(cornerRadius: radius).frame(width: (width - gap) / 2, height: 300)
-                    photos[2].view(cornerRadius: radius).frame(width: (width - gap) / 2, height: 300)
+                    photos[1].view(width: (width - gap) / 2, height: 300, cornerRadius: radius)
+                    photos[2].view(width: (width - gap) / 2, height: 300, cornerRadius: radius)
                 }
             }
         }
@@ -125,14 +127,13 @@ struct YearPoster: View {
                 }
                 LazyVGrid(columns: Array(repeating: GridItem(.fixed(side), spacing: gap), count: Self.columns), spacing: gap) {
                     ForEach(Array(cells.enumerated()), id: \.offset) { _, cell in
-                        Group {
-                            if let cell {
-                                cell.view(cornerRadius: 12)
-                            } else {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.surface)
-                            }
+                        if let cell {
+                            cell.view(width: side, height: side, cornerRadius: 12)
+                        } else {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Theme.surface)
+                                .frame(width: side, height: side)
                         }
-                        .frame(width: side, height: side)
                     }
                 }
                 Spacer(minLength: 0)
@@ -223,6 +224,31 @@ struct PostcardShareButton: View {
         }
         .task(id: dump.id) {
             image = await Postcards.render(dump: dump, clock: model.clock, line: line)
+        }
+    }
+}
+
+/// The postcard as one quiet icon in a post's action row. Dim until the picture is ready.
+struct PostcardShareIcon: View {
+    @Environment(AppModel.self) private var model
+    let dump: Dump
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                ShareLink(item: Image(uiImage: image),
+                          preview: SharePreview("\(dump.author.firstName)'s week on Sundae", image: Image(uiImage: image))) {
+                    Icon(Glyph.share, size: 24).foregroundStyle(.primary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Icon(Glyph.share, size: 24).foregroundStyle(.tertiary)
+            }
+        }
+        .accessibilityLabel("Share a postcard")
+        .task(id: dump.id) {
+            image = await Postcards.render(dump: dump, clock: model.clock, line: dump.caption.isEmpty ? nil : dump.caption)
         }
     }
 }
