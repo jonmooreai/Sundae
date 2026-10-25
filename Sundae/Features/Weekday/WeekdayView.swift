@@ -136,9 +136,17 @@ struct WeekdayView: View {
         .transition(.opacity)
     }
 
+    /// "Tartine · 8 min walk" close by, "Point Reyes · 32 mi" when it is worth the trip.
     private func walkLine(_ place: Suggestion.Place) -> String {
-        guard let minutes = place.walkMinutes else { return place.name }
-        return "\(place.name) · \(minutes) min walk"
+        if let minutes = place.walkMinutes {
+            return "\(place.name) · \(minutes) min walk"
+        }
+        if let meters = place.distanceMeters {
+            let distance = Measurement(value: meters, unit: UnitLength.meters)
+                .formatted(.measurement(width: .abbreviated, usage: .road))
+            return "\(place.name) · \(distance)"
+        }
+        return place.name
     }
 
     private var actions: some View {

@@ -16,7 +16,7 @@ function placesAround(cell) {
     ['p3', 'Dolores Park', 'park', 0.003, -0.002],
     ['p4', 'Dog Eared Books', 'bookstore', 0.0015, -0.0005],
     ['p5', 'Bernal Hill', 'viewpoint', 0.004, 0.003],
-    ['p6', 'Far Away Diner', 'diner', 0.05, 0.05], // 5 km: out of walking range
+    ['p6', 'Far Away Diner', 'diner', 0.5, 0.5], // about 70 km: past twenty miles
     ['p7', 'Nameless', '', 0.001, 0.001], // unknown category: ignored
   ];
   return spread.map(([id, name, category, dLat, dLon]) => ({ id, name, category, lat: c.lat + dLat, lon: c.lon + dLon }));
@@ -49,7 +49,8 @@ test('ideas are deterministic, one per part of the day, and never name the cell'
   for (const idea of first) {
     assert.equal(idea.id.includes(CELL), false);
     assert.match(idea.id, /^local:2026-10-21:[0-2]$/);
-    assert.ok(idea.place.walk_minutes >= 1 && idea.place.walk_minutes <= 20);
+    assert.ok(idea.place.walk_minutes === null || (idea.place.walk_minutes >= 1 && idea.place.walk_minutes <= 20));
+    assert.ok(idea.place.distance_meters >= 0 && idea.place.distance_meters <= 32187);
     assert.ok(!idea.text.includes('{name}') && !idea.reason.includes('{name}'));
     assert.notEqual(idea.place.name, 'Far Away Diner');
     assert.notEqual(idea.place.name, 'Nameless');
@@ -82,8 +83,8 @@ test('dates are checked and Sundays are refused', () => {
 
 test('shards cover the padded cell, usually one', () => {
   const shards = shardsFor(CELL);
-  assert.ok(shards.length >= 1 && shards.length <= 4);
-  assert.ok(shards.includes(CELL.slice(0, 5)));
+  assert.ok(shards.length >= 1 && shards.length <= 5);
+  assert.ok(shards.includes(CELL.slice(0, 4)));
 });
 
 function makeEnv(places) {

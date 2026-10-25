@@ -563,7 +563,7 @@ actor MockSundaeAPI: SundaeAPI {
             Template(slot: .afternoon, place: "The record shop", walk: 11,
                      text: "Flip through the dollar bin at the record shop.",
                      reason: "Pick the cover that makes you laugh. Shoot it in your hands, out on the sidewalk."),
-            Template(slot: .evening, place: "The lookout", walk: 15,
+            Template(slot: .evening, place: "The lookout", walk: 0,
                      text: "Catch the last light from the lookout.",
                      reason: "Fifteen minutes uphill, ten minutes of color. Bring someone."),
             Template(slot: .evening, place: "The place with the line", walk: 7,
@@ -579,7 +579,9 @@ actor MockSundaeAPI: SundaeAPI {
             let pick = options[Int((seed >> UInt64(index * 8)) % UInt64(options.count))]
             return Suggestion(id: "\(Suggestion.nearbyPrefix)\(dayString):\(index)", text: pick.text, reason: pick.reason,
                               categories: [.local], timeOfDay: slot,
-                              place: Suggestion.Place(name: pick.place, walkMinutes: pick.walk))
+                              place: Suggestion.Place(name: pick.place,
+                                                      walkMinutes: pick.walk > 0 ? pick.walk : nil,
+                                                      distanceMeters: pick.walk > 0 ? Double(pick.walk * 80) : 18_500))
         }
     }
 

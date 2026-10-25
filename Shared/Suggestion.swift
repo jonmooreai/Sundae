@@ -21,14 +21,18 @@ public struct Suggestion: Codable, Identifiable, Hashable, Sendable {
     /// The position here is the place's, which is public. The user's position is never stored.
     public struct Place: Codable, Hashable, Sendable {
         public let name: String
-        /// Walking time from the middle of the user's area, rounded. Nil when unknown.
+        /// Walking time from the middle of the user's area, rounded. Only set when it is a walk.
         public let walkMinutes: Int?
+        /// Straight-line distance from the middle of the user's area, for places worth a drive.
+        public let distanceMeters: Double?
         public let latitude: Double?
         public let longitude: Double?
 
-        public init(name: String, walkMinutes: Int? = nil, latitude: Double? = nil, longitude: Double? = nil) {
+        public init(name: String, walkMinutes: Int? = nil, distanceMeters: Double? = nil,
+                    latitude: Double? = nil, longitude: Double? = nil) {
             self.name = name
             self.walkMinutes = walkMinutes
+            self.distanceMeters = distanceMeters
             self.latitude = latitude
             self.longitude = longitude
         }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Groups places into one JSON file per five-character geohash cell, ready for R2.
+// Groups places into one JSON file per four-character geohash cell, ready for R2.
 //
 //   node scripts/build-shards.mjs places.ndjson out/
 //   for f in out/places/*.json; do npx wrangler r2 object put "sundae-places/places/$(basename "$f")" --file "$f"; done
@@ -47,7 +47,7 @@ for await (const line of createInterface({ input: createReadStream(input), crlfD
   try { row = JSON.parse(line); } catch { continue; }
   const category = CATEGORY_MAP[row.category];
   if (!category || !THEMES[category] || !row.name || !Number.isFinite(row.lat) || !Number.isFinite(row.lon)) continue;
-  const shard = encode(row.lat, row.lon, 5);
+  const shard = encode(row.lat, row.lon, 4);
   if (!shards.has(shard)) shards.set(shard, []);
   shards.get(shard).push({
     id: String(row.id),
