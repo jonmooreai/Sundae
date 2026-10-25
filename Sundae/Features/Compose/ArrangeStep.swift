@@ -9,6 +9,16 @@ struct ArrangeStep: View {
 
     @State private var page = 0
     @State private var tagging: DraftPhoto?
+
+    /// "Jonah", "Jonah and Lena", "Jonah, Lena and 6 others".
+    private func taggedLine(_ users: [User]) -> String {
+        let names = users.map(\.firstName)
+        switch names.count {
+        case 1: return names[0]
+        case 2: return "\(names[0]) and \(names[1])"
+        default: return "\(names[0]), \(names[1]) and \(names.count - 2) others"
+        }
+    }
     @State private var altPhoto: DraftPhoto?
     @State private var showReorder = false
     @State private var confirmDelete = false
@@ -96,17 +106,21 @@ struct ArrangeStep: View {
                         .aspectRatio(min(max(CGFloat(photo.width) / CGFloat(max(photo.height, 1)), 0.8), 1.25), contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .overlay(alignment: .bottomLeading) {
+                            // A few faces and a short line, never one chip per person.
                             if !photo.taggedUsers.isEmpty {
-                                HStack(spacing: 6) {
-                                    ForEach(photo.taggedUsers) { user in
-                                        Text(user.firstName)
-                                            .font(.caption.weight(.medium))
-                                            .padding(.horizontal, 9)
-                                            .padding(.vertical, 5)
-                                            .background(.regularMaterial, in: Capsule())
-                                    }
+                                HStack(spacing: 7) {
+                                    FacePile(users: Array(photo.taggedUsers.prefix(3)), size: 20)
+                                    Text(taggedLine(photo.taggedUsers))
+                                        .font(.caption.weight(.medium))
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
                                 }
+                                .padding(.leading, 5)
+                                .padding(.trailing, 10)
+                                .padding(.vertical, 5)
+                                .background(.regularMaterial, in: Capsule())
                                 .padding(12)
+                                .frame(maxWidth: 300, alignment: .leading)
                             }
                         }
                         .padding(.horizontal, Theme.pagePadding)
