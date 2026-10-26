@@ -2,7 +2,8 @@ name: Content checks
 
 # Every line the ideas server can write goes through the same guard as the app, and the two
 # guards hold the same lists. Then the API server's tests, which also fail any request that
-# makes more D1 queries than Cloudflare's free plan allows. Linux, a few seconds.
+# makes more D1 queries than Cloudflare's free plan allows, and the guards on the build
+# pipeline itself (workflow permissions, the pinned package, signing rotation). Linux, a few seconds.
 # main is not listed: it is always fast-forwarded to the work branch, so it would run twice.
 on:
   push:
@@ -11,12 +12,19 @@ on:
       - "server/**"
       - "Shared/IdeaGuard.swift"
       - "Shared/privacy.json"
-      - ".github/workflows/content.yml"
+      - ".github/workflows/**"
+      - "project.yml"
+      - "fastlane/Fastfile"
+      - "docs/TESTFLIGHT.md"
   pull_request:
     paths:
       - "server/**"
       - "Shared/IdeaGuard.swift"
       - "Shared/privacy.json"
+      - ".github/workflows/**"
+      - "project.yml"
+      - "fastlane/Fastfile"
+      - "docs/TESTFLIGHT.md"
 
 permissions:
   contents: read

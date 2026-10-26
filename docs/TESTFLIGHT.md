@@ -88,10 +88,15 @@ make an account even with the app.
 
 ## If the certificate store was ever exposed
 
-Set a new `MATCH_PASSWORD` secret, then push a commit whose message contains both
-`[rotate-signing]` and `[testflight]`. That run revokes the distribution certificate and
-profiles, creates new ones encrypted with the new passphrase, and builds as usual. Builds
-already in TestFlight keep working.
+Set a new `MATCH_PASSWORD` secret, then open Actions, TestFlight, Run workflow, tick
+`rotate_signing` and run it. That run revokes the distribution certificates and profiles,
+creates new ones encrypted with the new passphrase, and builds as usual. Builds already in
+TestFlight keep working.
+
+It reaches the whole Apple team, not only Sundae: every distribution certificate is revoked,
+and every App Store, Ad Hoc and Developer ID profile is deleted, so any other app signed by the
+team needs signing again afterward. Only a run started by hand with the box ticked does this;
+no commit message or push can.
 
 ## What the build contains
 
@@ -114,7 +119,8 @@ workflows hold back on their own:
 - The iOS build and unit tests (20 to 35 minutes on macOS) run on a push only when the commit
   message contains `[ios]` or `[screenshots]`, or when started by hand from the Actions tab.
   While public they still run on every push.
-- The server checks run on Linux in under a minute, on every push that touches the server.
+- The server checks run on Linux in under a minute, on every push that touches the server or
+  the build setup (workflows, project.yml, the Fastfile).
 - Nothing runs twice: `main` is a copy of the work branch, so workflows only watch the work
   branch and `testflight`.
 
