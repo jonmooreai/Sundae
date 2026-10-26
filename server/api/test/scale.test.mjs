@@ -195,6 +195,20 @@ test('saves of one week sent all at once leave it with at most 15 photos', async
   assert.deepEqual([...photos.objects.keys()].sort(), posted.sort());
 });
 
+test('first saves of a week sent together, as a retry after a dropped connection, all land on one week', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const upload = await uploadPhoto(s, jon);
+  const save = ['PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: 'Same week', photos: [{ upload_id: upload }] } }];
+  const answers = await s.together([save, save, save]);
+  assert.deepEqual(answers.map((r) => r.status), [200, 200, 200], JSON.stringify(answers.map((r) => r.body)));
+  const dumps = s.env.DB.sqlite.prepare('SELECT id FROM dumps').all();
+  assert.equal(dumps.length, 1);
+  assert.ok(answers.every((r) => r.body.id === dumps[0].id && r.body.photos.length === 1));
+  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM photos').get().n, 1);
+  assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body[0].photos.length, 1);
+});
+
 test('thirty comments a person on each week, even sent all at once', async () => {
   const s = await server();
   const { jon, maya } = await friends(s);

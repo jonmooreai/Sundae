@@ -508,6 +508,9 @@ test('names lose invisible characters that make look-alikes, and keep emoji', as
   assert.equal(await named('S\u200bam \u202eDoe\u2066\u2069\u2029\u00ad\ufeff'), 'Sam Doe');
   assert.equal(await named('Sam\nDoe\u0085\u007f'), 'Sam Doe');
   assert.equal(await named('Pat \u{1f469}\u200d\u{1f467}'), 'Pat \u{1f469}\u200d\u{1f467}', 'the joiner in a family emoji stays');
+  const england = '\u{1f3f4}\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}';
+  assert.equal(await named(`Pat ${england}`), `Pat ${england}`, 'the tags in a flag emoji stay');
+  assert.equal(await named('Pat\u{e0067}\u{e007f} Doe'), 'Pat Doe', 'tags on their own go');
   await s.call('PATCH', 'v1/me', { token: pat.token, json: { name: 'S\u200bam Doe', bio: 'Line one\nLine two' } });
   assert.equal((await s.call('GET', 'v1/me', { token: pat.token })).body.bio, 'Line one\nLine two', 'a bio keeps its line breaks');
   const found = await s.call('GET', 'v1/users/search?q=sam%20doe', { token: sam.token });

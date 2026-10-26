@@ -353,9 +353,11 @@ function clean(value, max) {
 }
 
 /** A name, on one line, without the invisible characters that make two names look alike but
- * search differently. The zero width joiner stays, since emoji are built with it. */
+ * search differently. The zero width joiner stays, since emoji are built with it, and so do the
+ * tag characters right after a black flag, which make the England, Scotland and Wales flags. */
 function cleanName(value) {
-  return clean(String(value ?? '').replace(/\p{Cc}/gu, ' ').replace(/(?!\u200d)[\p{Cf}\u2028\u2029]/gu, ''), 60);
+  return clean(String(value ?? '').replace(/\p{Cc}/gu, ' ')
+    .replace(/(?!\u200d|(?<=\u{1f3f4}[\u{e0020}-\u{e007e}]*)[\u{e0020}-\u{e007f}])[\p{Cf}\u2028\u2029]/gu, ''), 60);
 }
 
 function normalizeUsername(raw) {
@@ -836,6 +838,7 @@ async function saveDump(ctx, week) {
   const uploadIds = [...new Set(inputs.map((p) => p.upload_id).filter(Boolean).map(String))];
   const found = await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first();
   const dumpId = found?.id ?? newId('d');
+  const weekDump = '(SELECT id FROM dumps WHERE author_id = ? AND week_start = ?)';
   const [{ results: existing }, { results: uploads }, { results: claimed }, people] = await Promise.all([
     db.prepare('SELECT * FROM photos WHERE dump_id = ?').bind(dumpId).all(),
     db.prepare('SELECT * FROM uploads WHERE user_id = ? AND uploaded = 1 AND id IN (SELECT value FROM json_each(?))').bind(me.id, JSON.stringify(uploadIds)).all(),
@@ -862,8 +865,8 @@ async function saveDump(ctx, week) {
         if (!upload) fail(400, 'invalid_photo', 'That photo did not finish uploading.');
         if (claimed.some((c) => c.upload_id === uploadId && c.dump_id !== dumpId)) fail(400, 'invalid_photo', 'That photo is already in another week.');
         row = { id: newId('p'), object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
-        writes.push(db.prepare('INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(row.id, dumpId, index, row.object_key, width || row.width, height || row.height, alt, uploadId));
+        writes.push(db.prepare(`INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?)`)
+          .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId));
         existing.push(row);
       }
     }
@@ -880,18 +883,19 @@ async function saveDump(ctx, week) {
   // Whatever in the week this save does not keep goes before any photo is added, chosen by what
   // is kept rather than by what was read: saves sent together cannot each add fifteen, as the
   // last to land leaves only its own. Files of photos it never read go with the daily cleanup.
+  // Every write finds the week by author and day, so first saves sent together share one week.
   const keptIds = JSON.stringify(kept);
   const removed = existing.filter((p) => !kept.includes(p.id) && !p.isNew);
   await db.batch([
-    ...(found ? [] : [db.prepare('INSERT INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso)]),
-    db.prepare('DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ?1 AND id NOT IN (SELECT value FROM json_each(?2)))').bind(dumpId, keptIds),
-    db.prepare('DELETE FROM photos WHERE dump_id = ?1 AND id NOT IN (SELECT value FROM json_each(?2))').bind(dumpId, keptIds),
+    db.prepare('INSERT OR IGNORE INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso),
+    db.prepare(`DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?)))`).bind(me.id, week, keptIds),
+    db.prepare(`DELETE FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?))`).bind(me.id, week, keptIds),
     ...writes,
-    db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE id = ?').bind(caption, commentsEnabled, nowIso, dumpId),
+    db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE author_id = ? AND week_start = ?').bind(caption, commentsEnabled, nowIso, me.id, week),
   ]);
   await storage(ctx.env).deleteMany(removed.map((p) => p.object_key));
-  return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE id = ?').bind(dumpId).first()));
+  return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first()));
 }
 
 /** The writes that bring one photo's tags in line with who is tagged now. Someone still tagged
