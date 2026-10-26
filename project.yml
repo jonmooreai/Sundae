@@ -45,7 +45,8 @@ targets:
         # so CI can stamp each TestFlight build with its run number.
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        SundaeAPIBaseURL: ""
+        # The friends-and-family server (docs/SERVER.md). Empty would mean built-in demo data.
+        SundaeAPIBaseURL: "https://sundae-api.sundae-fam.workers.dev"
         # Set to group.com.jonmooreai.sundae (here and in the widget) once the App ID has the app group.
         SundaeAppGroup: ""
         # Where the app leaves state for the widget. The team prefix comes from signing; the

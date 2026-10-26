@@ -77,7 +77,7 @@ the invitation list is the guest list.
    and create a group named Friends and Family. Leave Public Link off.
 2. Under Test Information fill in a one-line description ("A photo dump for a few friends,
    open on Sundays"), your email for feedback, and the privacy policy address,
-   `https://sundae-api.<your-subdomain>.workers.dev/privacy`.
+   `https://sundae-api.sundae-fam.workers.dev/privacy`.
 3. Add a build to the group. The first one goes through Beta App Review, usually within a day.
    The reviewer signs in with their own Apple ID, so keep sign-ups open until it is approved,
    and delete that account afterward if you like.

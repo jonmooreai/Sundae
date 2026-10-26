@@ -86,7 +86,8 @@ Signed in to Cloudflare, about five minutes:
 
 ## 3. Check it
 
-The build log ends with the Worker's address, `https://sundae-api.<your-subdomain>.workers.dev`.
+The Worker's address is `https://sundae-api.sundae-fam.workers.dev` (the account's workers.dev
+subdomain was renamed from one that matched an email address).
 
 - The address itself shows `Sundae`.
 - `/privacy` shows the privacy page.
