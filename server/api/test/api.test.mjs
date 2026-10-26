@@ -454,6 +454,66 @@ test('follow requests, search, suggestions and blocking', async () => {
   assert.equal((await s.call('GET', 'v1/users/search?q=theo', { token: jon.token })).body.length, 0);
 });
 
+test('anyone who follows you can be removed, even someone who followed while you were public', async () => {
+  const s = await server();
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
+  const sam = await s.signUp('apple-sam', 'sam', 'Sam Doe');
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
+  // Pat is public for a moment: Sam and Theo follow with no approval.
+  await s.call('PUT', 'v1/me/settings', { token: pat.token, json: { is_public: true } });
+  for (const who of [sam, theo]) {
+    assert.equal((await s.call('POST', `v1/users/${pat.user.id}/follow`, { token: who.token })).body.relationship, 'following');
+  }
+  await s.call('PUT', 'v1/me/settings', { token: pat.token, json: { is_public: false } });
+  const week = await postWeek(s, pat);
+  assert.equal((await s.call('GET', `v1/dumps/${week.id}`, { token: sam.token })).status, 200, 'going private keeps followers');
+
+  // Every day, and never anyone blocked either way.
+  s.setNow(WEDNESDAY);
+  s.env.DB.sqlite.prepare('INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(theo.user.id, pat.user.id);
+  const listed = await s.call('GET', 'v1/me/followers', { token: pat.token });
+  assert.equal(listed.status, 200);
+  assert.deepEqual(listed.body.map((u) => [u.username, u.name]), [['sam', 'Sam Doe']]);
+  assert.equal(listed.body[0].timezone, null);
+  assert.equal((await s.call('DELETE', `v1/me/followers/${sam.user.id}`, { token: pat.token })).status, 204);
+  assert.equal((await s.call('DELETE', `v1/me/followers/${sam.user.id}`, { token: pat.token })).status, 204, 'removing again is fine');
+  assert.deepEqual((await s.call('GET', 'v1/me/followers', { token: pat.token })).body, []);
+
+  // Sam sees nothing of Pat's now, and neither can tag the other.
+  s.setNow(SUNDAY);
+  assert.equal((await s.call('GET', `v1/dumps/${week.id}`, { token: sam.token })).status, 404);
+  assert.equal((await s.call('GET', `v1/dumps/${week.id}/comments`, { token: sam.token })).status, 404);
+  assert.equal((await s.call('PUT', `v1/dumps/${week.id}/like`, { token: sam.token, json: { liked: true } })).status, 404);
+  assert.equal((await s.call('GET', 'v1/feed', { token: sam.token })).body.length, 0);
+  const profile = await s.call('GET', `v1/users/${pat.user.id}/profile`, { token: sam.token });
+  assert.equal(profile.body.relationship, 'none');
+  assert.deepEqual(profile.body.weeks, []);
+  assert.deepEqual((await s.call('GET', 'v1/me/taggable', { token: sam.token })).body, []);
+  assert.deepEqual((await s.call('GET', 'v1/me/taggable', { token: pat.token })).body, []);
+
+  // Following again is a request Pat can turn down, and removing a request turns it down.
+  assert.equal((await s.call('POST', `v1/users/${pat.user.id}/follow`, { token: sam.token })).body.relationship, 'requested');
+  assert.deepEqual((await s.call('GET', 'v1/me/follow-requests', { token: pat.token })).body.map((u) => u.username), ['sam']);
+  assert.deepEqual((await s.call('GET', 'v1/me/followers', { token: pat.token })).body, []);
+  await s.call('DELETE', `v1/me/followers/${sam.user.id}`, { token: pat.token });
+  assert.deepEqual((await s.call('GET', 'v1/me/follow-requests', { token: pat.token })).body, []);
+});
+
+test('names lose invisible characters that make look-alikes, and keep emoji', async () => {
+  const s = await server();
+  const sam = await s.signUp('apple-sam', 'sam', 'S\u200bam\u2028 Doe');
+  assert.equal(sam.user.name, 'Sam Doe');
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat');
+  const named = async (name) => (await s.call('PATCH', 'v1/me', { token: pat.token, json: { name } })).body.name;
+  assert.equal(await named('S\u200bam \u202eDoe\u2066\u2069\u2029\u00ad\ufeff'), 'Sam Doe');
+  assert.equal(await named('Sam\nDoe\u0085\u007f'), 'Sam Doe');
+  assert.equal(await named('Pat \u{1f469}\u200d\u{1f467}'), 'Pat \u{1f469}\u200d\u{1f467}', 'the joiner in a family emoji stays');
+  await s.call('PATCH', 'v1/me', { token: pat.token, json: { name: 'S\u200bam Doe', bio: 'Line one\nLine two' } });
+  assert.equal((await s.call('GET', 'v1/me', { token: pat.token })).body.bio, 'Line one\nLine two', 'a bio keeps its line breaks');
+  const found = await s.call('GET', 'v1/users/search?q=sam%20doe', { token: sam.token });
+  assert.deepEqual(found.body.map((u) => u.username), ['pat'], 'a look-alike shows up when searching the name it copies');
+});
+
 /** Each follows the other, both accepted. */
 async function mutual(s, a, b) {
   for (const [from, to] of [[a, b], [b, a]]) {

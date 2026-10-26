@@ -35,12 +35,14 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `me` | user, plus `is_admin: true` for an admin only (never on anyone else's user) |
-| PATCH | `me` | any of `name`, `username`, `bio`, or `avatar_upload_id` from an upload ticket (a square JPEG, 600 px) |
+| PATCH | `me` | any of `name`, `username`, `bio`, or `avatar_upload_id` from an upload ticket (a square JPEG, 600 px). A name is kept on one line, without invisible formatting characters (the zero width joiner in emoji stays) |
 | GET / PUT | `me/settings` | settings object below |
 | DELETE | `me` | starts the 30-day deletion |
 | GET | `me/taggable` | users the caller follows or who follow them |
 | GET | `me/follow-requests` | users waiting on the caller |
 | POST | `me/follow-requests/{user_id}` | `{accept: bool}` |
+| GET | `me/followers` | users who follow the caller, accepted, by username, never anyone blocked either way |
+| DELETE | `me/followers/{user_id}` | removes that person's follow of the caller, or their request; 204, and 204 again if there is nothing to remove. Following again is a new request while the caller is private. Photos they already loaded, and photo addresses already sent (up to seven hours), are not taken back |
 | GET | `me/tag-requests` | pending tag requests, every day |
 | GET | `me/suggestions/done?week_start=` | `[{suggestion_id, done_on}]` |
 | PUT | `me/suggestions/{id}/done` | `{done_on}` |

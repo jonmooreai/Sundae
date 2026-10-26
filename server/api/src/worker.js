@@ -160,6 +160,8 @@ async function route(ctx, method, parts) {
     case 'GET me/taggable': return json(await usersJSON(ctx, await taggable(ctx)));
     case 'GET me/follow-requests': return followRequests(ctx);
     case 'POST me/follow-requests/:': return respondToFollow(ctx, c);
+    case 'GET me/followers': return followers(ctx);
+    case 'DELETE me/followers/:': return removeFollower(ctx, c);
     case 'GET me/tag-requests': return tagRequests(ctx);
     case 'GET me/suggestions/done': return suggestionsDone(ctx);
     case 'PUT me/suggestions/:/done': return markDone(ctx, c);
@@ -201,7 +203,7 @@ function isParam(parts, i) {
   if (['me', 'auth', 'ideas'].includes(before) && i === 1) return false;
   if (before === 'users' && ['search', 'suggested'].includes(parts[i])) return false;
   if (before === 'suggestions' && parts[i] === 'done') return false;
-  return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'suggestions'].includes(before);
+  return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'followers', 'suggestions'].includes(before);
 }
 
 // MARK: - Auth
@@ -275,7 +277,7 @@ async function signInWithApple(ctx) {
     return json({ signup_ticket: await signToken({ typ: 'signup', apple: sub, exp }, ctx.secret), expires_in: SIGNUP_SECONDS });
   }
   // Builds from before profile_first send the username with the first request.
-  const name = clean(input.name || input.full_name || '', 60);
+  const name = cleanName(input.name || input.full_name || '');
   const username = await uniqueUsername(ctx, input.username || name || 'friend');
   const created = await createAccount(ctx, { sub, username, name, timezone });
   if (!created) fail(409, 'username_taken', 'That username was just taken. Sign in with Apple again.');
@@ -300,7 +302,7 @@ async function finishAppleSignUp(ctx) {
   }
   if (taken.results.length) fail(409, 'username_taken', 'That username is taken.');
   const created = await createAccount(ctx, {
-    sub: ticket.apple, username, name: clean(input.name || '', 60), timezone: safeZone(String(input.timezone || 'UTC')),
+    sub: ticket.apple, username, name: cleanName(input.name || ''), timezone: safeZone(String(input.timezone || 'UTC')),
   });
   if (!created) fail(409, 'username_taken', 'That username is taken.');
   return json({ ...(await issueSession(ctx, created.id)), user: await meJSON(ctx, created) });
@@ -348,6 +350,12 @@ async function signOut(ctx) {
 function clean(value, max) {
   // Line breaks stay; every other control character becomes a space.
   return String(value ?? '').replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').trim().slice(0, max);
+}
+
+/** A name, on one line, without the invisible characters that make two names look alike but
+ * search differently. The zero width joiner stays, since emoji are built with it. */
+function cleanName(value) {
+  return clean(String(value ?? '').replace(/\p{Cc}/gu, ' ').replace(/(?!\u200d)[\p{Cf}\u2028\u2029]/gu, ''), 60);
 }
 
 function normalizeUsername(raw) {
@@ -422,7 +430,7 @@ async function updateMe(ctx) {
       const taken = await ctx.db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').bind(username, me.id).first();
       if (taken) fail(409, 'username_taken', 'That username is taken.');
     }
-    const name = 'name' in input ? clean(input.name, 60) : me.name;
+    const name = 'name' in input ? cleanName(input.name) : me.name;
     const bio = 'bio' in input ? clean(input.bio, 160) : me.bio;
     await ctx.db.prepare('UPDATE users SET username = ?, name = ?, bio = ? WHERE id = ?').bind(username, name, bio, me.id).run();
   }
@@ -548,6 +556,22 @@ async function respondToFollow(ctx, userId) {
   } else {
     await ctx.db.prepare(`DELETE FROM follows WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`).bind(userId, ctx.me.id).run();
   }
+  return empty();
+}
+
+/** People who follow the caller, accepted, never anyone blocked either way. */
+async function followers(ctx) {
+  const { results } = await ctx.db.prepare(`
+    SELECT * FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT follower_id FROM follows WHERE followee_id = ?1 AND status = 'accepted')
+    ORDER BY username`).bind(ctx.me.id).all();
+  return json(await usersJSON(ctx, results));
+}
+
+/** Takes away someone's follow of the caller, or their request. Asking again is a new request
+ * while the caller is private. Photos they already saw, and photo addresses already sent, stay
+ * with them until those run out. */
+async function removeFollower(ctx, userId) {
+  await ctx.db.prepare('DELETE FROM follows WHERE follower_id = ? AND followee_id = ?').bind(userId, ctx.me.id).run();
   return empty();
 }
 
