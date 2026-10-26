@@ -28,6 +28,7 @@ struct OnboardingView: View {
     @State private var avatarImage: UIImage?
     @State private var avatarData: Data?
     @State private var error: String?
+    @State private var showPrivacy = false
     @State private var isWorking = false
 
     private var isOldEnough: Bool {
@@ -64,6 +65,7 @@ struct OnboardingView: View {
             .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: step)
         }
         .filmGrain()
+        .sheet(isPresented: $showPrivacy) { PrivacySheet() }
     }
 
     // MARK: Chrome
@@ -222,6 +224,10 @@ struct OnboardingView: View {
                     .buttonStyle(.pill(.quiet, fullWidth: true))
                 }
             }
+
+            // Readable before there is an account: what Sundae keeps and never collects.
+            Button("How Sundae handles your data") { showPrivacy = true }
+                .buttonStyle(.pill(.quiet, fullWidth: true))
 
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.secondary)

@@ -1,0 +1,57 @@
+{
+  "title": "Privacy",
+  "summary": "Sundae is a photo dump for a small group of friends and family, in testing. Here is everything it keeps, everything it never collects, and who can see what.",
+  "updated": "2026-10-26",
+  "sections": [
+    {
+      "title": "What Sundae keeps",
+      "items": [
+        "A private ID from Sign in with Apple, so you can sign in again. Never your Apple ID email.",
+        "Your name, username, bio and profile photo, if you add them.",
+        "The photos you post on Sundays, their captions and alt text, and who you tag.",
+        "Who you follow, your likes and comments, and the weekday ideas you mark done.",
+        "Your settings, like who can tag you without asking, and any reports you send.",
+        "Your time zone, so Sunday starts at your midnight."
+      ]
+    },
+    {
+      "title": "What Sundae never collects",
+      "items": [
+        "Your location. Ideas near you are found on your phone with Apple Maps, and the weather comes from Open-Meteo for an area about a kilometer across. Neither lookup carries your account, and nothing about where you are reaches Sundae.",
+        "Where your photos were taken. Location and camera details are removed on your phone before a photo is sent, and again when it arrives.",
+        "Your contacts. Sundae never asks for them.",
+        "Anything for ads or tracking. There are no ads, no analytics and no third-party trackers."
+      ]
+    },
+    {
+      "title": "Who can see what",
+      "items": [
+        "Your weeks are seen by the people you accept as followers, or by anyone on Sundae if you make your account public.",
+        "Photos can only be opened through private links that stop working within hours.",
+        "Nobody else, Sundae included, looks at your photos except to keep the service running."
+      ]
+    },
+    {
+      "title": "How it is protected",
+      "items": [
+        "Sign in with Apple only, so there is no password to steal or reuse.",
+        "Everything is encrypted on the way and where it is stored, on Cloudflare.",
+        "Sessions expire on their own, and Sign out everywhere ends them on every device."
+      ]
+    },
+    {
+      "title": "Deleting it",
+      "items": [
+        "Settings, then Delete account, removes your account, photos, comments, likes and tags right away.",
+        "The database keeps a recovery history for 7 days that only the person who runs Sundae can reach. After that, nothing of the account is left.",
+        "Photos you were tagged in stay in the poster's week, with your tag removed."
+      ]
+    },
+    {
+      "title": "Questions",
+      "items": [
+        "Send feedback from TestFlight and it reaches the person who runs Sundae."
+      ]
+    }
+  ]
+}

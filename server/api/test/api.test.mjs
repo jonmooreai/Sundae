@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { server, jpeg, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
 
 /** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
@@ -339,4 +340,20 @@ test('sign out signs out this phone; everywhere signs out every phone', async ()
   assert.equal((await s.call('POST', 'v1/auth/signout', { token: laptop.token, json: { everywhere: true } })).status, 204);
   const ipadAfter = await s.call('POST', 'v1/auth/refresh', { json: { refresh_token: ipad.refresh } });
   assert.equal(ipadAfter.status, 401, 'everywhere means every device');
+});
+
+test('the privacy page says exactly what the app says, from the one shared file', async () => {
+  const policy = JSON.parse(readFileSync(new URL('../../../Shared/privacy.json', import.meta.url), 'utf8'));
+  const s = await server();
+  const page = await (await s.call('GET', 'privacy', { raw: true })).text();
+  const escape = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  assert.ok(page.includes(escape(policy.summary)));
+  for (const section of policy.sections) {
+    assert.ok(page.includes(`<h2>${escape(section.title)}</h2>`), section.title);
+    assert.ok(section.items.length > 0, `${section.title} has something to say`);
+    for (const item of section.items) assert.ok(page.includes(`<li>${escape(item)}</li>`), item);
+  }
+  const text = JSON.stringify(policy);
+  assert.doesNotMatch(text, /—/, 'no em-dashes');
+  assert.match(policy.updated, /^\d{4}-\d{2}-\d{2}$/);
 });

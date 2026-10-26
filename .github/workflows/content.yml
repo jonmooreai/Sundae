@@ -9,11 +9,13 @@ on:
     paths:
       - "server/**"
       - "Shared/IdeaGuard.swift"
+      - "Shared/privacy.json"
       - ".github/workflows/content.yml"
   pull_request:
     paths:
       - "server/**"
       - "Shared/IdeaGuard.swift"
+      - "Shared/privacy.json"
 
 permissions:
   contents: read

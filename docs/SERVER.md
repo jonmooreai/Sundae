@@ -35,6 +35,12 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
 - **Nothing extra kept.** No request logs (observability is off), no analytics, no location.
   Deleting an account removes it at once; D1's own recovery history rolls past it in 7 days.
 
+## The privacy text
+
+`Shared/privacy.json` is the only copy. The app shows it under Settings, then Privacy, and on
+the sign-in screen, so it can be read any time without a browser; the Worker builds
+`/privacy` from the same file for Apple's TestFlight form. A test fails if the two ever differ.
+
 ## What it costs
 
 Nothing, for a group this size.

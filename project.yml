@@ -94,6 +94,9 @@ targets:
         excludes:
           - Info.plist
       - path: Shared
+        # The privacy text is for the app's Privacy screen; the widget never shows it.
+        excludes:
+          - privacy.json
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jonmooreai.sundae.widget

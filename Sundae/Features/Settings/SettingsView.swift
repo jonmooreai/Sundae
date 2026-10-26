@@ -71,6 +71,7 @@ struct SettingsView: View {
             }
 
             SettingsGroup(title: "Your data", footer: "Deleting removes everything right away.") {
+                SettingsLinkRow(title: "Privacy") { PrivacyView() }
                 SettingsActionRow(title: "Export my data", value: "Soon") { }
                     .disabled(true)
                 SettingsActionRow(title: "Delete account", isDestructive: true) {
