@@ -180,12 +180,14 @@ jobs:
       - name: Commit screenshots to the branch
         run: |
           set -euo pipefail
-          shots="$RUNNER_TEMP/artifact/docs/screenshots"
-          if [ -z "$(find "$shots" -maxdepth 1 -type f -name '*.png' 2>/dev/null)" ]; then
+          # The artifact holds the screenshots and the logs; its layout depends on which were
+          # uploaded, so take the PNGs from wherever they landed.
+          shots="$RUNNER_TEMP/artifact"
+          if [ -z "$(find "$shots" -maxdepth 3 -type f -name '*.png' 2>/dev/null)" ]; then
             echo "No screenshots to commit"; exit 0
           fi
           mkdir -p docs/screenshots
-          find "$shots" -maxdepth 1 -type f -name '*.png' -exec cp {} docs/screenshots/ \;
+          find "$shots" -maxdepth 3 -type f -name '*.png' -exec cp {} docs/screenshots/ \;
           git config user.name "sundae-ci"
           git config user.email "sundae-ci@users.noreply.github.com"
           git add docs/screenshots
