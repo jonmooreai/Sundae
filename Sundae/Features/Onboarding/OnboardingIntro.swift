@@ -7,7 +7,7 @@ import UIKit
 /// filling the screen. When it ends, the finished sundae rises and settles between the title and
 /// Begin, and the felt comes up at the foot of the screen so the words read clearly. A tap skips
 /// to the end. With Reduce Motion or VoiceOver on, the finished sundae shows as a still, in place.
-/// The sound follows the ring switch and never plays over something already playing.
+/// The sound plays even with the ring switch on silent, lowering any music for the ten seconds.
 struct OnboardingIntro: View {
     let onBegin: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -154,13 +154,13 @@ struct OnboardingIntro: View {
             finish()
             return
         }
-        // Ambient: silent when the ring switch is, and mixed rather than interrupting. If
-        // something else is already playing, the film plays without its sound.
+        // Played like any video: heard even with the ring switch on silent. Music already playing
+        // is lowered for the ten seconds rather than stopped, and comes back when the film ends.
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.ambient, mode: .default)
+        try? session.setCategory(.playback, mode: .moviePlayback, options: [.duckOthers])
+        try? session.setActive(true)
         let player = AVPlayer(url: url)
         player.actionAtItemEnd = .pause
-        player.isMuted = session.isOtherAudioPlaying
         self.player = player
         player.play()
     }
@@ -168,6 +168,7 @@ struct OnboardingIntro: View {
     private func stop() {
         player?.pause()
         player = nil
+        releaseAudio()
     }
 
     private func skip() {
@@ -178,6 +179,15 @@ struct OnboardingIntro: View {
 
     private func finish() {
         finished = true
+        releaseAudio()
+    }
+
+    /// Hands the sound back: any music lowered for the film comes back up, and the rest of the
+    /// app makes no sound of its own.
+    private func releaseAudio() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        try? session.setCategory(.ambient, mode: .default)
     }
 }
 
