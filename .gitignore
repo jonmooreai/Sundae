@@ -27,3 +27,6 @@ Package.resolved
 *.p12
 *.mobileprovision
 /seed-photos/
+
+# Wrangler scratch
+.wrangler/

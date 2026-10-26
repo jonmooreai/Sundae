@@ -1,7 +1,8 @@
 name: Content checks
 
 # Every line the ideas server can write goes through the same guard as the app, and the two
-# guards hold the same lists. Linux, a few seconds.
+# guards hold the same lists. Then the API server's tests, which also fail any request that
+# makes more D1 queries than Cloudflare's free plan allows. Linux, a few seconds.
 on:
   push:
     branches: [main, "claude/**"]
@@ -29,3 +30,6 @@ jobs:
       - name: Server tests, including the idea guard
         working-directory: server/local-ideas
         run: node --test
+      - name: API server tests
+        working-directory: server/api
+        run: node --test --no-warnings

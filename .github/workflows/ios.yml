@@ -36,7 +36,8 @@ jobs:
     # A [testflight] push runs the TestFlight workflow instead; no need to build twice.
     if: ${{ !contains(github.event.head_commit.message, '[testflight]') }}
     runs-on: macos-latest
-    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 45 || 15 }}
+    # Normal pushes build and run the unit tests; a slow runner can spend 15 minutes on the build alone.
+    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 45 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:

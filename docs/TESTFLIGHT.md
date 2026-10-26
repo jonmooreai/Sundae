@@ -66,6 +66,26 @@ group with "Enable automatic distribution" on. Add yourself as a tester. Every b
 lands in the TestFlight app on your phone a few minutes after processing. The phone needs
 iOS 26.
 
+## Inviting friends and family
+
+Invite people by email, never with the public link. An email invitation is tied to that
+person's Apple ID; a public link works for anyone it is forwarded to. Only people with the app
+can create an account, because Apple issues sign-in tokens for this app to this app alone, so
+the invitation list is the guest list.
+
+1. In App Store Connect open Sundae, then TestFlight, then the plus next to External Testing,
+   and create a group named Friends and Family. Leave Public Link off.
+2. Under Test Information fill in a one-line description ("A photo dump for a few friends,
+   open on Sundays"), your email for feedback, and the privacy policy address,
+   `https://sundae-api.sundae-fam.workers.dev/privacy`.
+3. Add a build to the group. The first one goes through Beta App Review, usually within a day.
+   The reviewer signs in with their own Apple ID, so keep sign-ups open until it is approved,
+   and delete that account afterward if you like.
+4. Add testers by email. Each gets an invitation to install TestFlight and then Sundae.
+
+Once everyone is in, sign-ups can be closed (`SIGNUPS` in docs/SERVER.md) so nobody new can
+make an account even with the app.
+
 ## If the certificate store was ever exposed
 
 Set a new `MATCH_PASSWORD` secret, then push a commit whose message contains both
@@ -75,15 +95,16 @@ already in TestFlight keep working.
 
 ## What the build contains
 
-Without a server, the app runs on its built-in demo data. Onboarding offers "Continue in demo
+Without a server, the app runs on its built-in demo data; docs/SERVER.md puts the real one
+online. Onboarding offers "Continue in demo
 mode", and Settings has a Demo section with "Pretend it's Sunday" so you can see every screen on
 any day of the week.
 
-Sign in with Apple, push notifications and the shared widget state need capabilities on the App
-ID that are not set up yet, so those entitlements are left out of this build. The widget still
-shows the daily suggestion.
+The lane turns Sign in with Apple on for the App ID through the API key, and makes new profiles
+on the run that does it. Push notifications still need their capability, so that entitlement is
+left out of this build.
 
 ## Costs
 
-Each TestFlight build uses about 15 minutes of macOS runner time, which counts 10x against the
-free Actions allowance for a private repo. Builds are started by hand only.
+Each TestFlight build uses about 15 minutes of macOS runner time, which is free while the
+repository is public. Builds are started by hand only.

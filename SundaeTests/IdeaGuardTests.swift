@@ -1,4 +1,5 @@
 import Foundation
+import MapKit
 import Testing
 @testable import Sundae
 

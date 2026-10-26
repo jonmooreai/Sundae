@@ -1,0 +1,27 @@
+// Sundae's server: one Worker, one D1 database and one R2 bucket, on Cloudflare's free tiers.
+// The code is in server/api. This file sits at the top of the repository so Workers Builds can
+// run `npx wrangler deploy` from the root, with no build step (docs/SERVER.md).
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "sundae-api",
+  "main": "server/api/src/worker.js",
+  "compatibility_date": "2026-10-20",
+  "workers_dev": true,
+  // No per-version preview addresses: they would be public and share the real database.
+  "preview_urls": false,
+  // Created in North America East. Its id is not a secret: only this Cloudflare account can use it.
+  "d1_databases": [{ "binding": "DB", "database_name": "sundae", "database_id": "50fc0dc9-3ba0-4405-a135-9429d6c59571" }],
+  // Photos. Private, as every new bucket is: nothing reaches it except this Worker, which only
+  // serves a photo through a signed link. North America East, Standard storage (the free tier).
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "sundae-photos" }],
+  "vars": {
+    "APPLE_BUNDLE_ID": "com.jonmooreai.sundae",
+    // "true" opens the Sunday-only parts every day, for trying things out midweek.
+    "SUNDAY_EVERY_DAY": "false",
+    // "closed" once everyone invited has an account: nobody new can sign up, everyone else can sign in.
+    "SIGNUPS": "open"
+  },
+  // Clears photos that were uploaded but never posted, once a day.
+  "triggers": { "crons": ["17 9 * * *"] },
+  "observability": { "enabled": false }
+}

@@ -260,6 +260,7 @@ enum DTO {
 
     struct AppleSignIn: Encodable {
         let identityToken: String
+        let nonce: String
         let fullName: String?
         let username: String?
         let name: String?

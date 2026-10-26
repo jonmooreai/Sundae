@@ -20,9 +20,9 @@ actor LiveSundaeAPI: SundaeAPI {
         let tz = TimeZone.current.identifier
         let response: DTO.SessionResponse
         switch method {
-        case .apple(let identityToken, let fullName):
+        case .apple(let identityToken, let fullName, let nonce):
             response = try await client.post("v1/auth/apple",
-                                             body: DTO.AppleSignIn(identityToken: identityToken, fullName: fullName,
+                                             body: DTO.AppleSignIn(identityToken: identityToken, nonce: nonce, fullName: fullName,
                                                                    username: username, name: name, timezone: tz),
                                              authenticated: false)
         case .phone(let number, let code):

@@ -15,6 +15,8 @@ struct OnboardingView: View {
 
     @State private var step: Step = .welcome
     @State private var pendingMethod: SignInMethod?
+    /// The nonce for the Sign in with Apple attempt in progress. Apple only ever sees its hash.
+    @State private var appleNonce = ""
     @State private var name = ""
     @State private var username = ""
     @State private var birthday = Calendar.current.date(byAdding: .year, value: -20, to: Date()) ?? Date()
@@ -155,6 +157,9 @@ struct OnboardingView: View {
 
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.fullName]
+                let nonce = AppleNonce.make()
+                appleNonce = nonce
+                request.nonce = AppleNonce.sha256(nonce)
             } onCompletion: { result in
                 switch result {
                 case .success(let auth):
@@ -163,7 +168,7 @@ struct OnboardingView: View {
                     let fullName = [credential?.fullName?.givenName, credential?.fullName?.familyName]
                         .compactMap { $0 }.joined(separator: " ")
                     if !fullName.isEmpty { name = fullName }
-                    pendingMethod = .apple(identityToken: token, fullName: fullName.isEmpty ? nil : fullName)
+                    pendingMethod = .apple(identityToken: token, fullName: fullName.isEmpty ? nil : fullName, nonce: appleNonce)
                     step = .profile
                 case .failure(let err):
                     error = err.localizedDescription
@@ -186,39 +191,43 @@ struct OnboardingView: View {
                 }
             }
 
-            if showPhone {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Phone number")
-                        .font(.subheadline.weight(.medium))
-                    Text("A text with a code is the least secure way in. It is here for people without an Apple ID on a shared device.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    if codeSent {
-                        field("6-digit code", text: $code)
-                            .keyboardType(.numberPad)
-                            .textContentType(.oneTimeCode)
-                        Button("Continue") {
-                            pendingMethod = .phone(number: phone, code: code)
-                            step = .profile
-                        }
-                        .buttonStyle(.pill(.secondary, size: .small))
-                        .disabled(code.count != 6)
-                    } else {
-                        field("Phone number", text: $phone)
-                            .keyboardType(.phonePad)
-                            .textContentType(.telephoneNumber)
-                        Button("Text me a code") { codeSent = true }
+            // Phone sign-in is demo only: the server signs people in with Apple, so there is no
+            // SMS to pay for (docs/SERVER.md).
+            if model.isUsingMock {
+                if showPhone {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Phone number")
+                            .font(.subheadline.weight(.medium))
+                        Text("A text with a code is the least secure way in. It is here for people without an Apple ID on a shared device.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if codeSent {
+                            field("6-digit code", text: $code)
+                                .keyboardType(.numberPad)
+                                .textContentType(.oneTimeCode)
+                            Button("Continue") {
+                                pendingMethod = .phone(number: phone, code: code)
+                                step = .profile
+                            }
                             .buttonStyle(.pill(.secondary, size: .small))
-                            .disabled(phone.filter(\.isNumber).count < 10)
+                            .disabled(code.count != 6)
+                        } else {
+                            field("Phone number", text: $phone)
+                                .keyboardType(.phonePad)
+                                .textContentType(.telephoneNumber)
+                            Button("Text me a code") { codeSent = true }
+                                .buttonStyle(.pill(.secondary, size: .small))
+                                .disabled(phone.filter(\.isNumber).count < 10)
+                        }
                     }
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    Button("Use a phone number instead") {
+                        withAnimation(.snappy(duration: 0.3)) { showPhone = true }
+                    }
+                    .buttonStyle(.pill(.quiet, fullWidth: true))
                 }
-                .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            } else {
-                Button("Use a phone number instead") {
-                    withAnimation(.snappy(duration: 0.3)) { showPhone = true }
-                }
-                .buttonStyle(.pill(.quiet, fullWidth: true))
             }
 
             if let error {

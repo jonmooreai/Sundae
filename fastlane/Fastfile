@@ -62,6 +62,30 @@ platform :ios do
       MSG
     end
 
+    # Sign in with Apple on the app's App ID, through the API key, so nobody has to tick it in the
+    # developer portal. Turning a capability on makes the existing profiles invalid, so match
+    # makes new ones on that run.
+    profiles_stale = false
+    app_bundle = Spaceship::ConnectAPI::BundleId.find(bundle_id)
+    if app_bundle.get_capabilities.any? { |c| c.is_type?("APPLE_ID_AUTH") }
+      UI.message("Sign in with Apple is already on for #{bundle_id}")
+    else
+      UI.message("Turning on Sign in with Apple for #{bundle_id}")
+      begin
+        app_bundle.create_capability(
+          "APPLE_ID_AUTH",
+          settings: [{ key: "APPLE_ID_AUTH_APP_CONSENT", options: [{ key: "PRIMARY_APP_CONSENT" }] }]
+        )
+      rescue => e
+        UI.user_error!(<<~MSG)
+          Could not turn on Sign in with Apple through the API (#{e.message}).
+          Turn it on by hand: developer.apple.com, Certificates, IDs & Profiles, Identifiers,
+          #{bundle_id}, tick Sign in with Apple, Save. Then run this workflow again.
+        MSG
+      end
+      profiles_stale = true
+    end
+
     # The distribution certificate and profiles, created on first run and kept encrypted on a
     # branch of this repository (private). GitHub ignores the username when the password is a token.
     git_url = ENV["MATCH_GIT_URL"]
@@ -93,6 +117,7 @@ platform :ios do
       api_key: api_key,
       team_id: team_id,
       readonly: false,
+      force: profiles_stale,
       git_url: git_url,
       git_branch: ENV["MATCH_GIT_BRANCH"] || "certificates",
       git_basic_authorization: git_auth
