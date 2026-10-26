@@ -23,7 +23,10 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
 - **Sign-in.** Apple only, so there are no passwords to leak and no SMS codes to intercept.
   Each identity token is checked against Apple's keys, this app's bundle id, its expiry, and a
   nonce the phone made for that attempt, and each nonce works once, so a copied token cannot
-  be replayed. The server keeps Apple's private user id, never an email address.
+  be replayed. The server keeps Apple's private user id, never an email address. Someone
+  coming back is signed straight in to the account they had. Someone new chooses a username
+  first: until then there is no account, only a signed ticket that lasts an hour and can create
+  that one account once.
 - **Sessions.** Access tokens last 15 minutes. Refresh tokens are stored only as SHA-256
   hashes, change on every use, and a used one coming back more than a minute later signs that
   session out everywhere.
