@@ -575,11 +575,11 @@ struct OnboardingView: View {
         askedReminders = true
         await NotificationScheduler.requestAuthorizationIfNeeded()
         // Someone who once turned both off has just asked for them again.
-        if !model.accountSettings.notifySundayReminder, !model.accountSettings.notifyLastCall {
-            var settings = model.accountSettings
-            settings.notifySundayReminder = true
-            settings.notifyLastCall = true
-            await model.saveAccountSettings(settings)
+        if let settings = model.accountSettings, !settings.notifySundayReminder, !settings.notifyLastCall {
+            var wanted = settings
+            wanted.notifySundayReminder = true
+            wanted.notifyLastCall = true
+            _ = await model.saveAccountSettings(from: settings, to: wanted)
         }
         model.scheduleReminders()
         next()

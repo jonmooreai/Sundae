@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WidgetKit
 import Observation
 
@@ -52,7 +53,9 @@ final class AppModel {
     /// RootView keeps onboarding up until they are done.
     private(set) var isFinishingOnboarding = false
     private(set) var pendingApprovalCount = 0
-    private(set) var accountSettings = AccountSettings()
+    /// The account's settings as the server last sent or accepted them. Nil until it has
+    /// answered, so nothing is shown, saved or scheduled from a guess.
+    private(set) var accountSettings: AccountSettings?
     private(set) var appearance: Appearance
     private(set) var debugDay: DebugDay
     /// Set by a view that wants the shell to switch tabs (the profile's "Post your week" card).
@@ -73,6 +76,10 @@ final class AppModel {
     var canChangeDay: Bool { isUsingMock || isAdmin }
 
     private var boundaryTask: Task<Void, Never>?
+    /// Says when the server refused to renew the session (HTTPClient), and the watch on it.
+    private let sessionEnded: AsyncStream<Void>
+    private var sessionWatch: Task<Void, Never>?
+    private var isSigningOut = false
 
     private enum Keys {
         static let appearance = "appearance"
@@ -96,8 +103,9 @@ final class AppModel {
 
         let api: any SundaeAPI
         let mock: MockSundaeAPI?
+        let (sessionEnded, onSessionEnded) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
         if let baseURL = APIConfiguration.baseURL {
-            api = LiveSundaeAPI(client: HTTPClient(baseURL: baseURL))
+            api = LiveSundaeAPI(client: HTTPClient(baseURL: baseURL, onSessionExpired: onSessionEnded))
             mock = nil
         } else {
             let m = MockSundaeAPI(clock: clock)
@@ -110,6 +118,7 @@ final class AppModel {
         self.clock = clock
         self.mock = mock
         self.api = api
+        self.sessionEnded = sessionEnded
         self.suggestions = catalog
         self.feed = FeedStore(api: api)
         self.compose = ComposeStore(api: api)
@@ -123,7 +132,10 @@ final class AppModel {
     // MARK: - Lifecycle
 
     func start() async {
+        // Before the Keychain is read and before any await, so a second window can't race it.
+        clearSessionLeftByAnEarlierInstall()
         refreshPhase()
+        watchForEndedSession()
         network.onChange = { [weak self] online in
             guard online else { return }
             Task { await self?.networkReturned() }
@@ -164,9 +176,21 @@ final class AppModel {
         isRestoringSession = false
     }
 
+    /// The Keychain outlives a deleted app. On a fresh install, tokens found there belong to
+    /// whoever used this phone before, so they are cleared and never sent, not even to sign out.
+    private func clearSessionLeftByAnEarlierInstall() {
+        // Before first unlock UserDefaults can read as empty; check on a later launch instead.
+        guard UIApplication.shared.isProtectedDataAvailable else { return }
+        guard FreshInstall.check(.standard, evidence: [Keys.cachedUser, Keys.appearance]) else { return }
+        TokenStore().clear()
+        Keychain.delete(Keys.session)
+    }
+
     /// When the network returns on Sunday, post anything compose queued while offline.
     private func networkReturned() async {
         guard isSignedIn else { return }
+        // After an offline launch the settings the reminders follow are still to come.
+        if accountSettings == nil, await loadAccountSettings() != nil { scheduleReminders() }
         if let dump = await compose.retryQueuedPost(currentWeekStart: currentWeekStart, isSunday: isSunday) {
             feed.insertOwn(dump)
             shared.postedWeekStart = dump.weekStart
@@ -203,9 +227,27 @@ final class AppModel {
 
     func becameActive() async {
         refreshPhase()
+        if isSignedIn, accountSettings == nil { await loadAccountSettings() }
         // A week posted early skips its last call; a new week brings the weekly one back.
         if isSignedIn { scheduleReminders() }
         await refreshPendingCount()
+    }
+
+    /// Signs out here once the server has refused to renew this session (docs/API.md), whichever
+    /// request found out. Started once, however many windows call `start()`.
+    private func watchForEndedSession() {
+        guard sessionWatch == nil else { return }
+        let ended = sessionEnded
+        sessionWatch = Task { [weak self] in
+            for await _ in ended {
+                await self?.sessionDidEnd()
+            }
+        }
+    }
+
+    private func sessionDidEnd() async {
+        guard isSignedIn else { return }
+        await signOut()
     }
 
     // MARK: - Session
@@ -250,7 +292,8 @@ final class AppModel {
     }
 
     private func didSignIn() async {
-        accountSettings = (try? await api.accountSettings()) ?? AccountSettings()
+        // Nil when the server can't be reached: Settings asks again when it opens.
+        accountSettings = try? await api.accountSettings()
         await refreshPendingCount()
         // Scheduling shows nothing until iOS has a yes. That question is asked only with its reason
         // on screen: in onboarding, or when a reminder is switched on in Settings.
@@ -258,9 +301,11 @@ final class AppModel {
     }
 
     func scheduleReminders() {
+        // Until the server's settings are in, whatever iOS already has scheduled stays.
+        guard let settings = accountSettings else { return }
         let posted = shared.postedWeekStart == currentWeekStart
-        NotificationScheduler.scheduleSundayReminders(reminder: accountSettings.notifySundayReminder,
-                                                      lastCall: accountSettings.notifyLastCall,
+        NotificationScheduler.scheduleSundayReminders(reminder: settings.notifySundayReminder,
+                                                      lastCall: settings.notifyLastCall,
                                                       postedUntil: posted ? clock.weekEnd() : nil)
     }
 
@@ -277,6 +322,10 @@ final class AppModel {
     }
 
     func signOut() async {
+        // One at a time: an ended session can arrive while a sign-out is already on its way.
+        guard !isSigningOut else { return }
+        isSigningOut = true
+        defer { isSigningOut = false }
         localIdeas.signedOut(userID: currentUser?.id)
         MomentMemory.signedOut(userID: currentUser?.id)
         NotificationScheduler.cancelAll()
@@ -285,17 +334,27 @@ final class AppModel {
         Keychain.delete(Keys.session)
         cacheUser(nil)
         currentUser = nil
+        accountSettings = nil
         compose.reset()
         feed.reset()
         approvals.reset()
     }
 
-    func deleteAccount() async {
+    /// Signs out only once the server has deleted the account. False when it couldn't, and then
+    /// nothing changes here, so nobody believes their weeks are gone when they are not.
+    func deleteAccount() async -> Bool {
+        do {
+            try await api.deleteAccount()
+        } catch SundaeError.notAuthorized, SundaeError.sessionExpired {
+            // The session is gone with the account: an earlier try got through and its reply was lost.
+        } catch {
+            return false
+        }
         localIdeas.disable()
-        try? await api.deleteAccount()
         await signOut()
         // Nothing of a deleted account waits on this phone for it to come back.
         MomentMemory.signedOut(userID: nil)
+        return true
     }
 
     func updateProfile(name: String, username: String, bio: String) async throws {
@@ -314,14 +373,33 @@ final class AppModel {
         feed.replaceUser(user)
     }
 
-    func saveAccountSettings(_ settings: AccountSettings) async {
-        accountSettings = settings
-        try? await api.updateAccountSettings(settings)
-        if var user = currentUser {
-            user.isPublic = settings.isPublic
+    /// The account's settings, fresh from the server. Nil when it can't be reached.
+    @discardableResult
+    func loadAccountSettings() async -> AccountSettings? {
+        guard let fresh = try? await api.accountSettings() else { return nil }
+        accountSettings = fresh
+        return fresh
+    }
+
+    /// Sends only the fields where `wanted` differs from `base`, the server's values as the caller
+    /// last had them. The app's copy, and Public or Private on the profile, change only once the
+    /// server has the change. False when it didn't get it.
+    func saveAccountSettings(from base: AccountSettings, to wanted: AccountSettings) async -> Bool {
+        let patch = AccountSettingsPatch(from: base, to: wanted)
+        guard !patch.isEmpty else { return true }
+        do {
+            try await api.updateAccountSettings(patch)
+        } catch {
+            return false
+        }
+        accountSettings = patch.applied(to: accountSettings ?? wanted)
+        if let isPublic = patch.isPublic, var user = currentUser {
+            user.isPublic = isPublic
             currentUser = user
+            cacheUser(user)
         }
         scheduleReminders()
+        return true
     }
 
     func refreshPendingCount() async {

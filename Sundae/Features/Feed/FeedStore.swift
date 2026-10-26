@@ -32,7 +32,8 @@ final class FeedStore {
         do {
             let page = try await api.feed(olderThan: nil, limit: pageSize)
             dumps = page
-            hasMore = page.count == pageSize
+            // A page can come back short when a bad item is skipped, so only an empty page ends the feed.
+            hasMore = !page.isEmpty
             hasLoaded = true
             errorMessage = nil
         } catch {
@@ -47,7 +48,7 @@ final class FeedStore {
         do {
             let page = try await api.feed(olderThan: oldest, limit: pageSize)
             dumps.append(contentsOf: page)
-            hasMore = page.count == pageSize
+            hasMore = !page.isEmpty
         } catch {
             errorMessage = error.localizedDescription
         }

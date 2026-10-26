@@ -45,7 +45,7 @@ actor LiveSundaeAPI: SundaeAPI {
         do {
             let user: DTO.User = try await client.get("v1/me")
             return user.model
-        } catch SundaeError.notAuthorized {
+        } catch SundaeError.notAuthorized, SundaeError.sessionExpired {
             return nil
         }
     }
@@ -85,8 +85,9 @@ actor LiveSundaeAPI: SundaeAPI {
         return settings.model
     }
 
-    func updateAccountSettings(_ settings: AccountSettings) async throws {
-        let _: HTTPClient.Empty = try await client.put("v1/me/settings", body: DTO.Settings(settings))
+    func updateAccountSettings(_ patch: AccountSettingsPatch) async throws {
+        // Only what changed: the server merges it, so a stale copy can't undo a newer change.
+        let _: HTTPClient.Empty = try await client.put("v1/me/settings", body: DTO.SettingsPatch(patch))
     }
 
     func deleteAccount() async throws {
@@ -101,8 +102,9 @@ actor LiveSundaeAPI: SundaeAPI {
         if let olderThan {
             query.append(URLQueryItem(name: "before", value: Date.ISO8601FormatStyle(includingFractionalSeconds: true).format(olderThan)))
         }
-        let dumps: [DTO.Dump] = try await client.get("v1/feed", query: query)
-        return dumps.map(\.model)
+        // One dump that can't be read is left out rather than failing the whole page.
+        let dumps: DTO.LossyList<DTO.Dump> = try await client.get("v1/feed", query: query)
+        return dumps.elements.map(\.model)
     }
 
     func dump(id: ID) async throws -> Dump {
@@ -231,12 +233,21 @@ actor LiveSundaeAPI: SundaeAPI {
         return users.map(\.model)
     }
 
+    func followers() async throws -> [User] {
+        let users: [DTO.User] = try await client.get("v1/me/followers")
+        return users.map(\.model)
+    }
+
+    func removeFollower(userID: ID) async throws {
+        let _: HTTPClient.Empty = try await client.delete("v1/me/followers/\(userID)")
+    }
+
 
     // MARK: - Tags
 
     func pendingTagRequests() async throws -> [TagRequest] {
-        let requests: [DTO.TagRequest] = try await client.get("v1/me/tag-requests")
-        return requests.map(\.model)
+        let requests: DTO.LossyList<DTO.TagRequest> = try await client.get("v1/me/tag-requests")
+        return requests.elements.map(\.model)
     }
 
     func respondToTag(id: ID, approve: Bool) async throws {
