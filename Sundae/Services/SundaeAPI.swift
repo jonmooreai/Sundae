@@ -54,6 +54,11 @@ protocol SundaeAPI: Sendable {
     func localIdeas(cell: String, day: Date) async throws -> [Suggestion]
 
     // MARK: Every day
+    /// People whose follow of the user is accepted, by username.
+    func followers() async throws -> [User]
+    /// Ends that person's follow of the user, or their request. Following again is a new request
+    /// while the account is private.
+    func removeFollower(userID: ID) async throws
     func pendingTagRequests() async throws -> [TagRequest]
     func respondToTag(id: ID, approve: Bool) async throws
     func removeTaggedPhoto(tagID: ID) async throws

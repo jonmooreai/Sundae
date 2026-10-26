@@ -461,6 +461,19 @@ actor MockSundaeAPI: SundaeAPI {
         return taggableIDs(for: me.id).compactMap { users[$0] }.sorted { $0.displayName < $1.displayName }
     }
 
+    func followers() async throws -> [User] {
+        let me = try requireSignedIn()
+        return follows
+            .filter { $0.followeeID == me.id && $0.status == .accepted && !blocked.contains($0.followerID) }
+            .compactMap { users[$0.followerID] }
+            .sorted { $0.username < $1.username }
+    }
+
+    func removeFollower(userID: ID) async throws {
+        let me = try requireSignedIn()
+        follows.removeAll { $0.followerID == userID && $0.followeeID == me.id }
+    }
+
     // MARK: - Tags (every day)
 
     func pendingTagRequests() async throws -> [TagRequest] {

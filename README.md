@@ -52,7 +52,7 @@ Sundae/
     Profile/             Profile, week rows, collapsed empty weeks, edit profile
     Search/              People search, follow requests, suggested people, invite link
     Detail/              Dump detail with comments, report sheet
-    Settings/            Settings, auto-approve list
+    Settings/            Settings, auto-approve list, followers
     Onboarding/          Welcome, sign in, profile, invite your group
 SundaeWidget/            Home Screen and Lock Screen widget: today's idea, days until Sunday
 SundaeTests/             Swift Testing: week math, suggestion catalog, mock gate rules
@@ -69,7 +69,7 @@ docs/API.md              The REST contract the live client expects
 
 **Photos.** `PhotosPicker` needs no permission. `PhotoProcessor` re-encodes every picked photo on device to a 2048 px JPEG through a fresh bitmap, which drops EXIF and GPS before upload. On the way back, `ImageDownsampler` decodes photos and avatars from the server at the size they are drawn, never in full, and refuses anything far larger than the app makes. Full library access is only requested for the "this week" filter and the "add Thursday's photos" prompt, with an explanation, and the picker keeps working if declined.
 
-**Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's dump with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals is the one social screen open on weekdays.
+**Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's dump with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals, and the followers list in Settings, are the social screens open on weekdays.
 
 **Offline compose.** Saving a dump while offline writes the draft to Application Support and shows "will post when you're back online". `NetworkMonitor` watches the path; when it returns on the same Sunday the queued post goes up and lands at the top of the feed. If Sunday ended first the queue is dropped, because a missed week stays empty by design.
 
@@ -87,7 +87,7 @@ Built, against the mock:
 - Profiles with week rows, own then tagged photos with "from Maya" chips, collapsed empty weeks, owner-only counts
 - Search by name or username, follow and follow requests, suggested people, invite link
 - Dump detail with comments, report and block everywhere
-- Settings: appearance, public account, auto-approve list, comments, notification preferences, sign out everywhere, delete with fresh Face ID
+- Settings: appearance, public account, followers you can remove, auto-approve list, comments, notification preferences, sign out everywhere, delete with fresh Face ID
 - Onboarding: Sign in with Apple, phone fallback (labeled as weakest), 16+ check, invite your group
 - Local Sunday 9 am reminder and 8 pm last call (cancelled on post)
 - Widget (small, medium, Lock Screen rectangular and inline)

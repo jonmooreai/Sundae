@@ -124,6 +124,23 @@ struct HTTPClientTests {
         let told = await timesTold(ended, onEnded)
         #expect(told == 0)
     }
+
+    @Test func followersAreListedAndRemovedByID() async throws {
+        StubURLProtocol.reset { request in
+            if request.httpMethod == "DELETE" { return (204, Data()) }
+            return (200, Data(#"[{"id": "u_pat", "username": "patdoe", "name": "Pat Doe", "is_public": false}]"#.utf8))
+        }
+        let (client, _) = makeClient()
+        let api = LiveSundaeAPI(client: client)
+        let followers = try await api.followers()
+        #expect(followers.map(\.id) == ["u_pat"])
+        try await api.removeFollower(userID: "u_pat")
+
+        let sent = StubURLProtocol.requests.withLock { $0.map { ($0.httpMethod ?? "", $0.url?.path() ?? "") } }
+        #expect(sent.count == 2)
+        #expect(sent.first?.0 == "GET" && sent.first?.1.hasSuffix("v1/me/followers") == true)
+        #expect(sent.last?.0 == "DELETE" && sent.last?.1.hasSuffix("v1/me/followers/u_pat") == true)
+    }
 }
 
 struct DTOTests {

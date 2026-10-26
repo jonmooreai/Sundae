@@ -3,13 +3,15 @@ import SwiftUI
 /// A person in a list: round avatar, bold username, one gray line of context. Never wraps.
 struct UserRow: View {
     let user: User
+    /// In place of the username, for a row that shows the name first and the handle under it.
+    var title: String? = nil
     var subtitle: String? = nil
 
     var body: some View {
         HStack(spacing: 12) {
             AvatarView(user: user, size: 54)
             VStack(alignment: .leading, spacing: 3) {
-                Text(user.username)
+                Text(title ?? user.username)
                     .font(.body.weight(.semibold))
                     .lineLimit(1)
                 let line = subtitle ?? user.searchSubtitle

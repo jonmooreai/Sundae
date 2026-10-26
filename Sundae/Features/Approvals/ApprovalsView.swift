@@ -96,13 +96,15 @@ struct TagRequestCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 AvatarView(user: request.tagger, size: 36)
+                // The name and the username together: a name can be copied, a username can't.
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\(request.tagger.username) tagged you")
+                    Text("\(request.tagger.displayName) tagged you")
                         .font(.subheadline.weight(.semibold))
                         .lineLimit(1)
-                    Text(model.clock.rangeLabel(weekStart: request.weekStart))
+                    Text("\(request.tagger.handle) \u{2022} \(model.clock.rangeLabel(weekStart: request.weekStart))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
             }

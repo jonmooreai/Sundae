@@ -29,6 +29,9 @@ struct User: Identifiable, Hashable, Codable, Sendable {
     var isAdmin: Bool? = nil
 
     var displayName: String { name.isEmpty ? username : name }
+    /// "@samdoe". Shown beside the name wherever someone asks for something, because a name
+    /// can be copied and a username can't.
+    var handle: String { "@\(username)" }
     /// "Bob Ewing • Followed by parker + 2", one line.
     var searchSubtitle: String {
         var parts: [String] = []

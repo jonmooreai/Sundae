@@ -36,23 +36,22 @@ struct SettingsView: View {
                                 selection: Binding(get: { model.appearance }, set: { model.setAppearance($0) }))
             }
 
-            if saved != nil {
-                SettingsGroup(title: "Account") {
-                    RadioRow(title: "Private", detail: "You approve each follower.", isSelected: !settings.isPublic) {
+            SettingsGroup(title: "Account", footer: saved == nil && loadFailed ? "Couldn't load your settings. Check your connection." : nil) {
+                if saved != nil {
+                    RadioRow(title: "Private", detail: "New followers need your approval. Remove anyone under Followers.",
+                             isSelected: !settings.isPublic) {
                         settings.isPublic = false
                     }
                     RadioRow(title: "Public", detail: "Anyone can follow you.", isSelected: settings.isPublic) {
                         settings.isPublic = true
                     }
+                } else if loadFailed {
+                    SettingsActionRow(title: "Try again") { Task { await load() } }
+                } else {
+                    LoadingRow(title: "Loading your settings")
                 }
-            } else {
-                SettingsGroup(title: "Account", footer: loadFailed ? "Couldn't load your settings. Check your connection." : nil) {
-                    if loadFailed {
-                        SettingsActionRow(title: "Try again") { Task { await load() } }
-                    } else {
-                        LoadingRow(title: "Loading your settings")
-                    }
-                }
+                // Not tied to the settings above, so it opens even while they load.
+                SettingsLinkRow(title: "Followers") { FollowersList() }
             }
 
             SettingsGroup(title: "Weekdays") {
