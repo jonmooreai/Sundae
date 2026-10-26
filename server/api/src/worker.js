@@ -23,6 +23,14 @@ const MAX_PHOTOS = 15;
 const MAX_TAGS = 10;
 const MAX_CAPTION = 300;
 const MAX_COMMENT = 1000;
+// Per person on each week, so nobody can bury a friend's week under comments.
+const MAX_COMMENTS = 30;
+// User ids are made by newId: 'u_' and twelve of its letters and digits.
+const isUserId = (id) => typeof id === 'string' && /^u_[0-9a-hjkmnp-tv-z]{12}$/.test(id);
+
+// A photo's width and height only lay it out before it loads: whole numbers of pixels, or 0 for
+// none given. A fraction or a huge number would stop the app reading a whole feed.
+const pixels = (value) => (Number.isInteger(value) && value > 0 && value <= 20_000 ? value : 0);
 
 const DEFAULT_SETTINGS = {
   is_public: false, auto_approve_user_ids: [], comments_enabled: true, hide_challenges: false,
@@ -96,7 +104,7 @@ export async function handle(request, env) {
     await ensureSchema(env.DB);
     // env.CLOCK exists only in tests, to stand on a Sunday or a Wednesday.
     const now = typeof env.CLOCK === 'function' ? env.CLOCK() : new Date();
-    const ctx = { env, db: env.DB, url, origin: url.origin, request, now, me: null, secret: await tokenSecret(env), media: new Map() };
+    const ctx = { env, db: env.DB, url, origin: url.origin, request, now, me: null, blocked: null, secret: await tokenSecret(env), media: new Map() };
     return await route(ctx, request.method, url.pathname.slice(4).split('/').filter(Boolean));
   } catch (error) {
     if (error instanceof HttpError) return json({ error: { code: error.code, message: error.message } }, error.status);
@@ -152,6 +160,8 @@ async function route(ctx, method, parts) {
     case 'GET me/taggable': return json(await usersJSON(ctx, await taggable(ctx)));
     case 'GET me/follow-requests': return followRequests(ctx);
     case 'POST me/follow-requests/:': return respondToFollow(ctx, c);
+    case 'GET me/followers': return followers(ctx);
+    case 'DELETE me/followers/:': return removeFollower(ctx, c);
     case 'GET me/tag-requests': return tagRequests(ctx);
     case 'GET me/suggestions/done': return suggestionsDone(ctx);
     case 'PUT me/suggestions/:/done': return markDone(ctx, c);
@@ -193,7 +203,7 @@ function isParam(parts, i) {
   if (['me', 'auth', 'ideas'].includes(before) && i === 1) return false;
   if (before === 'users' && ['search', 'suggested'].includes(parts[i])) return false;
   if (before === 'suggestions' && parts[i] === 'done') return false;
-  return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'suggestions'].includes(before);
+  return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'followers', 'suggestions'].includes(before);
 }
 
 // MARK: - Auth
@@ -218,10 +228,20 @@ function requireSunday(ctx) {
   if (!isSunday(ctx.now, ctx.me.timezone)) fail(423, 'sunday_closed', 'Come back Sunday.');
 }
 
-async function issueSession(ctx, userId, family = newId('fam')) {
+/** A new pair. Given the refresh token being swapped, the new one is written only while that one
+ * is still live, in one statement, so a sign-out that lands mid-refresh catches it too. */
+async function issueSession(ctx, userId, family = newId('fam'), parentHash = null) {
   const refreshToken = randomToken(32);
-  await ctx.db.prepare('INSERT INTO refresh_tokens (hash, user_id, family, expires_at) VALUES (?, ?, ?, ?)')
-    .bind(await sha256Hex(refreshToken), userId, family, Math.floor(ctx.now.getTime() / 1000) + REFRESH_SECONDS).run();
+  const hash = await sha256Hex(refreshToken);
+  const expires = Math.floor(ctx.now.getTime() / 1000) + REFRESH_SECONDS;
+  if (parentHash) {
+    const child = await ctx.db.prepare(`INSERT INTO refresh_tokens (hash, user_id, family, expires_at)
+      SELECT ?1, user_id, family, ?2 FROM refresh_tokens WHERE hash = ?3 AND revoked = 0`).bind(hash, expires, parentHash).run();
+    if (!child.meta?.changes) fail(401, 'unauthorized', 'Sign in again.');
+  } else {
+    await ctx.db.prepare('INSERT INTO refresh_tokens (hash, user_id, family, expires_at) VALUES (?, ?, ?, ?)')
+      .bind(hash, userId, family, expires).run();
+  }
   const accessToken = await signToken({ sub: userId, fam: family, typ: 'a', exp: Math.floor(ctx.now.getTime() / 1000) + ACCESS_SECONDS }, ctx.secret);
   return { access_token: accessToken, refresh_token: refreshToken, expires_in: ACCESS_SECONDS };
 }
@@ -257,7 +277,7 @@ async function signInWithApple(ctx) {
     return json({ signup_ticket: await signToken({ typ: 'signup', apple: sub, exp }, ctx.secret), expires_in: SIGNUP_SECONDS });
   }
   // Builds from before profile_first send the username with the first request.
-  const name = clean(input.name || input.full_name || '', 60);
+  const name = cleanName(input.name || input.full_name || '');
   const username = await uniqueUsername(ctx, input.username || name || 'friend');
   const created = await createAccount(ctx, { sub, username, name, timezone });
   if (!created) fail(409, 'username_taken', 'That username was just taken. Sign in with Apple again.');
@@ -282,7 +302,7 @@ async function finishAppleSignUp(ctx) {
   }
   if (taken.results.length) fail(409, 'username_taken', 'That username is taken.');
   const created = await createAccount(ctx, {
-    sub: ticket.apple, username, name: clean(input.name || '', 60), timezone: safeZone(String(input.timezone || 'UTC')),
+    sub: ticket.apple, username, name: cleanName(input.name || ''), timezone: safeZone(String(input.timezone || 'UTC')),
   });
   if (!created) fail(409, 'username_taken', 'That username is taken.');
   return json({ ...(await issueSession(ctx, created.id)), user: await meJSON(ctx, created) });
@@ -310,7 +330,7 @@ async function refresh(ctx) {
     fail(401, 'unauthorized', 'Sign in again.');
   }
   if (!row.used) await ctx.db.prepare('UPDATE refresh_tokens SET used = ? WHERE hash = ? AND used = 0').bind(nowSeconds, hash).run();
-  return json(await issueSession(ctx, row.user_id, row.family));
+  return json(await issueSession(ctx, row.user_id, row.family, hash));
 }
 
 /** This device, or with {"everywhere": true} every device. Access tokens elsewhere run out within
@@ -330,6 +350,14 @@ async function signOut(ctx) {
 function clean(value, max) {
   // Line breaks stay; every other control character becomes a space.
   return String(value ?? '').replace(/[\u0000-\u0009\u000b-\u001f]/g, ' ').trim().slice(0, max);
+}
+
+/** A name, on one line, without the invisible characters that make two names look alike but
+ * search differently. The zero width joiner stays, since emoji are built with it, and so do the
+ * tag characters right after a black flag, which make the England, Scotland and Wales flags. */
+function cleanName(value) {
+  return clean(String(value ?? '').replace(/\p{Cc}/gu, ' ')
+    .replace(/(?!\u200d|(?<=\u{1f3f4}[\u{e0020}-\u{e007e}]*)[\u{e0020}-\u{e007f}])[\p{Cf}\u2028\u2029]/gu, ''), 60);
 }
 
 function normalizeUsername(raw) {
@@ -361,13 +389,14 @@ async function userJSON(ctx, row) {
   return {
     id: row.id, username: row.username, name: row.name || null, bio: row.bio || null,
     avatar_url: row.avatar_key ? await mediaUrl(ctx, row.avatar_key) : null,
-    is_public: Boolean(row.is_public), timezone: row.timezone, birthday: null, invited_by_me: null,
+    // Nobody's time zone goes to anyone else: it says roughly where they are.
+    is_public: Boolean(row.is_public), timezone: null, birthday: null, invited_by_me: null,
   };
 }
 
-/** Someone's own account. Only an admin's says so; nobody else's mentions it. */
+/** Someone's own account, with their time zone. Only an admin's says so; nobody else's mentions it. */
 async function meJSON(ctx, row) {
-  return { ...(await userJSON(ctx, row)), ...(row.is_admin ? { is_admin: true } : {}) };
+  return { ...(await userJSON(ctx, row)), timezone: row.timezone, ...(row.is_admin ? { is_admin: true } : {}) };
 }
 
 async function usersJSON(ctx, rows) {
@@ -403,7 +432,7 @@ async function updateMe(ctx) {
       const taken = await ctx.db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').bind(username, me.id).first();
       if (taken) fail(409, 'username_taken', 'That username is taken.');
     }
-    const name = 'name' in input ? clean(input.name, 60) : me.name;
+    const name = 'name' in input ? cleanName(input.name) : me.name;
     const bio = 'bio' in input ? clean(input.bio, 160) : me.bio;
     await ctx.db.prepare('UPDATE users SET username = ?, name = ?, bio = ? WHERE id = ?').bind(username, name, bio, me.id).run();
   }
@@ -416,7 +445,8 @@ async function updateSettings(ctx) {
   const next = { ...settingsOf(ctx.me) };
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     if (!(k in input)) continue;
-    if (Array.isArray(v)) next[k] = Array.isArray(input[k]) ? input[k].map(String).slice(0, 500) : v;
+    // The one list, auto_approve_user_ids, keeps only user ids, each once, so it stays small.
+    if (Array.isArray(v)) next[k] = Array.isArray(input[k]) ? [...new Set(input[k].filter(isUserId))].slice(0, 500) : v;
     else next[k] = Boolean(input[k]);
   }
   await ctx.db.prepare('UPDATE users SET settings = ?, is_public = ? WHERE id = ?')
@@ -425,7 +455,9 @@ async function updateSettings(ctx) {
 }
 
 /** Everything about the account, now, in one transaction. Tags of them on other people's photos
- * are removed. A handful of queries however many weeks they posted. */
+ * are removed, and so are reports they sent and reports about them. Their uploads rows are kept
+ * with no owner, so the daily cleanup deletes any photo that could not be deleted here, or that
+ * was still arriving. A handful of queries however many weeks they posted. */
 async function deleteMe(ctx) {
   const me = ctx.me.id;
   const db = ctx.db;
@@ -436,6 +468,12 @@ async function deleteMe(ctx) {
   const keys = new Set(results.map((r) => r.object_key));
   if (ctx.me.avatar_key) keys.add(ctx.me.avatar_key);
   await db.batch([
+    // First, while their weeks, photos and comments are still there to match.
+    db.prepare(`DELETE FROM reports WHERE reporter_id = ?1
+      OR (target_type = 'profile' AND target_id = ?1)
+      OR (target_type = 'dump' AND target_id IN ${mine})
+      OR (target_type = 'photo' AND target_id IN (SELECT id FROM photos WHERE dump_id IN ${mine}))
+      OR (target_type = 'comment' AND target_id IN (SELECT id FROM comments WHERE author_id = ?1))`).bind(me),
     db.prepare(`DELETE FROM tags WHERE tagged_user_id = ?1 OR tagger_id = ?1 OR photo_id IN (SELECT id FROM photos WHERE dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM comment_likes WHERE user_id = ?1 OR comment_id IN (SELECT id FROM comments WHERE author_id = ?1 OR dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM comments WHERE author_id = ?1 OR dump_id IN ${mine}`).bind(me),
@@ -445,18 +483,24 @@ async function deleteMe(ctx) {
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
     db.prepare('DELETE FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(me),
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?1').bind(me),
-    db.prepare('DELETE FROM uploads WHERE user_id = ?1').bind(me),
+    db.prepare("UPDATE uploads SET user_id = '', expires_at = 0 WHERE user_id = ?1").bind(me),
     db.prepare('DELETE FROM suggestions_done WHERE user_id = ?1').bind(me),
     db.prepare('DELETE FROM users WHERE id = ?1').bind(me),
   ]);
-  await storage(ctx.env).deleteMany([...keys]);
+  try {
+    await storage(ctx.env).deleteMany([...keys]);
+  } catch (error) {
+    // The account is gone either way; the daily cleanup deletes these photos.
+    console.error('photos left for cleanup', error?.stack || error);
+  }
   return empty();
 }
 
-/** Everyone the caller has blocked or been blocked by. */
-async function blockedIds(ctx) {
-  const { results } = await ctx.db.prepare('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(ctx.me.id).all();
-  return new Set(results.map((r) => (r.blocker_id === ctx.me.id ? r.blocked_id : r.blocker_id)));
+/** Everyone the caller has blocked or been blocked by. One query a request, however often it is asked. */
+function blockedIds(ctx) {
+  ctx.blocked ??= ctx.db.prepare('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(ctx.me.id).all()
+    .then(({ results }) => new Set(results.map((r) => (r.blocker_id === ctx.me.id ? r.blocked_id : r.blocker_id))));
+  return ctx.blocked;
 }
 
 /** Of these authors, the ones whose weeks the caller can read: themselves, public people and people
@@ -517,6 +561,22 @@ async function respondToFollow(ctx, userId) {
   return empty();
 }
 
+/** People who follow the caller, accepted, never anyone blocked either way. */
+async function followers(ctx) {
+  const { results } = await ctx.db.prepare(`
+    SELECT * FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT follower_id FROM follows WHERE followee_id = ?1 AND status = 'accepted')
+    ORDER BY username`).bind(ctx.me.id).all();
+  return json(await usersJSON(ctx, results));
+}
+
+/** Takes away someone's follow of the caller, or their request. Asking again is a new request
+ * while the caller is private. Photos they already saw, and photo addresses already sent, stay
+ * with them until those run out. */
+async function removeFollower(ctx, userId) {
+  await ctx.db.prepare('DELETE FROM follows WHERE follower_id = ? AND followee_id = ?').bind(userId, ctx.me.id).run();
+  return empty();
+}
+
 async function follow(ctx, userId) {
   if (userId === ctx.me.id) fail(400, 'bad_request', 'That is you.');
   const user = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
@@ -532,12 +592,26 @@ async function unfollow(ctx, userId) {
   return empty();
 }
 
+/** Hides the two people from each other for good, and takes away everything between them that
+ * others could still see: follows, tags, and each one's comments and likes on the other's weeks
+ * and comments. There is no unblock, so nothing is kept to bring back. */
 async function block(ctx, userId) {
   if (userId === ctx.me.id) fail(400, 'bad_request', 'That is you.');
-  await ctx.db.batch([
-    ctx.db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').bind(ctx.me.id, userId),
-    ctx.db.prepare('DELETE FROM follows WHERE (follower_id = ? AND followee_id = ?) OR (follower_id = ? AND followee_id = ?)')
-      .bind(ctx.me.id, userId, userId, ctx.me.id),
+  const db = ctx.db;
+  // Rows one of them left on the other's weeks; ?1 is the caller, ?2 the person blocked.
+  const onEachOthers = (person) => `(${person} = ?2 AND dump_id IN (SELECT id FROM dumps WHERE author_id = ?1))
+    OR (${person} = ?1 AND dump_id IN (SELECT id FROM dumps WHERE author_id = ?2))`;
+  const comments = `SELECT id FROM comments WHERE ${onEachOthers('author_id')}`;
+  await db.batch([
+    // Only someone who exists, so made-up ids never fill the database.
+    db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) SELECT ?1, id FROM users WHERE id = ?2').bind(ctx.me.id, userId),
+    db.prepare('DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)').bind(ctx.me.id, userId),
+    db.prepare('DELETE FROM tags WHERE (tagger_id = ?1 AND tagged_user_id = ?2) OR (tagger_id = ?2 AND tagged_user_id = ?1)').bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM comment_likes WHERE comment_id IN (${comments})
+      OR (user_id = ?2 AND comment_id IN (SELECT id FROM comments WHERE author_id = ?1))
+      OR (user_id = ?1 AND comment_id IN (SELECT id FROM comments WHERE author_id = ?2))`).bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM comments WHERE id IN (${comments})`).bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM likes WHERE ${onEachOthers('user_id')}`).bind(ctx.me.id, userId),
   ]);
   return empty();
 }
@@ -561,16 +635,13 @@ async function search(ctx) {
   return json(await usersJSON(ctx, results));
 }
 
-/** Friends of the people the caller follows, that they do not follow yet. */
+/** Public accounts the caller has not followed or asked to follow yet, newest first. Never built
+ * from who anyone follows, which nobody else gets to see. */
 async function suggested(ctx) {
   const { results } = await ctx.db.prepare(`
-    SELECT u.* FROM users u WHERE u.id != ?1
-      AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
-      AND u.id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)
-      AND u.id NOT IN (SELECT followee_id FROM follows WHERE follower_id = ?1)
-      AND u.id IN (SELECT f2.followee_id FROM follows f1 JOIN follows f2 ON f2.follower_id = f1.followee_id
-                   WHERE f1.follower_id = ?1 AND f1.status = 'accepted' AND f2.status = 'accepted')
-    ORDER BY u.username LIMIT 20`).bind(ctx.me.id).all();
+    SELECT * FROM users WHERE id != ?1 AND is_public = 1 AND ${NOT_BLOCKED}
+      AND id NOT IN (SELECT followee_id FROM follows WHERE follower_id = ?1)
+    ORDER BY created_at DESC, username LIMIT 20`).bind(ctx.me.id).all();
   return json(await usersJSON(ctx, results));
 }
 
@@ -582,13 +653,14 @@ async function createUpload(ctx) {
   const size = Number(input.byte_size);
   if (!Number.isInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) fail(400, 'invalid_photo', 'That photo is too large.');
   const exp = Math.floor(ctx.now.getTime() / 1000) + UPLOAD_SECONDS;
-  // Every ticket expires UPLOAD_SECONDS after it is made, so this counts the last 24 hours.
-  const today = await ctx.db.prepare('SELECT COUNT(*) AS n FROM uploads WHERE user_id = ? AND expires_at > ?')
-    .bind(ctx.me.id, exp - 24 * 3600).first('n');
-  if (today >= MAX_UPLOADS_PER_DAY) fail(429, 'too_many_uploads', 'That is a lot of photos for one day. Try again tomorrow.');
   const id = newId('up');
-  await ctx.db.prepare('INSERT INTO uploads (id, user_id, object_key, byte_size, width, height, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, ctx.me.id, `${id}.jpg`, size, Number(input.width) || 0, Number(input.height) || 0, exp).run();
+  // Counted and written in one statement, so requests sent together cannot all see room for one
+  // more. Every ticket expires UPLOAD_SECONDS after it is made, so this counts the last 24 hours.
+  const inserted = await ctx.db.prepare(`
+    INSERT INTO uploads (id, user_id, object_key, byte_size, width, height, expires_at)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE (SELECT COUNT(*) FROM uploads WHERE user_id = ?2 AND expires_at > ?8) < ?9`)
+    .bind(id, ctx.me.id, `${id}.jpg`, size, pixels(input.width), pixels(input.height), exp, exp - 24 * 3600, MAX_UPLOADS_PER_DAY).run();
+  if (!inserted.meta?.changes) fail(429, 'too_many_uploads', 'That is a lot of photos for one day. Try again tomorrow.');
   const url = `${ctx.origin}/v1/uploads/${id}?e=${exp}&s=${await hmac(ctx.secret, `u|${id}|${exp}`)}`;
   return json({ upload_id: id, url, headers: {}, expires_at: new Date(exp * 1000).toISOString() });
 }
@@ -598,14 +670,28 @@ async function receiveUpload(ctx, id) {
   const sig = ctx.url.searchParams.get('s') || '';
   if (!exp || exp * 1000 < ctx.now.getTime() || !sameString(sig, await hmac(ctx.secret, `u|${id}|${exp}`))) fail(403, 'forbidden');
   const upload = await ctx.db.prepare('SELECT * FROM uploads WHERE id = ?').bind(id).first();
-  if (!upload) fail(404, 'not_found');
+  if (!upload || !upload.user_id) fail(404, 'not_found');
   if (upload.uploaded) return empty();
   const bytes = new Uint8Array(await ctx.request.arrayBuffer());
   if (!bytes.length || bytes.length > Math.min(MAX_UPLOAD_BYTES, upload.byte_size + 1024)) fail(400, 'invalid_photo', 'Unexpected size.');
   const clean = stripJpegMetadata(bytes);
-  if (!clean) fail(400, 'invalid_photo', 'Not a JPEG.');
-  await storage(ctx.env).put(upload.object_key, clean);
-  await ctx.db.prepare('UPDATE uploads SET uploaded = 1 WHERE id = ?').bind(id).run();
+  if (!clean) fail(400, 'invalid_photo', 'Not a JPEG, or over 4096 pixels a side.');
+  // Claimed before anything is written, so a second PUT on the same ticket, however long its
+  // body took, or one still arriving after the account was deleted, writes nothing.
+  const claim = await ctx.db.prepare("UPDATE uploads SET uploaded = 1 WHERE id = ? AND uploaded = 0 AND user_id != ''").bind(id).run();
+  if (!claim.meta?.changes) return empty();
+  try {
+    await storage(ctx.env).put(upload.object_key, clean);
+  } catch (error) {
+    await ctx.db.prepare('UPDATE uploads SET uploaded = 0 WHERE id = ?').bind(id).run();
+    throw error;
+  }
+  // An account deleted while the photo was being stored takes the photo with it.
+  const kept = await ctx.db.prepare("UPDATE uploads SET uploaded = 1 WHERE id = ? AND user_id != ''").bind(id).run();
+  if (!kept.meta?.changes) {
+    await storage(ctx.env).deleteMany([upload.object_key]);
+    fail(404, 'not_found');
+  }
   return empty();
 }
 
@@ -632,23 +718,26 @@ function lockedAt(dump, author, now) {
   return zonedMidnight(addDays(dump.week_start, 7), author.timezone).toISOString();
 }
 
-/** Photos with their visible tags, keyed by photo id. */
+/** Photos with their visible tags, keyed by photo id. Nobody blocked either way shows up tagged. */
 async function photosJSON(ctx, photos) {
   if (!photos.length) return new Map();
-  const { results: tags } = await ctx.db.prepare(`
-    SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
-    .bind(JSON.stringify(photos.map((p) => p.id))).all();
+  const [{ results: tags }, blocked] = await Promise.all([
+    ctx.db.prepare(`
+      SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
+      .bind(JSON.stringify(photos.map((p) => p.id))).all(),
+    blockedIds(ctx),
+  ]);
   const people = await usersById(ctx, tags.map((t) => t.tagged_user_id));
   const out = new Map();
   for (const photo of photos) {
     const photoTags = [];
     for (const tag of tags.filter((t) => t.photo_id === photo.id)) {
-      const tagged = people.get(tag.tagged_user_id);
+      const tagged = !blocked.has(tag.tagged_user_id) && people.get(tag.tagged_user_id);
       if (tagged) photoTags.push(await tagJSON(ctx, tag, tagged));
     }
     out.set(photo.id, {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
-      width: photo.width, height: photo.height, alt_text: photo.alt_text || null, tags: photoTags,
+      width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null, tags: photoTags,
     });
   }
   return out;
@@ -665,12 +754,18 @@ async function dumpsJSON(ctx, dumps) {
   if (!dumps.length) return [];
   const ids = JSON.stringify(dumps.map((d) => d.id));
   const db = ctx.db;
-  const [{ results: photos }, { results: likes }, { results: counts }, { results: firsts }] = await Promise.all([
+  // Likes and comments from anyone blocked either way are left out, as the comment list leaves them out.
+  const [{ results: photos }, { results: likes }, { results: counts }, { results: firsts }, blocked] = await Promise.all([
     db.prepare('SELECT * FROM photos WHERE dump_id IN (SELECT value FROM json_each(?)) ORDER BY ord').bind(ids).all(),
     db.prepare('SELECT dump_id, user_id FROM likes WHERE dump_id IN (SELECT value FROM json_each(?)) ORDER BY created_at DESC').bind(ids).all(),
-    db.prepare('SELECT dump_id, COUNT(*) AS n FROM comments WHERE dump_id IN (SELECT value FROM json_each(?)) GROUP BY dump_id').bind(ids).all(),
+    db.prepare(`
+      SELECT dump_id, COUNT(*) AS n FROM comments WHERE dump_id IN (SELECT value FROM json_each(?1))
+        AND author_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?2)
+        AND author_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?2)
+      GROUP BY dump_id`).bind(ids, ctx.me.id).all(),
     db.prepare('SELECT author_id, MIN(week_start) AS first FROM dumps WHERE author_id IN (SELECT value FROM json_each(?)) GROUP BY author_id')
       .bind(JSON.stringify(dumps.map((d) => d.author_id))).all(),
+    blockedIds(ctx),
   ]);
   const photoMap = await photosJSON(ctx, photos);
   const people = await usersById(ctx, [...dumps.map((d) => d.author_id), ...likes.map((l) => l.user_id)]);
@@ -678,7 +773,7 @@ async function dumpsJSON(ctx, dumps) {
   for (const dump of dumps) {
     const author = people.get(dump.author_id);
     if (!author) continue;
-    const likers = likes.filter((l) => l.dump_id === dump.id).map((l) => people.get(l.user_id)).filter(Boolean);
+    const likers = likes.filter((l) => l.dump_id === dump.id && !blocked.has(l.user_id)).map((l) => people.get(l.user_id)).filter(Boolean);
     out.push({
       id: dump.id, author: await userJSON(ctx, author), week_start: dump.week_start, caption: dump.caption || null,
       created_at: dump.created_at, locked_at: lockedAt(dump, author, ctx.now),
@@ -743,6 +838,7 @@ async function saveDump(ctx, week) {
   const uploadIds = [...new Set(inputs.map((p) => p.upload_id).filter(Boolean).map(String))];
   const found = await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first();
   const dumpId = found?.id ?? newId('d');
+  const weekDump = '(SELECT id FROM dumps WHERE author_id = ? AND week_start = ?)';
   const [{ results: existing }, { results: uploads }, { results: claimed }, people] = await Promise.all([
     db.prepare('SELECT * FROM photos WHERE dump_id = ?').bind(dumpId).all(),
     db.prepare('SELECT * FROM uploads WHERE user_id = ? AND uploaded = 1 AND id IN (SELECT value FROM json_each(?))').bind(me.id, JSON.stringify(uploadIds)).all(),
@@ -755,14 +851,10 @@ async function saveDump(ctx, week) {
   const allowed = new Map(people.map((u) => [u.id, u]));
 
   const writes = [];
-  if (!found) {
-    writes.push(db.prepare('INSERT INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso));
-  }
   const kept = [];
   for (const [index, photo] of inputs.entries()) {
-    const width = Number(photo.width) || 0;
-    const height = Number(photo.height) || 0;
+    const width = pixels(photo.width);
+    const height = pixels(photo.height);
     const alt = photo.alt_text ? clean(photo.alt_text, 500) : null;
     let row = (photo.id && existing.find((p) => p.id === photo.id)) || null;
     if (!row && photo.upload_id) {
@@ -772,9 +864,9 @@ async function saveDump(ctx, week) {
         const upload = uploads.find((u) => u.id === uploadId);
         if (!upload) fail(400, 'invalid_photo', 'That photo did not finish uploading.');
         if (claimed.some((c) => c.upload_id === uploadId && c.dump_id !== dumpId)) fail(400, 'invalid_photo', 'That photo is already in another week.');
-        row = { id: newId('p'), object_key: upload.object_key, width: upload.width || 1, height: upload.height || 1, upload_id: uploadId, isNew: true };
-        writes.push(db.prepare('INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-          .bind(row.id, dumpId, index, row.object_key, width || row.width, height || row.height, alt, uploadId));
+        row = { id: newId('p'), object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
+        writes.push(db.prepare(`INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?)`)
+          .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId));
         existing.push(row);
       }
     }
@@ -788,19 +880,22 @@ async function saveDump(ctx, week) {
   }
   if (!kept.length) fail(400, 'bad_request', 'None of those photos finished uploading.');
 
+  // Whatever in the week this save does not keep goes before any photo is added, chosen by what
+  // is kept rather than by what was read: saves sent together cannot each add fifteen, as the
+  // last to land leaves only its own. Files of photos it never read go with the daily cleanup.
+  // Every write finds the week by author and day, so first saves sent together share one week.
+  const keptIds = JSON.stringify(kept);
   const removed = existing.filter((p) => !kept.includes(p.id) && !p.isNew);
-  if (removed.length) {
-    const ids = JSON.stringify(removed.map((p) => p.id));
-    writes.push(
-      db.prepare('DELETE FROM tags WHERE photo_id IN (SELECT value FROM json_each(?))').bind(ids),
-      db.prepare('DELETE FROM photos WHERE id IN (SELECT value FROM json_each(?))').bind(ids),
-    );
-  }
-  writes.push(db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE id = ?')
-    .bind(caption, commentsEnabled, nowIso, dumpId));
-  await db.batch(writes);
+  await db.batch([
+    db.prepare('INSERT OR IGNORE INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso),
+    db.prepare(`DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?)))`).bind(me.id, week, keptIds),
+    db.prepare(`DELETE FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?))`).bind(me.id, week, keptIds),
+    ...writes,
+    db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE author_id = ? AND week_start = ?').bind(caption, commentsEnabled, nowIso, me.id, week),
+  ]);
   await storage(ctx.env).deleteMany(removed.map((p) => p.object_key));
-  return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE id = ?').bind(dumpId).first()));
+  return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first()));
 }
 
 /** The writes that bring one photo's tags in line with who is tagged now. Someone still tagged
@@ -892,8 +987,12 @@ async function addComment(ctx, dumpId) {
   if (!text) fail(400, 'bad_request', 'Say something first.');
   if (text.length > MAX_COMMENT) fail(400, 'bad_request', 'That comment is too long.');
   const id = newId('c');
-  await ctx.db.prepare('INSERT INTO comments (id, dump_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString()).run();
+  // Counted and written in one statement, so comments sent together cannot pass the limit.
+  const inserted = await ctx.db.prepare(`
+    INSERT INTO comments (id, dump_id, author_id, body, created_at)
+      SELECT ?1, ?2, ?3, ?4, ?5 WHERE (SELECT COUNT(*) FROM comments WHERE dump_id = ?2 AND author_id = ?3) < ?6`)
+    .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString(), MAX_COMMENTS).run();
+  if (!inserted.meta?.changes) fail(429, 'too_many_comments', 'That is a lot of comments for one week. Up to 30 each.');
   const row = await ctx.db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
   return json((await commentsJSON(ctx, [row]))[0]);
 }
@@ -916,8 +1015,10 @@ async function editComment(ctx, id) {
 }
 
 async function deleteComment(ctx, id) {
-  const { row, dump } = await commentFor(ctx, id);
-  if (row.author_id !== ctx.me.id && dump.author_id !== ctx.me.id) fail(403, 'forbidden');
+  const row = await ctx.db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
+  if (!row) fail(404, 'not_found');
+  // Anyone can take back their own comment, even on a week they can no longer open.
+  if (row.author_id !== ctx.me.id && (await readableDump(ctx, row.dump_id)).author_id !== ctx.me.id) fail(403, 'forbidden');
   await ctx.db.batch([
     ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ?').bind(id),
     ctx.db.prepare('DELETE FROM comments WHERE id = ?').bind(id),
@@ -994,8 +1095,11 @@ async function profile(ctx, userId) {
         JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
       WHERE t.tagged_user_id = ? AND t.status = 'approved' AND d.author_id != ? AND d.week_start >= ?
       ORDER BY t.responded_at`).bind(user.id, user.id, oldest).all();
-    const readable = await readableAuthors(ctx, taggedRows.map((r) => r.author_id));
-    const visible = taggedRows.filter((r) => readable.has(r.author_id));
+    // Someone looking at their own profile sees every tag of them, even on a week they cannot
+    // open, so they can remove it; never from anyone blocked either way.
+    const blocked = rel === 'me' ? await blockedIds(ctx) : null;
+    const readable = rel === 'me' ? null : await readableAuthors(ctx, taggedRows.map((r) => r.author_id));
+    const visible = taggedRows.filter((r) => (rel === 'me' ? !blocked.has(r.author_id) : readable.has(r.author_id)));
     const { results: taggedPhotos } = visible.length
       ? await ctx.db.prepare('SELECT * FROM photos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(visible.map((r) => r.photo_id))).all()
       : { results: [] };
@@ -1048,8 +1152,8 @@ async function markDone(ctx, suggestionId) {
 
 // MARK: - Daily cleanup
 
-/** Photos uploaded but never posted, and sign-ins long expired. Runs once a day; each run clears
- * up to 500 uploads, far more than a dozen friends leave behind. */
+/** Photos uploaded but never posted or left by a deleted account, and sign-ins long expired.
+ * Runs once a day; each run clears up to 500 uploads, far more than a dozen friends leave behind. */
 export async function cleanUp(env, now = new Date()) {
   await ensureSchema(env.DB);
   const nowSeconds = Math.floor(now.getTime() / 1000);
@@ -1058,12 +1162,13 @@ export async function cleanUp(env, now = new Date()) {
       AND object_key NOT IN (SELECT object_key FROM photos)
       AND object_key NOT IN (SELECT avatar_key FROM users WHERE avatar_key IS NOT NULL)
     LIMIT 500`).bind(nowSeconds - 2 * 24 * 3600).all();
+  // Photos first: if that fails, the rows stay for tomorrow's run.
+  await storage(env).deleteMany(results.map((r) => r.object_key));
   await env.DB.batch([
     env.DB.prepare('DELETE FROM uploads WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(results.map((r) => r.id))),
     env.DB.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').bind(nowSeconds),
     env.DB.prepare('DELETE FROM used_nonces WHERE expires_at < ?').bind(nowSeconds),
   ]);
-  await storage(env).deleteMany(results.map((r) => r.object_key));
   return { uploads: results.length };
 }
 
