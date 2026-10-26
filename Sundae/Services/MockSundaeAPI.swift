@@ -547,34 +547,34 @@ actor MockSundaeAPI: SundaeAPI {
         let templates: [Template] = [
             Template(slot: .morning, place: "The corner bakery", walk: 6,
                      text: "Be first in line at the corner bakery.",
-                     reason: "The bread comes out around now. Shoot the steam, the paper bags, the person ahead of you."),
+                     reason: "The bread comes out around now. Photograph the steam and the paper bags."),
             Template(slot: .morning, place: "The park down the street", walk: 9,
-                     text: "Walk the park down the street before the dog people leave.",
-                     reason: "Low sun, long shadows, a bench to drink coffee on. Take the wide shot and one detail."),
+                     text: "Walk the park down the street early.",
+                     reason: "Low sun, long shadows, a bench for your coffee. Photograph the wide view and one detail."),
             Template(slot: .morning, place: "The café you always walk past", walk: 4,
                      text: "Finally go into the café you always walk past.",
-                     reason: "Sit by the window. Photograph the cup, then whatever is outside the glass."),
+                     reason: "Sit by the window. Photograph the cup, then the view outside."),
             Template(slot: .afternoon, place: "The library branch", walk: 12,
                      text: "Spend an hour in your library branch.",
-                     reason: "Find the oldest book on the shelf nearest the window. Photograph the spine, not the cover."),
+                     reason: "Find the oldest book on the shelf nearest the window. Photograph the spine."),
             Template(slot: .afternoon, place: "The market", walk: 8,
                      text: "Buy one thing you can't name at the market.",
-                     reason: "Ask what it is. Shoot it at home before you cook it."),
+                     reason: "Ask what it is. Photograph it at home before you cook it."),
             Template(slot: .afternoon, place: "The record shop", walk: 11,
                      text: "Flip through the dollar bin at the record shop.",
-                     reason: "Pick the cover that makes you laugh. Shoot it in your hands, out on the sidewalk."),
+                     reason: "Pick the cover that makes you laugh. Photograph it in your hands."),
             Template(slot: .evening, place: "The lookout", walk: 0,
                      text: "Catch the last light from the lookout.",
-                     reason: "Fifteen minutes uphill, ten minutes of color. Bring someone."),
-            Template(slot: .evening, place: "The place with the line", walk: 7,
-                     text: "Eat at the place with the line.",
-                     reason: "The line is the review. Shoot the counter, the salsa bar, the faces."),
+                     reason: "Ten minutes of color. Bring a friend."),
+            Template(slot: .evening, place: "The diner on the corner", walk: 7,
+                     text: "Have dinner at the counter of the diner on the corner.",
+                     reason: "Order the special. Photograph the menu board and your plate."),
             Template(slot: .evening, place: "The pier", walk: 14,
                      text: "Walk to the end of the pier and back.",
-                     reason: "Lights come on behind you on the way back. That is the photo."),
+                     reason: "The lights come on behind you on the way back. That is the photo."),
         ]
         let slots: [Suggestion.TimeOfDay] = [.morning, .afternoon, .evening]
-        return slots.enumerated().map { index, slot in
+        return IdeaGuard.filter(slots.enumerated().map { index, slot in
             let options = templates.filter { $0.slot == slot }
             let pick = options[Int((seed >> UInt64(index * 8)) % UInt64(options.count))]
             return Suggestion(id: "\(Suggestion.nearbyPrefix)\(dayString):\(index)", text: pick.text, reason: pick.reason,
@@ -582,7 +582,7 @@ actor MockSundaeAPI: SundaeAPI {
                               place: Suggestion.Place(name: pick.place,
                                                       walkMinutes: pick.walk > 0 ? pick.walk : nil,
                                                       distanceMeters: pick.walk > 0 ? Double(pick.walk * 80) : 18_500))
-        }
+        })
     }
 
     func block(userID: ID) async throws {

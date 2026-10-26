@@ -89,7 +89,7 @@ public struct SuggestionCatalog: Sendable {
                            categories: [.outdoors], timeOfDay: .any),
             ])
         }
-        return SuggestionCatalog(list)
+        return SuggestionCatalog(IdeaGuard.filter(list))
     }
 
     public func suggestion(id: String) -> Suggestion? {

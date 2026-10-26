@@ -51,7 +51,8 @@ final class WeekdayStore {
         done = shared.doneSuggestions().filter { $0.value >= weekStart }
         shared.setDoneLocalSuggestions(shared.doneLocalSuggestions().filter { done[$0.id] != nil })
         local = clock.isSunday() ? [] : (shared.localIdeas(on: now, calendar: clock.calendar) ?? [])
-        if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar), let suggestion = resolve(id) {
+        if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar), let suggestion = resolve(id),
+           IdeaGuard.isSafe(suggestion) {
             current = suggestion
         } else if let nearby = preferredLocal(for: now, calendar: clock.calendar) {
             current = nearby
@@ -68,6 +69,7 @@ final class WeekdayStore {
     /// Today's nearby ideas arrived or changed. They take over only from the automatic pick:
     /// a suggestion the user shuffled to or finished stays put.
     func applyLocal(_ ideas: [Suggestion], clock: SundayClock) {
+        let ideas = IdeaGuard.filter(ideas)
         local = ideas
         let now = clock.now()
         guard let current else {
@@ -103,11 +105,13 @@ final class WeekdayStore {
             return
         }
         noteShown(current, on: now, calendar: clock.calendar)
-        var openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil && !shown.contains($0.id) }
-        if openLocal.isEmpty, local.count > 1 {
-            // Every nearby idea has had its turn today; let them come round again.
-            for idea in local { shown.remove(idea.id) }
-            openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil }
+        let slot = Suggestion.TimeOfDay.current(for: now, calendar: clock.calendar)
+        let fitting = local.filter { $0.timeOfDay == slot || $0.timeOfDay == .any }
+        var openLocal = fitting.filter { $0.id != current?.id && done[$0.id] == nil && !shown.contains($0.id) }
+        if openLocal.isEmpty, fitting.count > 1 {
+            // Every nearby idea for this part of the day has had its turn; let them come round again.
+            for idea in fitting { shown.remove(idea.id) }
+            openLocal = fitting.filter { $0.id != current?.id && done[$0.id] == nil }
         }
         // Half the time a nearby idea, while any are left; the catalog otherwise, skipping what
         // has already been on screen today.

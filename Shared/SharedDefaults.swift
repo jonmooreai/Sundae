@@ -75,7 +75,7 @@ public struct SharedDefaults: @unchecked Sendable {
               calendar.isDate(stored, inSameDayAs: day),
               let data = defaults.data(forKey: Key.localIdeas),
               let ideas = try? JSONDecoder().decode([Suggestion].self, from: data) else { return nil }
-        return ideas
+        return IdeaGuard.filter(ideas)
     }
 
     public func setLocalIdeas(_ ideas: [Suggestion], at moment: Date) {

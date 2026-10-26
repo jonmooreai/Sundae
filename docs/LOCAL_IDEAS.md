@@ -23,6 +23,25 @@ Other choices that follow from the promise: location is requested "when in use" 
 fix per look, with the accuracy iOS gives when asked for a hundred meters; and at most a few looks a day
 (`LocalIdeasPolicy.refreshInterval`), only when the app is open on the weekday screen.
 
+## What an idea may never say or point to
+
+Every idea passes `IdeaGuard` (Swift, `Shared/IdeaGuard.swift`) or its exact copy on the server
+(`server/local-ideas/src/guard.js`) before it is stored or shown, and again when it is read back:
+from Maps, from the demo backend, from a server, from the cache, from the bundled catalog.
+
+- No violent words, including ones that only read as violent out of context. "Photograph" is
+  the only verb for taking a picture; "shoot" and "shot" are refused outright.
+- Cameras point at things, light and friends, never at strangers, staff, crowds or children.
+- No alcohol, drugs or smoking. Nothing risky: no roofs, tracks, cliffs, trespassing, dares, or
+  walking until the phone loses signal.
+- No solemn or sensitive places, whatever the wording: memorials, cemeteries, places of
+  worship, hospitals and clinics, schools, prisons and courts, police and military sites. Maps
+  results in those categories or with those words in the name are dropped before picking.
+
+Tests read every line the app and the server can write and fail the build if one does not
+pass; a server test also keeps the two lists identical. When an idea fails at runtime it is
+dropped and a catalog idea takes its place.
+
 ## How the phone does it
 
 1. The user turns it on from the weekday screen ("Make today's idea local") or Settings. Sundae's
