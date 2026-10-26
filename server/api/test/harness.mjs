@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { handle } from '../src/worker.js';
 import { resetSchemaCache } from '../src/schema.js';
-import { b64url } from '../src/crypto.js';
+import { b64url, randomToken, sha256Hex } from '../src/crypto.js';
 
 export const QUERY_LIMIT = 50;
 
@@ -70,9 +70,11 @@ async function fakeApple() {
   const enc = new TextEncoder();
   return {
     keys: async () => [jwk],
-    async token(sub, { aud = 'com.jonmooreai.sundae', exp = Math.floor(Date.now() / 1000) + 600 } = {}) {
+    /** Like Apple, signs in the SHA-256 of the nonce the app asked for. */
+    async token(sub, { aud = 'com.jonmooreai.sundae', exp = Math.floor(Date.now() / 1000) + 600, nonce } = {}) {
       const h = b64url(enc.encode(JSON.stringify({ alg: 'RS256', kid: 'test' })));
-      const p = b64url(enc.encode(JSON.stringify({ iss: 'https://appleid.apple.com', aud, sub, exp })));
+      const claims = { iss: 'https://appleid.apple.com', aud, sub, exp, ...(nonce ? { nonce: await sha256Hex(nonce) } : {}) };
+      const p = b64url(enc.encode(JSON.stringify(claims)));
       const sig = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', pair.privateKey, enc.encode(`${h}.${p}`));
       return `${h}.${p}.${b64url(sig)}`;
     },
@@ -111,7 +113,10 @@ export async function server({ photos } = {}) {
   }
 
   async function signUp(sub, username, name = username) {
-    const r = await call('POST', 'v1/auth/apple', { json: { identity_token: await apple.token(sub), username, name, timezone: 'America/New_York' } });
+    const nonce = randomToken(24);
+    const r = await call('POST', 'v1/auth/apple', {
+      json: { identity_token: await apple.token(sub, { nonce }), nonce, username, name, timezone: 'America/New_York' },
+    });
     if (r.status !== 200) throw new Error(`sign up ${username}: ${JSON.stringify(r.body)}`);
     return { token: r.body.access_token, refresh: r.body.refresh_token, user: r.body.user };
   }

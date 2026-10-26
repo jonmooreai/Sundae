@@ -14,14 +14,18 @@ export const SCHEMA = [
      hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, family TEXT NOT NULL,
      expires_at INTEGER NOT NULL, used INTEGER NOT NULL DEFAULT 0, revoked INTEGER NOT NULL DEFAULT 0)`,
   `CREATE INDEX IF NOT EXISTS refresh_tokens_family ON refresh_tokens (family)`,
+  // Sign in with Apple nonces already used, so a captured token and nonce cannot sign in twice.
+  `CREATE TABLE IF NOT EXISTS used_nonces (hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS follows (
      follower_id TEXT NOT NULL, followee_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,
      PRIMARY KEY (follower_id, followee_id))`,
   `CREATE INDEX IF NOT EXISTS follows_followee ON follows (followee_id, status)`,
   `CREATE TABLE IF NOT EXISTS blocks (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, PRIMARY KEY (blocker_id, blocked_id))`,
+  `CREATE INDEX IF NOT EXISTS blocks_blocked ON blocks (blocked_id)`,
   `CREATE TABLE IF NOT EXISTS uploads (
      id TEXT PRIMARY KEY, user_id TEXT NOT NULL, object_key TEXT NOT NULL, byte_size INTEGER NOT NULL,
      width INTEGER, height INTEGER, expires_at INTEGER NOT NULL, uploaded INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, expires_at)`,
   `CREATE TABLE IF NOT EXISTS dumps (
      id TEXT PRIMARY KEY, author_id TEXT NOT NULL, week_start TEXT NOT NULL, caption TEXT NOT NULL DEFAULT '',
      comments_enabled INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,

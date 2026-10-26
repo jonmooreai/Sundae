@@ -46,7 +46,7 @@ export const PRIVACY_HTML = `<!doctype html>
 <p>On Cloudflare. Data is encrypted in transit and at rest.</p>
 
 <h2>Deleting it</h2>
-<p>Settings, then Delete account, removes your account, photos, comments, likes and tags right away. Photos you were tagged in stay in the poster's week with your tag removed.</p>
+<p>Settings, then Delete account, removes your account, photos, comments, likes and tags right away. The database keeps a recovery history for 7 days, which only the person who runs Sundae can reach; after that, nothing of the account is left. Photos you were tagged in stay in the poster's week with your tag removed.</p>
 
 <h2>Questions</h2>
 <p>Send feedback from TestFlight and it reaches the person who runs Sundae.</p>

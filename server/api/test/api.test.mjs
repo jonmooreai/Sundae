@@ -2,6 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { server, jpeg, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
 
+/** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
+async function appleSignIn(s, sub, { nonce = `nonce-${Math.random()}-${Date.now()}`, sent = nonce, timezone = 'UTC', ...claims } = {}) {
+  const identity_token = await s.apple.token(sub, { nonce, ...claims });
+  return { identity_token, nonce: sent, timezone };
+}
+
 /** What the server keeps of jpeg(size): the scan, JFIF and the color profile, never the EXIF
  * (with its GPS position) or the comment. */
 function assertStripped(buffer, size) {
@@ -20,7 +26,7 @@ test('Sign in with Apple creates an account once, then signs back in', async () 
   const first = await s.signUp('apple-1', 'Jon Moore', 'Jon');
   assert.equal(first.user.username, 'jonmoore');
   assert.equal(first.user.name, 'Jon');
-  const again = await s.call('POST', 'v1/auth/apple', { json: { identity_token: await s.apple.token('apple-1'), timezone: 'Europe/London' } });
+  const again = await s.call('POST', 'v1/auth/apple', { json: await appleSignIn(s, 'apple-1', { timezone: 'Europe/London' }) });
   assert.equal(again.body.user.id, first.user.id);
   assert.equal(again.body.user.timezone, 'Europe/London');
   const someoneElse = await s.signUp('apple-2', 'jonmoore');
@@ -29,14 +35,26 @@ test('Sign in with Apple creates an account once, then signs back in', async () 
 
 test('tokens from anyone but Apple, or for another app, are refused', async () => {
   const s = await server();
-  const wrongApp = await s.call('POST', 'v1/auth/apple', { json: { identity_token: await s.apple.token('x', { aud: 'com.other.app' }), timezone: 'UTC' } });
+  const wrongApp = await s.call('POST', 'v1/auth/apple', { json: await appleSignIn(s, 'x', { aud: 'com.other.app' }) });
   assert.equal(wrongApp.status, 401);
-  const expired = await s.call('POST', 'v1/auth/apple', { json: { identity_token: await s.apple.token('x', { exp: 1000 }), timezone: 'UTC' } });
+  const expired = await s.call('POST', 'v1/auth/apple', { json: await appleSignIn(s, 'x', { exp: 1000 }) });
   assert.equal(expired.status, 401);
-  const garbage = await s.call('POST', 'v1/auth/apple', { json: { identity_token: 'a.b.c', timezone: 'UTC' } });
+  const garbage = await s.call('POST', 'v1/auth/apple', { json: { identity_token: 'a.b.c', nonce: 'n'.repeat(32), timezone: 'UTC' } });
   assert.equal(garbage.status, 401);
   assert.equal((await s.call('GET', 'v1/me')).status, 401);
   assert.equal((await s.call('GET', 'v1/me', { token: 'forged.token' })).status, 401);
+});
+
+test('Sign in with Apple needs the nonce Apple signed, and each one works once', async () => {
+  const s = await server();
+  const noNonce = await s.call('POST', 'v1/auth/apple', { json: { identity_token: await s.apple.token('x'), timezone: 'UTC' } });
+  assert.equal(noNonce.status, 401, 'a token without a nonce');
+  const wrong = await s.call('POST', 'v1/auth/apple', { json: await appleSignIn(s, 'x', { nonce: 'the-nonce-apple-signed-1234', sent: 'some-other-nonce-5678' }) });
+  assert.equal(wrong.status, 401, 'a nonce that is not the one Apple signed');
+  const request = await appleSignIn(s, 'x');
+  assert.equal((await s.call('POST', 'v1/auth/apple', { json: request })).status, 200);
+  const replay = await s.call('POST', 'v1/auth/apple', { json: request });
+  assert.equal(replay.status, 401, 'the same token and nonce, copied and sent again');
 });
 
 test('refresh tokens rotate, and a reused one signs that device out', async () => {
@@ -250,4 +268,34 @@ test('weekday ideas marked done come back for their week', async () => {
   const done = await s.call('GET', 'v1/me/suggestions/done?week_start=2026-10-19', { token: jon.token });
   assert.deepEqual(done.body.map((d) => d.suggestion_id), ['s003']);
   void SUNDAY;
+});
+
+test('every response forbids sniffing, framing, scripts and referrers', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon');
+  const up = await uploadPhoto(s, jon);
+  const week = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: up }] } });
+  const responses = {
+    api: await s.call('GET', 'v1/me', { token: jon.token, raw: true }),
+    error: await s.call('GET', 'v1/me', { raw: true }),
+    photo: await s.call('GET', week.body.photos[0].url, { raw: true }),
+    privacy: await s.call('GET', 'privacy', { raw: true }),
+  };
+  for (const [name, r] of Object.entries(responses)) {
+    assert.equal(r.headers.get('x-content-type-options'), 'nosniff', name);
+    assert.equal(r.headers.get('referrer-policy'), 'no-referrer', name);
+    assert.match(r.headers.get('content-security-policy'), /default-src 'none'.*frame-ancestors 'none'/, name);
+    assert.doesNotMatch(r.headers.get('content-security-policy'), /script-src/, name);
+    assert.match(r.headers.get('strict-transport-security'), /max-age=\d+/, name);
+    assert.equal(r.headers.get('access-control-allow-origin'), null, `${name}: no browser on another site can read it`);
+  }
+});
+
+test('with sign-ups closed, nobody new gets in and everyone else still signs in', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon');
+  s.env.SIGNUPS = 'closed';
+  await assert.rejects(s.signUp('apple-stranger', 'stranger'), /signups_closed/);
+  const back = await s.signUp('apple-jon', 'jon');
+  assert.equal(back.user.id, jon.user.id);
 });

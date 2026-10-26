@@ -255,7 +255,8 @@ struct Session: Hashable, Codable, Sendable {
 }
 
 enum SignInMethod: Hashable, Sendable {
-    case apple(identityToken: String, fullName: String?)
+    /// `nonce` is the one whose SHA-256 Apple signed into the token (AppleNonce).
+    case apple(identityToken: String, fullName: String?, nonce: String)
     case phone(number: String, code: String)
     case demo
 }

@@ -70,8 +70,8 @@ export async function verifyToken(token, secret, now = Date.now()) {
 
 let appleKeys = { keys: null, at: 0 };
 
-async function defaultFetchKeys() {
-  if (appleKeys.keys && Date.now() - appleKeys.at < 3600_000) return appleKeys.keys;
+async function defaultFetchKeys({ fresh = false } = {}) {
+  if (!fresh && appleKeys.keys && Date.now() - appleKeys.at < 3600_000) return appleKeys.keys;
   const response = await fetch('https://appleid.apple.com/auth/keys');
   if (!response.ok) throw new Error('apple keys unavailable');
   const { keys } = await response.json();
@@ -81,15 +81,21 @@ async function defaultFetchKeys() {
 
 /**
  * Checks an identity token from Sign in with Apple: Apple's signature, issuer, audience
- * (this app's bundle id) and expiry. Returns the stable user id (`sub`) or null.
+ * (this app's bundle id), expiry, and the nonce. The app makes a random nonce for each attempt
+ * and gives Apple its SHA-256, which Apple signs into the token; the app sends us the nonce
+ * itself. So a token copied off a phone or out of a log cannot be replayed. Returns the stable
+ * user id (`sub`) or null.
  */
-export async function verifyAppleIdentityToken(token, { bundleId, fetchKeys = defaultFetchKeys, now = Date.now() } = {}) {
+export async function verifyAppleIdentityToken(token, { bundleId, nonce, fetchKeys = defaultFetchKeys, now = Date.now() } = {}) {
   try {
+    if (typeof nonce !== 'string' || nonce.length < 16) return null;
     const [h, p, s] = token.split('.');
     const header = JSON.parse(new TextDecoder().decode(fromB64url(h)));
     const payload = JSON.parse(new TextDecoder().decode(fromB64url(p)));
     if (header.alg !== 'RS256') return null;
-    const jwk = (await fetchKeys()).find((k) => k.kid === header.kid);
+    // Apple rotates its keys; an id we have not seen means fetch them again, once.
+    const find = (keys) => keys.find((k) => k.kid === header.kid);
+    const jwk = find(await fetchKeys()) || find(await fetchKeys({ fresh: true }));
     if (!jwk) return null;
     const key = await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']);
     const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, fromB64url(s), encoder.encode(`${h}.${p}`));
@@ -98,6 +104,7 @@ export async function verifyAppleIdentityToken(token, { bundleId, fetchKeys = de
     const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
     if (!audiences.includes(bundleId)) return null;
     if (typeof payload.exp !== 'number' || payload.exp * 1000 <= now) return null;
+    if (!sameString(String(payload.nonce || ''), await sha256Hex(nonce))) return null;
     return typeof payload.sub === 'string' && payload.sub ? payload.sub : null;
   } catch {
     return null;

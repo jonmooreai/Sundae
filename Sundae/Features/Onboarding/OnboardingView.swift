@@ -15,6 +15,8 @@ struct OnboardingView: View {
 
     @State private var step: Step = .welcome
     @State private var pendingMethod: SignInMethod?
+    /// The nonce for the Sign in with Apple attempt in progress. Apple only ever sees its hash.
+    @State private var appleNonce = ""
     @State private var name = ""
     @State private var username = ""
     @State private var birthday = Calendar.current.date(byAdding: .year, value: -20, to: Date()) ?? Date()
@@ -155,6 +157,9 @@ struct OnboardingView: View {
 
             SignInWithAppleButton(.continue) { request in
                 request.requestedScopes = [.fullName]
+                let nonce = AppleNonce.make()
+                appleNonce = nonce
+                request.nonce = AppleNonce.sha256(nonce)
             } onCompletion: { result in
                 switch result {
                 case .success(let auth):
@@ -163,7 +168,7 @@ struct OnboardingView: View {
                     let fullName = [credential?.fullName?.givenName, credential?.fullName?.familyName]
                         .compactMap { $0 }.joined(separator: " ")
                     if !fullName.isEmpty { name = fullName }
-                    pendingMethod = .apple(identityToken: token, fullName: fullName.isEmpty ? nil : fullName)
+                    pendingMethod = .apple(identityToken: token, fullName: fullName.isEmpty ? nil : fullName, nonce: appleNonce)
                     step = .profile
                 case .failure(let err):
                     error = err.localizedDescription

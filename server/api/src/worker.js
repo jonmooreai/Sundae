@@ -30,6 +30,17 @@ const DEFAULT_SETTINGS = {
 
 // MARK: - Responses
 
+// On every response. Nothing here is meant for a browser: no scripts may run, no page may frame
+// it, no address leaks in a Referer, and only HTTPS is spoken.
+const SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  'strict-transport-security': 'max-age=31536000',
+};
+// The privacy page's own styles are inline; it has no scripts and shows nothing anyone typed.
+const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
 class HttpError extends Error {
   constructor(status, code, message) {
     super(message ?? code);
@@ -42,11 +53,11 @@ const fail = (status, code, message) => { throw new HttpError(status, code, mess
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
-    status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers },
+    status, headers: { ...SECURITY_HEADERS, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers },
   });
 }
 
-const empty = () => new Response(null, { status: 204, headers: { 'cache-control': 'no-store' } });
+const empty = () => new Response(null, { status: 204, headers: { ...SECURITY_HEADERS, 'cache-control': 'no-store' } });
 
 async function body(request) {
   try {
@@ -72,10 +83,12 @@ export async function handle(request, env) {
   try {
     const url = new URL(request.url);
     if (request.method === 'GET' && (url.pathname === '/privacy' || url.pathname === '/privacy/')) {
-      return new Response(PRIVACY_HTML, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' } });
+      return new Response(PRIVACY_HTML, {
+        headers: { ...SECURITY_HEADERS, 'content-security-policy': PAGE_CSP, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'public, max-age=3600' },
+      });
     }
     if (request.method === 'GET' && url.pathname === '/') {
-      return new Response('Sundae\n', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
+      return new Response('Sundae\n', { headers: { ...SECURITY_HEADERS, 'content-type': 'text/plain; charset=utf-8' } });
     }
     if (!url.pathname.startsWith('/v1/')) fail(404, 'not_found');
     await ensureSchema(env.DB);
@@ -212,16 +225,24 @@ async function signInWithApple(ctx) {
   const input = await body(ctx.request);
   const sub = await verifyAppleIdentityToken(String(input.identity_token || ''), {
     bundleId: ctx.env.APPLE_BUNDLE_ID || 'com.jonmooreai.sundae',
+    nonce: input.nonce,
     ...(ctx.env.APPLE_KEYS ? { fetchKeys: ctx.env.APPLE_KEYS } : {}),
     now: ctx.now.getTime(),
   });
   if (!sub) fail(401, 'unauthorized', 'Sign in with Apple did not go through. Try again.');
+  // Apple's tokens last ten minutes; a day comfortably outlives any of them.
+  const fresh = await ctx.db.prepare('INSERT INTO used_nonces (hash, expires_at) VALUES (?, ?) ON CONFLICT (hash) DO NOTHING')
+    .bind(await sha256Hex(String(input.nonce)), Math.floor(ctx.now.getTime() / 1000) + 24 * 3600).run();
+  if (!fresh.meta?.changes) fail(401, 'unauthorized', 'Sign in with Apple did not go through. Try again.');
   const timezone = safeZone(String(input.timezone || 'UTC'));
   let user = await ctx.db.prepare('SELECT * FROM users WHERE apple_sub = ?').bind(sub).first();
   if (user) {
     await ctx.db.prepare('UPDATE users SET timezone = ? WHERE id = ?').bind(timezone, user.id).run();
     user.timezone = timezone;
   } else {
+    // SIGNUPS "closed" keeps out anyone new once everyone invited has joined. People with an
+    // account still sign in.
+    if (ctx.env.SIGNUPS === 'closed') fail(403, 'signups_closed', 'Sundae is invite only right now. Ask the person who invited you.');
     const name = clean(input.name || input.full_name || '', 60);
     const username = await uniqueUsername(ctx, input.username || name || 'friend');
     const id = newId('u');
@@ -546,7 +567,7 @@ async function serveMedia(ctx, encodedKey) {
   if (!exp || exp * 1000 < ctx.now.getTime() || !sameString(sig, await hmac(ctx.secret, `m|${key}|${exp}`))) fail(403, 'forbidden');
   const bytes = await storage(ctx.env).get(key);
   if (!bytes) fail(404, 'not_found');
-  return new Response(bytes, { headers: { 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=3600' } });
+  return new Response(bytes, { headers: { ...SECURITY_HEADERS, 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=3600' } });
 }
 
 async function ownUpload(ctx, uploadId) {
@@ -991,6 +1012,7 @@ export async function cleanUp(env, now = new Date()) {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM uploads WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(results.map((r) => r.id))),
     env.DB.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').bind(nowSeconds),
+    env.DB.prepare('DELETE FROM used_nonces WHERE expires_at < ?').bind(nowSeconds),
   ]);
   await storage(env).deleteMany(results.map((r) => r.object_key));
   return { uploads: results.length };

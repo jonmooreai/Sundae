@@ -71,11 +71,13 @@ targets:
         UIBackgroundModes:
           - remote-notification
         ITSAppUsesNonExemptEncryption: false
-    # Sign in with Apple, app groups and push need capabilities on the App ID before they can be
-    # signed. They come back once the developer account has them (see docs/TESTFLIGHT.md).
+    # Sign in with Apple is turned on for the App ID by the TestFlight lane itself. Push still needs
+    # its capability before it can be signed (see docs/TESTFLIGHT.md).
     entitlements:
       path: Sundae/Sundae.entitlements
       properties:
+        com.apple.developer.applesignin:
+          - Default
         # The app's own group first, so session tokens keep landing there; the shared one second.
         keychain-access-groups:
           - "$(AppIdentifierPrefix)com.jonmooreai.sundae"

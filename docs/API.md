@@ -17,11 +17,13 @@ authority for every rule in the PRD; the client only decides what to draw.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `auth/apple` | `identity_token`, `full_name?`, `username?`, `name?`, `timezone` | session |
+| POST | `auth/apple` | `identity_token`, `nonce`, `full_name?`, `username?`, `name?`, `timezone` | session; 403 `signups_closed` for someone new while sign-ups are closed |
 | POST | `auth/phone/start` | `phone` | 204 |
 | POST | `auth/phone/verify` | `phone`, `code`, `username?`, `name?`, `timezone` | session |
 | POST | `auth/refresh` | `refresh_token` | `access_token`, `refresh_token`, `expires_in` |
 | POST | `auth/signout` | | 204, revokes this device's refresh token |
+
+`nonce` is the value whose SHA-256 (lowercase hex) the app set as the request's nonce, which Apple signs into the token. The server checks the pair and accepts each nonce once, so a captured token cannot be replayed.
 
 A session is `{access_token, refresh_token, expires_in, user}`. App Attest assertions ride along on token issuance once the server supports them (header to be defined).
 

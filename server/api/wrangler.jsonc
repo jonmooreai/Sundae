@@ -6,16 +6,18 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-10-20",
   "workers_dev": true,
-  // No database_id: the first deploy creates the database and keeps it linked after that.
-  "d1_databases": [{ "binding": "DB", "database_name": "sundae" }],
-  // Until R2 is switched on, photos are kept in the database, which holds a few hundred.
-  // Switch R2 on in the dashboard, then remove the two slashes below; the next deploy creates
-  // the bucket. Photos already in the database stay readable.
+  // Created in North America East. Its id is not a secret: only this Cloudflare account can use it.
+  "d1_databases": [{ "binding": "DB", "database_name": "sundae", "database_id": "50fc0dc9-3ba0-4405-a135-9429d6c59571" }],
+  // Until R2 is switched on, photos are kept in the database, which holds a few hundred. Once
+  // the account owner turns R2 on and the private bucket is made, the line below is switched on.
+  // Photos already in the database stay readable.
   // "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "sundae-photos" }],
   "vars": {
     "APPLE_BUNDLE_ID": "com.jonmooreai.sundae",
     // "true" opens the Sunday-only parts every day, for trying things out midweek.
-    "SUNDAY_EVERY_DAY": "false"
+    "SUNDAY_EVERY_DAY": "false",
+    // "closed" once everyone invited has an account: nobody new can sign up, everyone else can sign in.
+    "SIGNUPS": "open"
   },
   // Clears photos that were uploaded but never posted, once a day.
   "triggers": { "crons": ["17 9 * * *"] },
