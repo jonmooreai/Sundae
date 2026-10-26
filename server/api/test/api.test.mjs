@@ -299,3 +299,44 @@ test('with sign-ups closed, nobody new gets in and everyone else still signs in'
   const back = await s.signUp('apple-jon', 'jon');
   assert.equal(back.user.id, jon.user.id);
 });
+
+test('an admin can open Sunday any day; nobody else can, or even sees the flag', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  s.env.DB.sqlite.prepare('INSERT INTO admins (user_id) VALUES (?)').run(jon.user.id);
+  s.setNow(WEDNESDAY);
+  await refresh(s, jon);
+  await refresh(s, maya);
+  assert.equal((await s.call('GET', 'v1/feed', { token: jon.token })).status, 200, 'the admin, midweek');
+  assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body.error.code, 'sunday_closed', 'everyone else waits');
+
+  assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).body.is_admin, true);
+  assert.equal('is_admin' in (await s.call('GET', 'v1/me', { token: maya.token })).body, false);
+  const patched = await s.call('PATCH', 'v1/me', { token: jon.token, json: { bio: 'Testing' } });
+  assert.equal(patched.body.is_admin, true, 'editing the profile keeps it');
+  const again = await s.signUp('apple-jon', 'jon');
+  assert.equal(again.user.id, jon.user.id);
+  const signedIn = await s.call('GET', 'v1/me', { token: again.token });
+  assert.equal(signedIn.body.is_admin, true, 'and signing in again');
+
+  // Other people never learn who the admin is.
+  const theirView = await s.call('GET', `v1/users/${jon.user.id}/profile`, { token: maya.token });
+  assert.equal(theirView.status, 423, 'Maya waits for Sunday');
+  s.setNow(new Date('2026-11-01T17:00:00Z'));
+  await refresh(s, maya);
+  const onSunday = await s.call('GET', `v1/users/${jon.user.id}/profile`, { token: maya.token });
+  assert.equal('is_admin' in onSunday.body.user, false);
+});
+
+test('sign out signs out this phone; everywhere signs out every phone', async () => {
+  const s = await server();
+  const phone = await s.signUp('apple-jon', 'jon');
+  const ipad = await s.signUp('apple-jon', 'jon');
+  const laptop = await s.signUp('apple-jon', 'jon');
+  assert.equal((await s.call('POST', 'v1/auth/signout', { token: phone.token })).status, 204);
+  assert.equal((await s.call('POST', 'v1/auth/refresh', { json: { refresh_token: phone.refresh } })).status, 401);
+  assert.equal((await s.call('POST', 'v1/auth/refresh', { json: { refresh_token: ipad.refresh } })).status, 200, 'the others stay in');
+  assert.equal((await s.call('POST', 'v1/auth/signout', { token: laptop.token, json: { everywhere: true } })).status, 204);
+  const ipadAfter = await s.call('POST', 'v1/auth/refresh', { json: { refresh_token: ipad.refresh } });
+  assert.equal(ipadAfter.status, 401, 'everywhere means every device');
+});

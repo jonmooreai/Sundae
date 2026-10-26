@@ -98,6 +98,20 @@ Send the address over; the app gets it in its next TestFlight build. That same b
 Sign in with Apple for the App ID (the lane does it through the App Store Connect API key) and
 makes new provisioning profiles, so there is nothing to tick in the developer portal.
 
+## Admins
+
+An admin can open the Sunday screens any day, to try things on the real server, and sees an
+Admin section in Settings with "Pretend it's Sunday". Nobody else sees the section, and the
+server keeps everyone else to Sunday. Admins live in the database's `admins` table, which the
+API never writes: add one from the Cloudflare side (the D1 console, or the command line) with
+the person's user id, once they have signed in:
+
+```sql
+INSERT INTO admins (user_id) SELECT id FROM users WHERE username = 'their-username';
+```
+
+Delete the row to take it away; their phone drops back to the real day on its next launch.
+
 ## Settings
 
 In `wrangler.jsonc` at the top of the repository, under `vars`:

@@ -76,9 +76,7 @@ struct SearchView: View {
                         }
                     }
                     Section {
-                        ShareLink(item: URL(string: "https://sundae.app/join")!,
-                                  subject: Text("Join me on Sundae"),
-                                  message: Text("Sundays only. Come post your week with us.")) {
+                        ShareLink(item: Invite.note, subject: Text(Invite.subject)) {
                             actionRow(Glyph.share, "Invite your group", "Sundae works when the whole group is here.")
                         }
                         .foregroundStyle(.primary)
@@ -103,7 +101,8 @@ struct SearchView: View {
         }
         .background(Theme.background)
         .task {
-            if contacts == nil { contacts = ContactsMatcher(api: model.api) }
+            // Contact matching is demo only: on the real server contacts never leave the phone.
+            if contacts == nil, model.isUsingMock { contacts = ContactsMatcher(api: model.api) }
             await loadInitial()
             if let contacts, contacts.isOptedIn, contacts.matches.isEmpty { await contacts.match() }
         }

@@ -28,11 +28,13 @@ enum DTO {
         let timezone: String?
         let birthday: String?
         let invitedByMe: Bool?
+        let isAdmin: Bool?
 
         var model: Sundae.User {
             Sundae.User(id: id, username: username, name: name ?? "", bio: bio ?? "",
                         avatar: avatarUrl.map { .remote($0) }, isPublic: isPublic,
-                        timezone: timezone ?? TimeZone.current.identifier, birthday: birthday, invitedByMe: invitedByMe)
+                        timezone: timezone ?? TimeZone.current.identifier, birthday: birthday, invitedByMe: invitedByMe,
+                        isAdmin: isAdmin)
         }
     }
 
@@ -257,6 +259,10 @@ enum DTO {
     }
 
     // MARK: Requests
+
+    struct SignOut: Encodable {
+        let everywhere: Bool
+    }
 
     struct AppleSignIn: Encodable {
         let identityToken: String

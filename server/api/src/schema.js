@@ -1,10 +1,13 @@
 // The whole database. Applied on first use (every statement is IF NOT EXISTS), so a fresh
 // D1 database needs no separate migration step. Bump SCHEMA_VERSION when adding statements.
 
-export const SCHEMA_VERSION = '1';
+// 2: the admins and used_nonces tables.
+export const SCHEMA_VERSION = '2';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  // Who may use Sunday any day, to test. Filled by hand from the Cloudflare side, never by the API.
+  `CREATE TABLE IF NOT EXISTS admins (user_id TEXT PRIMARY KEY)`,
   `CREATE TABLE IF NOT EXISTS users (
      id TEXT PRIMARY KEY, apple_sub TEXT UNIQUE, username TEXT NOT NULL UNIQUE,
      name TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', avatar_key TEXT,

@@ -21,7 +21,7 @@ authority for every rule in the PRD; the client only decides what to draw.
 | POST | `auth/phone/start` | `phone` | 204 |
 | POST | `auth/phone/verify` | `phone`, `code`, `username?`, `name?`, `timezone` | session |
 | POST | `auth/refresh` | `refresh_token` | `access_token`, `refresh_token`, `expires_in` |
-| POST | `auth/signout` | | 204, revokes this device's refresh token |
+| POST | `auth/signout` | `everywhere?` | 204, revokes this device's refresh token, or with `everywhere: true` every device's (their access tokens lapse within 15 minutes) |
 
 `nonce` is the value whose SHA-256 (lowercase hex) the app set as the request's nonce, which Apple signs into the token. The server checks the pair and accepts each nonce once, so a captured token cannot be replayed.
 
@@ -31,7 +31,7 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `me` | user |
+| GET | `me` | user, plus `is_admin: true` for an admin only (never on anyone else's user) |
 | PATCH | `me` | any of `name`, `username`, `bio`, or `avatar_upload_id` from an upload ticket (a square JPEG, 600 px) |
 | GET / PUT | `me/settings` | settings object below |
 | DELETE | `me` | starts the 30-day deletion |

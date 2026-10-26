@@ -10,6 +10,8 @@ protocol SundaeAPI: Sendable {
     func signIn(_ method: SignInMethod, username: String?, name: String?) async throws -> Session
     func restoreSession(token: String) async throws -> User?
     func signOut() async throws
+    /// Signs out every device signed in to this account, this one included.
+    func signOutEverywhere() async throws
     func updateProfile(name: String, username: String, bio: String) async throws -> User
     /// Replaces the profile photo with an already re-encoded image.
     func updateAvatar(_ photo: ProcessedPhoto) async throws -> User
@@ -59,4 +61,11 @@ protocol SundaeAPI: Sendable {
     func markSuggestionDone(id: String, on day: Date) async throws
     func block(userID: ID) async throws
     func report(_ report: Report) async throws
+}
+
+extension SundaeAPI {
+    /// Demo data has one device, so everywhere is here.
+    func signOutEverywhere() async throws {
+        try await signOut()
+    }
 }

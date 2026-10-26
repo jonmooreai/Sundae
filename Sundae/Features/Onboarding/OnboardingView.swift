@@ -330,37 +330,38 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 choice(
-                    Glyph.share, "Send the link to a few friends",
-                    "Opens the share sheet. You pick who gets it. Nobody is messaged on their own."
+                    Glyph.share, "Tell a few friends",
+                    "Opens the share sheet with a short note. You pick who gets it. Sundae is invite only while it's in testing."
                 ) {
-                    ShareLink(item: URL(string: "https://sundae.app/join")!,
-                              subject: Text("Join me on Sundae"),
-                              message: Text("Sundays only. Come post your week with us.")) {
-                        Text("Choose who to invite").frame(maxWidth: .infinity)
+                    ShareLink(item: Invite.note, subject: Text(Invite.subject)) {
+                        Text("Choose who to tell").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.pill(.secondary, fullWidth: true))
                 }
 
-                choice(
-                    Glyph.personAdd, "Find friends already here",
-                    wantsContactsMatch
-                        ? "Your contacts will be checked once Sundae opens. Nothing is sent to them."
-                        : "Checks your contacts for people already on Sundae. Numbers are scrambled on this phone and never stored. Nothing is sent to your contacts."
-                ) {
-                    Button {
-                        if wantsContactsMatch {
-                            wantsContactsMatch = false
-                        } else {
-                            showContactsConsent = true
+                // Contact matching is demo only: on the real server contacts never leave the phone.
+                if model.isUsingMock {
+                    choice(
+                        Glyph.personAdd, "Find friends already here",
+                        wantsContactsMatch
+                            ? "Your contacts will be checked once Sundae opens. Nothing is sent to them."
+                            : "Checks your contacts for people already on Sundae. Numbers are scrambled on this phone and never stored. Nothing is sent to your contacts."
+                    ) {
+                        Button {
+                            if wantsContactsMatch {
+                                wantsContactsMatch = false
+                            } else {
+                                showContactsConsent = true
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                if wantsContactsMatch { Icon(Glyph.done, weight: .bold, size: 14) }
+                                Text(wantsContactsMatch ? "Will check my contacts" : "Check my contacts")
+                            }
+                            .frame(maxWidth: .infinity)
                         }
-                    } label: {
-                        HStack(spacing: 6) {
-                            if wantsContactsMatch { Icon(Glyph.done, weight: .bold, size: 14) }
-                            Text(wantsContactsMatch ? "Will check my contacts" : "Check my contacts")
-                        }
-                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.pill(.secondary, fullWidth: true))
                     }
-                    .buttonStyle(.pill(.secondary, fullWidth: true))
                 }
             }
 
