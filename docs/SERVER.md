@@ -6,8 +6,10 @@ talks to (docs/API.md) and the privacy page at `/privacy`, on a `workers.dev` ad
 there is no domain or website to set up.
 
 It is built for a dozen friends and family on Cloudflare's free plan, and deployed the way
-HeartCubby is: Workers Builds watches this repository and deploys every push that changes the
-server. No Cloudflare token is stored in GitHub.
+HeartCubby is: Workers Builds watches `main` and deploys every push to it. Work happens on
+`claude/ios-app-scaffold`, and `main` is moved forward to it (a fast-forward, never a rewrite)
+whenever the server should change, so `main` is always what is live. No Cloudflare token is
+stored in GitHub.
 
 Already done from the command line: the D1 database `sundae` exists with its tables, and the
 private R2 bucket `sundae-photos` is made, both in North America East and both bound in
@@ -73,13 +75,14 @@ Signed in to Cloudflare, about five minutes:
    - **Build command:** leave it empty
    - **Deploy command:** `npx wrangler deploy`
    - **Root directory:** leave it as `/` (the config is at the top of the repository)
-   - **Production branch:** `claude/ios-app-scaffold` (change it to `main` once the pull
-     request merges)
+   - **Production branch:** `main`, the default
 4. Under the advanced settings, if they are offered:
-   - **Builds for non-production branches:** off. A preview would share the real database.
+   - **Builds for non-production branches:** off. They are not needed, and `wrangler.jsonc`
+     already turns preview addresses off, since a preview would share the real database.
    - **Build watch paths:** `server/api/*` and `wrangler.jsonc`, so app-only pushes don't
      rebuild it.
-5. **Deploy.**
+5. **Deploy.** Each push to `main` deploys with `npx wrangler deploy`, which also applies
+   `wrangler.jsonc`: the workers.dev address on, preview addresses off, the daily cron.
 
 ## 3. Check it
 
