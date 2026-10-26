@@ -414,3 +414,6 @@ extension DTO.Photo {
         tags = try container.decode([DTO.Tag].self, forKey: .tags)
     }
 }
+
+/// Generic structs are not Sendable by inference; the list is plain data whenever its elements are.
+extension DTO.LossyList: Sendable where Element: Sendable {}
