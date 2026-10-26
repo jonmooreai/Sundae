@@ -27,7 +27,7 @@ const CATEGORY_MAP = {
   botanical_garden: 'garden', community_garden: 'garden', garden: 'garden',
   hiking_trail: 'trail', trail: 'trail', trailhead: 'trail',
   beach: 'waterfront', pier: 'waterfront', boardwalk: 'waterfront', waterfront: 'waterfront', promenade: 'waterfront', marina: 'waterfront',
-  diner: 'diner', breakfast_restaurant: 'diner',
+  diner: 'restaurant', breakfast_restaurant: 'restaurant', restaurant: 'restaurant',
   record_store: 'record_store', music_store: 'record_store', vinyl_record_store: 'record_store',
   ice_cream_shop: 'ice_cream', gelato_shop: 'ice_cream',
 };

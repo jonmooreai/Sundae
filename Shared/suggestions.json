@@ -274,7 +274,7 @@
   {
     "id": "s030",
     "text": "Visit a lighthouse, a dam, or a big bridge.",
-    "reason": "Big infrastructure photographs well.",
+    "reason": "Big infrastructure makes a great photo.",
     "categories": [
       "outdoors",
       "local"
@@ -488,7 +488,7 @@
   {
     "id": "s052",
     "text": "Build the most elaborate sandwich you can.",
-    "reason": "Photograph the cross-section.",
+    "reason": "Take a photo of the cross-section.",
     "categories": [
       "food",
       "creative"
@@ -775,7 +775,7 @@
   },
   {
     "id": "s082",
-    "text": "Photograph the same spot at three different times of day.",
+    "text": "Take a photo of the same spot at three different times of day.",
     "reason": "The spot doesn't change. The light does.",
     "categories": [
       "creative"
@@ -868,7 +868,7 @@
   },
   {
     "id": "s092",
-    "text": "Photograph your street like a tourist would.",
+    "text": "Take photos of your street like a tourist would.",
     "reason": "Pretend you've never seen it.",
     "categories": [
       "creative",

@@ -16,15 +16,40 @@ struct IdeaGuardTests {
             "Order what the person ahead of you ordered.",
             "Catch the last light. Bring someone, or shoot the people who did.",
             "A parking garage roof counts.",
+            "Photograph the steam and the paper bags.",
+            "Capture the light on the table.",
+            "Snap the menu board.",
         ] {
             #expect(!IdeaGuard.isSafeText(line), "\(line)")
         }
     }
 
+    @Test func businessLinesMayNotAssumeMealsHoursCountersOrMenus() {
+        for line in ["Have breakfast at the counter at Chicken Salad Chick.", "Photograph the mug, not the plate.",
+                     "Order the special.", "See whether it is open late tonight.", "The bread comes out around now. Be first in line."] {
+            #expect(!IdeaGuard.makesNoBusinessClaims(line), "\(line)")
+        }
+        #expect(IdeaGuard.makesNoBusinessClaims("Try Chicken Salad Chick."))
+    }
+
+    @Test func aPlacesKindComesFromAppleNotFromOurSearchWords() {
+        // A restaurant found by a search for ice cream is a restaurant, and gets restaurant lines.
+        #expect(NearbyIdeas.Theme.confirm(searchedFor: .iceCream, category: .restaurant, name: "Chicken Salad Chick") == .restaurant)
+        #expect(NearbyIdeas.Theme.confirm(searchedFor: .iceCream, category: .restaurant, name: "Jeni's Splendid Ice Creams") == .iceCream)
+        // A shop that is not plainly a record shop is not used for record lines.
+        #expect(NearbyIdeas.Theme.confirm(searchedFor: .recordStore, category: .store, name: "Guitar Center") == nil)
+        // No category, no idea; landmarks are never used.
+        #expect(NearbyIdeas.Theme.confirm(searchedFor: .park, category: nil, name: "Somewhere") == nil)
+        #expect(NearbyIdeas.Theme.confirm(searchedFor: .museum, category: .landmark, name: "Monument Circle") == nil)
+        #expect(NearbyIdeas.Theme.confirm(searchedFor: .viewpoint, category: .park, name: "Riverside Overlook") == .viewpoint)
+    }
+
     @Test func ordinaryLinesPass() {
         for line in [
-            "Photograph the steam and the paper bags.",
-            "Start with the staff picks shelf. Photograph the handwritten cards.",
+            "Take a photo of the steam.",
+            "Take photos as the color changes.",
+            "Take a photograph of the view.",
+            "Snap a pic of it before you hand it over.",
             "Watch the sunset from somewhere high.",
         ] {
             #expect(IdeaGuard.isSafeText(line), "\(line)")
@@ -67,10 +92,16 @@ struct IdeaGuardTests {
                         #expect(IdeaGuard.isSafeText(line.text.replacingOccurrences(of: "{name}", with: name)), "\(theme)/\(slot): \(line.text)")
                         #expect(IdeaGuard.isSafeText(line.reason.replacingOccurrences(of: "{name}", with: name)), "\(theme)/\(slot): \(line.reason)")
                     }
+                    if theme.isBusiness {
+                        #expect(IdeaGuard.makesNoBusinessClaims(line.text), "\(theme)/\(slot) claims: \(line.text)")
+                        #expect(IdeaGuard.makesNoBusinessClaims(line.reason), "\(theme)/\(slot) claims: \(line.reason)")
+                    }
                 }
             }
         }
         for (theme, line) in NearbyIdeas.rainLines {
+            #expect(IdeaGuard.makesNoBusinessClaims(line.text) || !theme.isBusiness, "\(theme) rain claims: \(line.text)")
+            #expect(IdeaGuard.makesNoBusinessClaims(line.reason) || !theme.isBusiness, "\(theme) rain claims: \(line.reason)")
             for name in names {
                 #expect(IdeaGuard.isSafeText(line.text.replacingOccurrences(of: "{name}", with: name)), "\(theme) rain: \(line.text)")
                 #expect(IdeaGuard.isSafeText(line.reason.replacingOccurrences(of: "{name}", with: name)), "\(theme) rain: \(line.reason)")

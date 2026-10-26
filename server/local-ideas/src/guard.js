@@ -13,6 +13,19 @@ export const BLOCKED_WORDS = new Set([
   'drug', 'drugs', 'weed', 'smoke', 'smoking', 'vape',
   'trespass', 'trespassing', 'sneak', 'dare', 'cliff', 'cliffs', 'tracks', 'rooftop', 'roof',
   'memorial', 'cemetery', 'grave', 'graves', 'funeral', 'hospital', 'prison', 'jail',
+  'capture', 'captures', 'capturing', 'photograph', 'photographs', 'photographing', 'photographed',
+  'snap', 'snaps', 'snapping',
+]);
+
+/** The only ways an idea may ask for a picture; removed before the word check. */
+export const APPROVED_PHOTO_PHRASES = ['take a photograph', 'take photographs', 'snap a pic'];
+
+/** Words a line about a business may not use: it might not have the thing, or not be open. */
+export const BUSINESS_CLAIM_WORDS = new Set([
+  'breakfast', 'brunch', 'lunch', 'dinner', 'supper', 'counter', 'counters', 'mug', 'mugs', 'menu',
+  'menus', 'special', 'specials', 'booth', 'booths', 'window', 'windows', 'patio', 'closing',
+  'closes', 'close', 'open', 'opens', 'opening', 'late', 'tonight', 'early', 'warm', 'fresh', 'hot',
+  'line', 'queue', 'staff', 'barista', 'chef', 'owner', 'famous', 'known', 'best', 'favorite',
 ]);
 
 export const BLOCKED_PHRASES = [
@@ -44,9 +57,15 @@ export function words(text) {
 }
 
 export function isSafeText(text) {
-  const lower = text.toLowerCase();
+  let lower = text.toLowerCase();
   if (BLOCKED_PHRASES.some((p) => lower.includes(p))) return false;
+  for (const phrase of APPROVED_PHOTO_PHRASES) lower = lower.replaceAll(phrase, ' ');
   for (const w of words(lower)) if (BLOCKED_WORDS.has(w)) return false;
+  return true;
+}
+
+export function makesNoBusinessClaims(text) {
+  for (const w of words(text)) if (BUSINESS_CLAIM_WORDS.has(w)) return false;
   return true;
 }
 
