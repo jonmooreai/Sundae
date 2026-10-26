@@ -240,7 +240,7 @@ struct WidgetPhoto: View {
     }
 }
 
-/// The cherry from the app icon.
+/// The felt cherry from the app icon.
 struct CherryArt: View {
     var size: CGFloat = 22
 
@@ -254,7 +254,7 @@ struct CherryArt: View {
     }
 }
 
-/// The whipped cream and cherry from the app icon, filling its space, cherry kept in view.
+/// The felt sundae from the app icon, filling its space from the bottom up, cherry kept in view.
 struct SundaeArt: View {
     var body: some View {
         Color.clear

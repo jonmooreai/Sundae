@@ -3,7 +3,8 @@ import PhotosUI
 import SwiftUI
 import PhosphorSwift
 
-/// Five short steps on cream paper: what Sundae is, sign in, who you are, ideas near you, bring your group.
+/// The felt sundae full screen, then five short steps on cream paper: what Sundae is, sign in, who
+/// you are, ideas near you, bring your group.
 /// Every step says plainly what happens next; nothing is sent to anyone without a tap that
 /// says so. Sign in with Apple is primary; phone is the labeled fallback, folded away.
 struct OnboardingView: View {
@@ -13,6 +14,7 @@ struct OnboardingView: View {
 
     private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, friends }
 
+    @State private var showsIntro = true
     @State private var step: Step = .welcome
     @State private var pendingMethod: SignInMethod?
     /// The nonce for the Sign in with Apple attempt in progress. Apple only ever sees its hash.
@@ -36,6 +38,21 @@ struct OnboardingView: View {
     }
 
     var body: some View {
+        Group {
+            if showsIntro {
+                OnboardingIntro {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) { showsIntro = false }
+                }
+                .transition(.opacity)
+            } else {
+                steps.transition(.opacity)
+            }
+        }
+        .filmGrain()
+        .sheet(isPresented: $showPrivacy) { PrivacySheet() }
+    }
+
+    private var steps: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             VStack(spacing: 0) {
@@ -64,8 +81,6 @@ struct OnboardingView: View {
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: step)
         }
-        .filmGrain()
-        .sheet(isPresented: $showPrivacy) { PrivacySheet() }
     }
 
     // MARK: Chrome
@@ -110,7 +125,7 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 28) {
-            SundaeMark(size: 96)
+            CherryMark(size: 96)
                 .wobbleOnTap()
                 .padding(.top, 24)
             VStack(alignment: .leading, spacing: 10) {
