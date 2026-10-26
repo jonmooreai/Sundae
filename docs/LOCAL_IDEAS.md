@@ -54,7 +54,14 @@ dropped and a catalog idea takes its place.
 2. On the weekday screen, `LocalIdeasStore.refresh` checks: on, not Sunday, nothing fresh for today.
 3. It asks Core Location for one fix, reduces it to a cell, and discards the fix.
 4. It asks `GET v1/ideas/local?cell=<cell>&day=<YYYY-MM-DD>` with no token.
-5. It stores the day's ideas in app defaults and hands them to `WeekdayStore`, which swaps a
+5. On an iPhone with Apple Intelligence, `IdeaWriter` asks Apple's on-device model to reword
+   each idea, this part of the day first, for at most six seconds. The model is told only what
+   is true (the place's name and kind, the part of the day, the walk, the rain) and only
+   rewords. A rewrite is kept only if it names the place, still asks for a photo in the house
+   words, passes `IdeaGuard` and the business rule, and uses no number it was not given;
+   otherwise the hand-written line stays. It is free, offline, and nothing leaves the phone.
+   Phones without the model keep the hand-written lines.
+6. It stores the day's ideas in app defaults and hands them to `WeekdayStore`, which swaps a
    nearby idea in for the automatic catalog pick (never over something the user shuffled to or
    finished). The widget shows the same idea.
 

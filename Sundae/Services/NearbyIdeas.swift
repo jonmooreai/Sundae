@@ -95,6 +95,12 @@ enum NearbyIdeas {
         let reason: String
     }
 
+    /// An idea and the kind of place it is about.
+    private struct Pick {
+        let suggestion: Suggestion
+        let theme: Theme
+    }
+
     enum Failure: Error {
         case badCell
     }
@@ -118,7 +124,36 @@ enum NearbyIdeas {
             return all
         }
         let wet = await sky == .wet
-        return pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar, wet: wet)
+        let picks = pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar, wet: wet)
+        return await reword(picks, wet: wet, first: Suggestion.TimeOfDay.current(for: day, calendar: calendar))
+    }
+
+    /// How long the on-device model may take over the day's wording before the rest keep their
+    /// hand-written lines. The ideas wait for it, so it stays short.
+    static let rewordBudget: Duration = .seconds(6)
+
+    /// The day's ideas in fresh words, where the phone has Apple's on-device model (IdeaWriter):
+    /// this part of the day first, then the rest, within the budget. The rest keep their lines.
+    private static func reword(_ picks: [Pick], wet: Bool, first slot: Suggestion.TimeOfDay) async -> [Suggestion] {
+        var ideas = picks.map(\.suggestion)
+        guard IdeaWriter.isAvailable else { return ideas }
+        let deadline = ContinuousClock.now + rewordBudget
+        let order = ideas.indices.sorted {
+            (ideas[$0].timeOfDay == slot ? 0 : 1, $0) < (ideas[$1].timeOfDay == slot ? 0 : 1, $1)
+        }
+        for index in order {
+            guard ContinuousClock.now < deadline else { break }
+            let idea = ideas[index]
+            let theme = picks[index].theme
+            guard let place = idea.place else { continue }
+            let brief = IdeaWriter.Brief(place: place.name, kind: theme.query, isBusiness: theme.isBusiness,
+                                         timeOfDay: idea.timeOfDay, walkMinutes: place.walkMinutes, isRaining: wet,
+                                         text: idea.text, reason: idea.reason)
+            guard let wording = await IdeaWriter.reword(brief) else { continue }
+            ideas[index] = Suggestion(id: idea.id, text: wording.text, reason: wording.reason,
+                                      categories: idea.categories, timeOfDay: idea.timeOfDay, place: idea.place)
+        }
+        return ideas
     }
 
     // MARK: - Maps
@@ -153,7 +188,7 @@ enum NearbyIdeas {
     private static let indoor: Set<Theme> = [.cafe, .bakery, .restaurant, .market, .library, .museum, .gallery, .bookstore, .recordStore, .iceCream]
 
     private static func pick(from places: [Place], origin: (latitude: Double, longitude: Double),
-                             cell: String, day: Date, calendar: Calendar, wet: Bool = false) -> [Suggestion] {
+                             cell: String, day: Date, calendar: Calendar, wet: Bool = false) -> [Pick] {
         let parts = calendar.dateComponents([.year, .month, .day], from: day)
         let dayString = String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
         var random = SeededRandom(seed: "\(cell):\(dayString)")
@@ -165,7 +200,7 @@ enum NearbyIdeas {
 
         var usedPlaces = Set<String>()
         var usedThemes = Set<Theme>()
-        var ideas: [Suggestion] = []
+        var ideas: [Pick] = []
         let slots: [Suggestion.TimeOfDay] = [.morning, .afternoon, .evening]
         // Eight ideas: three for the parts of the day, five more so Shuffle has somewhere to go.
         for index in 0..<8 {
@@ -191,7 +226,7 @@ enum NearbyIdeas {
                !IdeaGuard.makesNoBusinessClaims(line.text) || !IdeaGuard.makesNoBusinessClaims(line.reason) { continue }
             usedPlaces.insert(choice.place.id)
             usedThemes.insert(choice.place.theme)
-            ideas.append(Suggestion(
+            ideas.append(Pick(suggestion: Suggestion(
                 // The day and a slot. Never the cell: this id travels with the account when marked done.
                 id: "\(Suggestion.nearbyPrefix)\(dayString):\(index)",
                 text: line.text.replacingOccurrences(of: "{name}", with: choice.place.name),
@@ -200,9 +235,10 @@ enum NearbyIdeas {
                 place: Suggestion.Place(name: choice.place.name,
                                         walkMinutes: choice.meters <= walkMeters ? max(1, Int((choice.meters / walkPace).rounded())) : nil,
                                         distanceMeters: choice.meters,
-                                        latitude: choice.place.latitude, longitude: choice.place.longitude)))
+                                        latitude: choice.place.latitude, longitude: choice.place.longitude)),
+                theme: choice.place.theme))
         }
-        return IdeaGuard.filter(ideas)
+        return ideas.filter { IdeaGuard.isSafe($0.suggestion) }
     }
 
     /// One line per roofed place for a rainy day, used about half the time it rains.
