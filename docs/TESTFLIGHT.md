@@ -75,7 +75,8 @@ already in TestFlight keep working.
 
 ## What the build contains
 
-Without a server, the app runs on its built-in demo data. Onboarding offers "Continue in demo
+Without a server, the app runs on its built-in demo data; docs/SERVER.md puts the real one
+online. Onboarding offers "Continue in demo
 mode", and Settings has a Demo section with "Pretend it's Sunday" so you can see every screen on
 any day of the week.
 

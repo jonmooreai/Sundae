@@ -1,0 +1,10 @@
+{
+  "name": "sundae-api",
+  "private": true,
+  "type": "module",
+  "description": "Sundae's server: one Cloudflare Worker and one D1 database, on the free plan.",
+  "scripts": {
+    "test": "node --test --no-warnings",
+    "deploy": "npx wrangler deploy"
+  }
+}

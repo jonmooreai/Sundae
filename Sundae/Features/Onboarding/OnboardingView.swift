@@ -186,39 +186,43 @@ struct OnboardingView: View {
                 }
             }
 
-            if showPhone {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Phone number")
-                        .font(.subheadline.weight(.medium))
-                    Text("A text with a code is the least secure way in. It is here for people without an Apple ID on a shared device.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    if codeSent {
-                        field("6-digit code", text: $code)
-                            .keyboardType(.numberPad)
-                            .textContentType(.oneTimeCode)
-                        Button("Continue") {
-                            pendingMethod = .phone(number: phone, code: code)
-                            step = .profile
-                        }
-                        .buttonStyle(.pill(.secondary, size: .small))
-                        .disabled(code.count != 6)
-                    } else {
-                        field("Phone number", text: $phone)
-                            .keyboardType(.phonePad)
-                            .textContentType(.telephoneNumber)
-                        Button("Text me a code") { codeSent = true }
+            // Phone sign-in is demo only: the server signs people in with Apple, so there is no
+            // SMS to pay for (docs/SERVER.md).
+            if model.isUsingMock {
+                if showPhone {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Phone number")
+                            .font(.subheadline.weight(.medium))
+                        Text("A text with a code is the least secure way in. It is here for people without an Apple ID on a shared device.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if codeSent {
+                            field("6-digit code", text: $code)
+                                .keyboardType(.numberPad)
+                                .textContentType(.oneTimeCode)
+                            Button("Continue") {
+                                pendingMethod = .phone(number: phone, code: code)
+                                step = .profile
+                            }
                             .buttonStyle(.pill(.secondary, size: .small))
-                            .disabled(phone.filter(\.isNumber).count < 10)
+                            .disabled(code.count != 6)
+                        } else {
+                            field("Phone number", text: $phone)
+                                .keyboardType(.phonePad)
+                                .textContentType(.telephoneNumber)
+                            Button("Text me a code") { codeSent = true }
+                                .buttonStyle(.pill(.secondary, size: .small))
+                                .disabled(phone.filter(\.isNumber).count < 10)
+                        }
                     }
+                    .padding(.top, 4)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                } else {
+                    Button("Use a phone number instead") {
+                        withAnimation(.snappy(duration: 0.3)) { showPhone = true }
+                    }
+                    .buttonStyle(.pill(.quiet, fullWidth: true))
                 }
-                .padding(.top, 4)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            } else {
-                Button("Use a phone number instead") {
-                    withAnimation(.snappy(duration: 0.3)) { showPhone = true }
-                }
-                .buttonStyle(.pill(.quiet, fullWidth: true))
             }
 
             if let error {

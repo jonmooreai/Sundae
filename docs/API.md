@@ -8,8 +8,8 @@ authority for every rule in the PRD; the client only decides what to draw.
 - Base URL from `SUNDAE_API_BASE_URL`; all paths below are relative and start with `v1/`.
 - JSON, snake_case keys. Timestamps are ISO 8601 with fractional seconds, UTC.
 - `week_start` is a plain `YYYY-MM-DD` date (the Monday) in the user's stored time zone.
-- Errors: `{"error": {"code": "sunday_closed", "message": "..."}}` with the HTTP status. Codes the client maps: `sunday_closed`, `dump_locked`, `too_many_photos`, `too_many_tags`, `caption_too_long`, `invalid_code`, `not_found`, `forbidden`. Anything else falls back on the status.
-- Auth: `Authorization: Bearer <access_token>`. Access tokens last 15 minutes; refresh tokens 30 days, rotated on every use, family revoked on reuse. The client refreshes once on expiry or 401 and signs out locally if the refresh is rejected.
+- Errors: `{"error": {"code": "sunday_closed", "message": "..."}}` with the HTTP status. Codes the client maps: `sunday_closed`, `dump_locked`, `too_many_photos`, `too_many_tags`, `caption_too_long`, `invalid_code`, `not_found`, `forbidden`. Anything else (`too_many_uploads`, 429, among them) falls back on the status.
+- Auth: `Authorization: Bearer <access_token>`. Access tokens last 15 minutes; refresh tokens 30 days, rotated on every use, family revoked on reuse more than a minute later (a retry within the minute, after a lost reply, gets a fresh pair). The client refreshes once on expiry or 401 and signs out locally if the refresh is rejected.
 - Photo URLs in responses are signed, bound to the requesting account, and expire in 10 minutes.
 - Every write is checked against the user's stored time zone and server time. Tag approvals and settings are exempt from the Sunday gate; everything under "Sunday only" returns `sunday_closed` (HTTP 423) off-Sunday.
 
@@ -76,11 +76,11 @@ Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challe
 }
 ```
 
-Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each a mutual follow of the caller, else `too_many_tags` / dropped. Caption up to 300 characters. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
+Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
 
 ### Uploads
 
-`POST uploads` with `{content_type, byte_size, width, height}` returns `{upload_id, url, headers?, expires_at}`: a single-use pre-signed PUT for one object of that size and type. The client has already re-encoded to a 2048 px JPEG with metadata stripped; the server strips again and runs hash matching and the nudity model before the photo becomes visible.
+`POST uploads` with `{content_type, byte_size, width, height}` returns `{upload_id, url, headers?, expires_at}`: a single-use pre-signed PUT for one object of that size and type. The client has already re-encoded to a 2048 px JPEG with metadata stripped; the server strips EXIF, XMP, IPTC and comments again. Up to 10 MB a photo and 150 tickets a person a day. The friends-and-family server (`server/api`, docs/SERVER.md) stops there; a public launch adds hash matching and the nudity model before a photo becomes visible.
 
 ## Contacts matching (opt in)
 
