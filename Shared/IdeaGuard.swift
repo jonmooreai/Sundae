@@ -4,9 +4,12 @@ import Foundation
 /// Apple Maps, from the demo backend or from a server, passes through here before it reaches a
 /// screen or a widget. When in doubt it says no, and the app falls back to a catalog idea.
 ///
-/// Two checks:
+/// Three checks:
 /// - the words: nothing violent, nothing aimed at strangers, kids or staff, no alcohol or
-///   drugs, nothing risky. "Photograph" is the only verb for taking a picture.
+///   drugs, nothing risky. Taking a picture is only ever "take a photo", "take photos",
+///   "take a photograph" or "snap a pic"; "shoot", "capture" or a bare "photograph" fail.
+/// - business lines: nothing a place of that kind might not have. No meals, hours, counters,
+///   menus, mugs or seating; the copy only says what any café, bakery or shop does.
 /// - the place: no memorials, cemeteries, places of worship, hospitals, schools, prisons,
 ///   police or military sites. A playful idea at a solemn place is wrong however it is worded.
 public enum IdeaGuard {
@@ -27,6 +30,24 @@ public enum IdeaGuard {
         "trespass", "trespassing", "sneak", "dare", "cliff", "cliffs", "tracks", "rooftop", "roof",
         // Solemn places, in case one is named in the copy itself.
         "memorial", "cemetery", "grave", "graves", "funeral", "hospital", "prison", "jail",
+        // Any other way of asking for a picture.
+        "capture", "captures", "capturing", "photograph", "photographs", "photographing", "photographed",
+        "snap", "snaps", "snapping",
+    ]
+
+    /// The only ways an idea may ask for a picture. Removed before the word check, so the words
+    /// in them do not trip it; anywhere else those words fail.
+    static let approvedPhotoPhrases: [String] = [
+        "take a photograph", "take photographs", "snap a pic",
+    ]
+
+    /// Words a line about a business may not use, because a place of that kind might not have
+    /// the thing: a meal, a time, a counter, a menu, a seat by the window.
+    static let businessClaimWords: Set<String> = [
+        "breakfast", "brunch", "lunch", "dinner", "supper", "counter", "counters", "mug", "mugs", "menu",
+        "menus", "special", "specials", "booth", "booths", "window", "windows", "patio", "closing",
+        "closes", "close", "open", "opens", "opening", "late", "tonight", "early", "warm", "fresh", "hot",
+        "line", "queue", "staff", "barista", "chef", "owner", "famous", "known", "best", "favorite",
     ]
 
     /// Phrases checked as plain substrings, for things single words miss.
@@ -61,9 +82,16 @@ public enum IdeaGuard {
     }
 
     public static func isSafeText(_ text: String) -> Bool {
-        let lower = text.lowercased()
+        var lower = text.lowercased()
         if blockedPhrases.contains(where: { lower.contains($0) }) { return false }
+        for phrase in approvedPhotoPhrases { lower = lower.replacingOccurrences(of: phrase, with: " ") }
         return words(in: lower).isDisjoint(with: blockedWords)
+    }
+
+    /// For lines about a café, a shop, a restaurant: true when nothing in them assumes what the
+    /// place has or when it is open.
+    public static func makesNoBusinessClaims(_ text: String) -> Bool {
+        words(in: text.lowercased()).isDisjoint(with: businessClaimWords)
     }
 
     public static func isSafePlace(named name: String) -> Bool {

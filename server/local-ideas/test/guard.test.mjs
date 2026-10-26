@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { BLOCKED_PHRASES, BLOCKED_WORDS, SENSITIVE_PLACE_WORDS, isSafePlace, isSafeText } from '../src/guard.js';
-import { THEMES, generate } from '../src/ideas.js';
+import { APPROVED_PHOTO_PHRASES, BLOCKED_PHRASES, BLOCKED_WORDS, BUSINESS_CLAIM_WORDS, SENSITIVE_PLACE_WORDS, isSafePlace, isSafeText, makesNoBusinessClaims } from '../src/guard.js';
+import { BUSINESSES, THEMES, generate } from '../src/ideas.js';
 import { center } from '../src/geohash.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -18,15 +18,28 @@ test('the lines that must never appear are refused', () => {
     'Order what the person ahead of you ordered.',
     'Catch the last light. Bring someone, or shoot the people who did.',
     'A parking garage roof counts.',
+    'Photograph the steam and the paper bags.',
+    'Capture the light on the table.',
+    'Snap the menu board.',
   ]) {
     assert.equal(isSafeText(line), false, line);
   }
 });
 
+test('business lines may not assume meals, hours, counters or menus', () => {
+  for (const line of ['Have breakfast at the counter at Chicken Salad Chick.', 'Photograph the mug, not the plate.',
+    'Order the special.', 'See whether it is open late tonight.', 'The bread comes out around now. Be first in line.']) {
+    assert.equal(makesNoBusinessClaims(line), false, line);
+  }
+  assert.equal(makesNoBusinessClaims('Try Chicken Salad Chick.'), true);
+});
+
 test('ordinary lines pass', () => {
   for (const line of [
-    'Photograph the steam and the paper bags.',
-    'Start with the staff picks shelf. Photograph the handwritten cards.',
+    'Take a photo of the steam.',
+    'Take photos as the color changes.',
+    'Take a photograph of the view.',
+    'Snap a pic of it before you hand it over.',
     'Watch the sunset from somewhere high.',
   ]) {
     assert.equal(isSafeText(line), true, line);
@@ -50,6 +63,7 @@ test('every line the server can write passes, whatever the place is called', () 
         for (const name of ['Tartine', 'The Corner Spot', 'Riverside']) {
           for (const text of [line.text, line.reason]) {
             assert.equal(isSafeText(text.replaceAll('{name}', name)), true, `${category}/${slot}: ${text}`);
+            if (BUSINESSES.has(category)) assert.equal(makesNoBusinessClaims(text), true, `${category}/${slot} claims: ${text}`);
           }
         }
       }
@@ -80,4 +94,6 @@ test('the server and the app hold the same lists', () => {
   assert.deepEqual(new Set(list('blockedWords')), BLOCKED_WORDS);
   assert.deepEqual(list('blockedPhrases'), BLOCKED_PHRASES);
   assert.deepEqual(new Set(list('sensitivePlaceWords')), SENSITIVE_PLACE_WORDS);
+  assert.deepEqual(list('approvedPhotoPhrases'), APPROVED_PHOTO_PHRASES);
+  assert.deepEqual(new Set(list('businessClaimWords')), BUSINESS_CLAIM_WORDS);
 });

@@ -29,8 +29,13 @@ Every idea passes `IdeaGuard` (Swift, `Shared/IdeaGuard.swift`) or its exact cop
 (`server/local-ideas/src/guard.js`) before it is stored or shown, and again when it is read back:
 from Maps, from the demo backend, from a server, from the cache, from the bundled catalog.
 
-- No violent words, including ones that only read as violent out of context. "Photograph" is
-  the only verb for taking a picture; "shoot" and "shot" are refused outright.
+- No violent words, including ones that only read as violent out of context. Pictures are
+  always "take a photo", "take photos", "take a photograph" or "snap a pic"; "shoot", "shot",
+  "capture" and a bare "photograph" are refused outright.
+- Lines about a business say only what any place of its kind does. A place's kind comes from
+  Apple's own category, not from the words we searched with: a search for "ice cream" that
+  finds a restaurant gets restaurant lines, and anything we cannot vouch for is not used. No
+  meals, hours, counters, menus, mugs or seating, because a given place may not have them.
 - Cameras point at things, light and friends, never at strangers, staff, crowds or children.
 - No alcohol, drugs or smoking. Nothing risky: no roofs, tracks, cliffs, trespassing, dares, or
   walking until the phone loses signal.
