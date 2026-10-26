@@ -9,16 +9,22 @@ enum NotificationScheduler {
     private static let sundayID = "sunday.reminder"
     private static let lastCallID = "sunday.lastcall"
 
+    static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    /// Shows iOS's notification prompt if this phone has never answered it, and waits for the
+    /// answer. Asked only where the reason is on screen: onboarding, or a switch in Settings.
     static func requestAuthorizationIfNeeded() async {
         let center = UNUserNotificationCenter.current()
-        let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .notDetermined else { return }
+        guard await center.notificationSettings().authorizationStatus == .notDetermined else { return }
         _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
     }
 
     /// Weekly Sunday 9:00 am reminder, and Sunday 8:00 pm last call. Local time; the trigger
-    /// follows the device's zone automatically.
-    static func scheduleSundayReminders(reminder: Bool, lastCall: Bool) {
+    /// follows the device's zone automatically. `postedUntil` is the end of a week already posted:
+    /// no last call comes before it, so posting in the morning never earns one that evening.
+    static func scheduleSundayReminders(reminder: Bool, lastCall: Bool, postedUntil: Date? = nil) {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [sundayID, lastCallID])
 
@@ -41,9 +47,22 @@ enum NotificationScheduler {
             var components = DateComponents()
             components.weekday = 1
             components.hour = 20
-            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+            var trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
+            if let postedUntil, postedUntil > Date(),
+               let next = Calendar.current.nextDate(after: postedUntil, matching: components, matchingPolicy: .nextTime) {
+                // Just the Sunday after; the weekly one comes back the next time Sundae opens.
+                let once = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: next)
+                trigger = UNCalendarNotificationTrigger(dateMatching: once, repeats: false)
+            }
             center.add(UNNotificationRequest(identifier: lastCallID, content: content, trigger: trigger))
         }
+    }
+
+    /// Signed out: this phone stops reminding anyone until someone signs in again.
+    static func cancelAll() {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [sundayID, lastCallID])
+        center.removeDeliveredNotifications(withIdentifiers: [sundayID, lastCallID])
     }
 
     /// Once the dump is posted the last call for this Sunday is pointless. Remove the delivered

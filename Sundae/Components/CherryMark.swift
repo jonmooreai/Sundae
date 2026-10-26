@@ -1,3 +1,5 @@
+import CoreMotion
+import Observation
 import SwiftUI
 import PhosphorSwift
 
@@ -12,6 +14,60 @@ struct CherryMark: View {
             .scaledToFit()
             .frame(width: size, height: size)
             .accessibilityHidden(true)
+    }
+}
+
+/// The cherry on the weekday screen, leaning as the phone tilts, like a cherry sitting on a plate
+/// you are holding. Still with Reduce Motion on.
+struct TiltingCherry: View {
+    var size: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var tilt = DeviceTilt()
+
+    var body: some View {
+        let lean = reduceMotion ? 0 : tilt.lean
+        CherryMark(size: size)
+            .rotationEffect(.degrees(lean * 16), anchor: .bottom)
+            .offset(x: CGFloat(lean) * size * 0.14)
+            // A loose spring, so it settles with a little sway instead of tracking the sensor exactly.
+            .animation(.interpolatingSpring(stiffness: 120, damping: 9), value: lean)
+            .onAppear { update() }
+            .onDisappear { tilt.stop() }
+            .onChange(of: scenePhase) { _, _ in update() }
+            .onChange(of: reduceMotion) { _, _ in update() }
+    }
+
+    private func update() {
+        if scenePhase == .active, !reduceMotion { tilt.start() } else { tilt.stop() }
+    }
+}
+
+/// How far the phone leans left or right, from -1 to 1. Read from the motion sensors only while
+/// the cherry is on screen; it never leaves the phone, is never kept, and needs no permission.
+@MainActor
+@Observable
+final class DeviceTilt {
+    private(set) var lean: Double = 0
+    private let motion = CMMotionManager()
+
+    func start() {
+        guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
+        motion.deviceMotionUpdateInterval = 1 / 30
+        motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
+            guard let side = data?.gravity.x else { return }
+            MainActor.assumeIsolated { self?.follow(side) }
+        }
+    }
+
+    func stop() {
+        motion.stopDeviceMotionUpdates()
+    }
+
+    /// Smoothed, and only updated when it moves enough to see, so the screen redraws rarely.
+    private func follow(_ side: Double) {
+        let next = lean * 0.8 + max(-1, min(1, side)) * 0.2
+        if abs(next - lean) > 0.004 { lean = next }
     }
 }
 

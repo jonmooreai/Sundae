@@ -3,20 +3,25 @@ import PhotosUI
 import SwiftUI
 import PhosphorSwift
 
-/// The felt sundae full screen, then five short steps on cream paper: what Sundae is, sign in, who
-/// you are, ideas near you, bring your group.
+/// The felt sundae full screen, then short steps on cream paper: what Sundae is, sign in, who you
+/// are, ideas near you, Sunday reminders, bring your group.
+/// Someone signing back in skips the rest: their account comes back as it was, and only a question
+/// this phone has never had an answer to (location, notifications) is still asked.
 /// Every step says plainly what happens next; nothing is sent to anyone without a tap that
-/// says so. Sign in with Apple is primary; phone is the labeled fallback, folded away.
+/// says so. iOS's own prompts come straight after the yes that explains them.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, friends }
+    private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, reminders, friends }
 
     @State private var showsIntro = true
     @State private var step: Step = .welcome
-    @State private var pendingMethod: SignInMethod?
+    /// The steps this person goes through: all of them when new, fewer when signing back in.
+    @State private var route: [Step] = Step.allCases
+    /// From the server when this Apple ID has no account yet. It creates one, once.
+    @State private var signupTicket: String?
     /// The nonce for the Sign in with Apple attempt in progress. Apple only ever sees its hash.
     @State private var appleNonce = ""
     @State private var name = ""
@@ -32,6 +37,9 @@ struct OnboardingView: View {
     @State private var error: String?
     @State private var showPrivacy = false
     @State private var isWorking = false
+    /// This phone has been through these questions, whatever the answer, so signing back in skips them.
+    @AppStorage("onboarding.askedIdeas") private var askedIdeas = false
+    @AppStorage("onboarding.askedReminders") private var askedReminders = false
 
     private var isOldEnough: Bool {
         (Calendar.current.dateComponents([.year], from: birthday, to: Date()).year ?? 0) >= 16
@@ -64,6 +72,7 @@ struct OnboardingView: View {
                         case .signIn: signIn
                         case .profile: profile
                         case .ideas: ideas
+                        case .reminders: reminders
                         case .friends: friends
                         }
                     }
@@ -85,24 +94,27 @@ struct OnboardingView: View {
 
     // MARK: Chrome
 
-    /// Back on every step but the first, and four small dots that fill as you go.
+    /// Back where there is somewhere to go back to, and a small dot for each step.
     private var topBar: some View {
         HStack {
-            if step != .welcome {
-                IconButton(glyph: Glyph.back, label: "Back", size: 22) { goBack() }
+            if let previous = previousStep {
+                IconButton(glyph: Glyph.back, label: "Back", size: 22) {
+                    error = nil
+                    step = previous
+                }
             } else {
                 Color.clear.frame(width: 40, height: 40)
             }
             Spacer()
             HStack(spacing: 6) {
-                ForEach(Step.allCases, id: \.rawValue) { s in
+                ForEach(route, id: \.self) { s in
                     Capsule()
                         .fill(s.rawValue <= step.rawValue ? Color.accentColor : Theme.hairline)
                         .frame(width: s == step ? 18 : 6, height: 6)
                 }
             }
             .animation(.snappy(duration: 0.3), value: step)
-            .accessibilityLabel("Step \(step.rawValue + 1) of \(Step.allCases.count)")
+            .accessibilityLabel("Step \((route.firstIndex(of: step) ?? 0) + 1) of \(route.count)")
             Spacer()
             Color.clear.frame(width: 40, height: 40)
         }
@@ -110,14 +122,21 @@ struct OnboardingView: View {
         .padding(.top, 8)
     }
 
-    private func goBack() {
+    /// Where Back goes. Once there is an account, signing in and choosing a username are done.
+    private var previousStep: Step? {
+        guard let index = route.firstIndex(of: step), index > 0 else { return nil }
+        let previous = route[index - 1]
+        if model.isSignedIn, previous.rawValue <= Step.profile.rawValue { return nil }
+        return previous
+    }
+
+    /// On to the next step, or into the app after the last one.
+    private func next() {
         error = nil
-        switch step {
-        case .welcome: break
-        case .signIn: step = .welcome
-        case .profile: step = .signIn
-        case .ideas: step = .profile
-        case .friends: step = .ideas
+        if let index = route.firstIndex(of: step), index + 1 < route.count {
+            step = route[index + 1]
+        } else {
+            model.finishOnboarding()
         }
     }
 
@@ -178,21 +197,28 @@ struct OnboardingView: View {
                     let fullName = [credential?.fullName?.givenName, credential?.fullName?.familyName]
                         .compactMap { $0 }.joined(separator: " ")
                     if !fullName.isEmpty { name = fullName }
-                    pendingMethod = .apple(identityToken: token, fullName: fullName.isEmpty ? nil : fullName, nonce: appleNonce)
-                    step = .profile
+                    let method = SignInMethod.apple(identityToken: token, fullName: fullName.isEmpty ? nil : fullName, nonce: appleNonce)
+                    Task { await continueSignIn(method) }
                 case .failure(let err):
-                    error = err.localizedDescription
+                    // Closing Apple's sheet is a change of mind, not a problem to report.
+                    if (err as? ASAuthorizationError)?.code != .canceled { error = err.localizedDescription }
                 }
             }
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 50)
             .clipShape(Capsule())
+            .disabled(isWorking)
+            .opacity(isWorking ? 0.5 : 1)
+
+            if isWorking {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            }
 
             if model.isUsingMock {
                 VStack(spacing: 6) {
                     Button("Continue in demo mode") {
-                        pendingMethod = .demo
-                        step = .profile
+                        Task { await continueSignIn(.demo) }
                     }
                     .buttonStyle(.pill(.secondary, fullWidth: true))
                     Text("No server yet: this build runs on built-in demo data.")
@@ -216,8 +242,7 @@ struct OnboardingView: View {
                                 .keyboardType(.numberPad)
                                 .textContentType(.oneTimeCode)
                             Button("Continue") {
-                                pendingMethod = .phone(number: phone, code: code)
-                                step = .profile
+                                Task { await continueSignIn(.phone(number: phone, code: code)) }
                             }
                             .buttonStyle(.pill(.secondary, size: .small))
                             .disabled(code.count != 6)
@@ -305,15 +330,23 @@ struct OnboardingView: View {
                  : "Sundae is for people 16 and up.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
-            PrimaryButton(title: "Continue",
-                          isEnabled: isOldEnough && username.trimmingCharacters(in: .whitespaces).count >= 2) {
-                step = .ideas
+            PrimaryButton(title: "Continue", isLoading: isWorking,
+                          isEnabled: isOldEnough && chosenUsername.count >= 2) {
+                Task { await createAccount() }
+            }
+
+            if let error {
+                Text(error).font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
 
-    /// The one permission about place, explained before iOS is involved. Agreeing here turns it
-    /// on; iOS itself asks on the first weekday look. Saying no changes nothing and costs nothing.
+    private var chosenUsername: String {
+        username.lowercased().trimmingCharacters(in: .whitespaces)
+    }
+
+    /// The one permission about place, explained before iOS is involved. Agreeing turns it on and
+    /// iOS asks straight away. Saying no changes nothing and costs nothing.
     private var ideas: some View {
         VStack(alignment: .leading, spacing: 20) {
             heading("Ideas near you?", "Monday to Saturday, Sundae gives you one thing worth doing. With your location, it can be one thing nearby, or one worth the drive.")
@@ -327,13 +360,53 @@ struct OnboardingView: View {
                          "Never on your photos, never shown to friends, never saved. Turn it off any time in Settings.", index: 2)
             }
 
-            PrimaryButton(title: "Use my location on weekdays") {
-                model.localIdeas.enable()
-                step = .friends
+            VStack(spacing: 10) {
+                PrimaryButton(title: "Use my location on weekdays") {
+                    askedIdeas = true
+                    // iOS asks now, over the next step. While Using the App is all it needs.
+                    model.localIdeas.enable()
+                    next()
+                }
+                Text("iOS asks next. While Using the App is all Sundae needs.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
             .padding(.top, 8)
-            Button("Not now") { step = .friends }
-                .buttonStyle(.pill(.quiet, fullWidth: true))
+            Button("Not now") {
+                askedIdeas = true
+                next()
+            }
+            .buttonStyle(.pill(.quiet, fullWidth: true))
+        }
+    }
+
+    /// Sundae opens once a week, so a nudge on Sunday is the one notification worth having. Asked
+    /// here with the reason beside it; iOS's prompt comes after the yes. No changes nothing.
+    private var reminders: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            heading("Sunday reminders?", "Sundae opens once a week, so a nudge helps. It sends two, and only on Sunday.")
+
+            VStack(alignment: .leading, spacing: 16) {
+                valueRow(Glyph.bell, "Sunday, 9:00 am", "Sunday is here. Time to post your week.", index: 0)
+                valueRow(Glyph.moon, "Sunday, 8:00 pm", "A last call, only if you haven't posted. Your week closes at midnight.", index: 1)
+                valueRow(Glyph.block, "Nothing midweek", "No nudges the rest of the week. Change either one any time in Settings.", index: 2)
+            }
+
+            VStack(spacing: 10) {
+                PrimaryButton(title: "Remind me on Sundays", isLoading: isWorking) {
+                    Task { await allowReminders() }
+                }
+                Text("iOS asks next.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.top, 8)
+            Button("Not now") {
+                askedReminders = true
+                next()
+            }
+            .buttonStyle(.pill(.quiet, fullWidth: true))
+            .disabled(isWorking)
         }
     }
 
@@ -354,21 +427,8 @@ struct OnboardingView: View {
                 }
             }
 
-            Button {
-                Task { await finishSignIn() }
-            } label: {
-                ZStack {
-                    Text("Open Sundae").opacity(isWorking ? 0 : 1)
-                    if isWorking { ProgressView().tint(.white) }
-                }
-            }
-            .buttonStyle(.pill(.primary, fullWidth: true))
-            .disabled(isWorking)
-            .padding(.top, 8)
-
-            if let error {
-                Text(error).font(.footnote).foregroundStyle(.secondary)
-            }
+            PrimaryButton(title: "Open Sundae") { next() }
+                .padding(.top, 8)
         }
     }
 
@@ -421,21 +481,75 @@ struct OnboardingView: View {
         avatarImage = image
     }
 
-    /// Signs in, then applies the photo.
-    /// Once the model flips `isSignedIn`, RootView moves on to the app.
-    private func finishSignIn() async {
-        guard let method = pendingMethod else { return }
+    /// Straight after Apple. Someone coming back is in, with only the questions this phone has never
+    /// had an answer to still to come. Someone new goes on to choose a username.
+    private func continueSignIn(_ method: SignInMethod) async {
+        guard !isWorking else { return }
         isWorking = true
         defer { isWorking = false }
+        error = nil
         do {
-            try await model.signIn(method, username: username.lowercased().trimmingCharacters(in: .whitespaces),
-                                   name: name.trimmingCharacters(in: .whitespaces))
+            let unasked = await unaskedSteps()
+            if let ticket = try await model.signIn(method, keepOnboarding: !unasked.isEmpty) {
+                signupTicket = ticket
+                route = Step.allCases
+                step = .profile
+            } else if let first = unasked.first {
+                route = [.welcome, .signIn] + unasked
+                step = first
+            }
+            // Otherwise RootView has already moved on to the app.
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// For someone coming back: the permission steps this phone has never been through.
+    private func unaskedSteps() async -> [Step] {
+        var steps: [Step] = []
+        if !askedIdeas, LocationCell.authorization == .notDetermined { steps.append(.ideas) }
+        if !askedReminders, await NotificationScheduler.authorizationStatus() == .notDetermined { steps.append(.reminders) }
+        return steps
+    }
+
+    /// Creates the account with the username they chose, then sends the photo.
+    private func createAccount() async {
+        guard !isWorking else { return }
+        guard let ticket = signupTicket else {
+            step = .signIn
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        error = nil
+        let chosenName = name.trimmingCharacters(in: .whitespaces)
+        do {
+            try await model.createAccount(ticket: ticket, username: chosenUsername, name: chosenName.isEmpty ? nil : chosenName)
+            signupTicket = nil
             MomentMemory.birthdayMonthDay = MomentMemory.monthDay(birthday, calendar: Calendar.current)
             if let avatarData {
                 try? await model.updateAvatar(avatarData)
             }
+            next()
+        } catch SundaeError.notAuthorized, SundaeError.signInAgain {
+            // The ticket ran out, or the account was made already. Apple once more sorts out both.
+            signupTicket = nil
+            step = .signIn
+            self.error = SundaeError.signInAgain.localizedDescription
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// iOS's notification prompt, then the reminders, then on. Whatever the answer, Settings can
+    /// change it later.
+    private func allowReminders() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        askedReminders = true
+        await NotificationScheduler.requestAuthorizationIfNeeded()
+        model.scheduleReminders()
+        next()
     }
 }

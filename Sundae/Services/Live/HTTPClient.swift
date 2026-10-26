@@ -150,6 +150,10 @@ actor HTTPClient {
             case "invalid_code": return SundaeError.invalidCode
             case "not_found": return SundaeError.notFound
             case "forbidden": return SundaeError.notAuthorized
+            case "username_taken": return SundaeError.usernameTaken
+            case "invalid_username": return SundaeError.invalidUsername
+            case "signups_closed": return SundaeError.signupsClosed
+            case "account_exists": return SundaeError.signInAgain
             default: break
             }
         }

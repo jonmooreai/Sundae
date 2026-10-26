@@ -76,7 +76,7 @@ struct WeekdayView: View {
             Color.clear.frame(width: 40, height: 40)
 
             Spacer()
-            CherryMark(size: 34).wobbleOnTap()
+            TiltingCherry(size: 64).wobbleOnTap()
             Spacer()
 
             IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }

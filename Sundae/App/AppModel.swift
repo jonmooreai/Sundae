@@ -48,6 +48,9 @@ final class AppModel {
         didSet { if !canChangeDay, debugDay != .real { setDebugDay(.real) } }
     }
     private(set) var isRestoringSession = true
+    /// Signed in, with onboarding's last steps (ideas near you, reminders, friends) still to go.
+    /// RootView keeps onboarding up until they are done.
+    private(set) var isFinishingOnboarding = false
     private(set) var pendingApprovalCount = 0
     private(set) var accountSettings = AccountSettings()
     private(set) var appearance: Appearance
@@ -132,7 +135,8 @@ final class AppModel {
             UserDefaults.standard.removeObject(forKey: "sundayPrompt.dismissedWeekStart")
         }
         if arguments.contains("-uiTestSignedIn"), isUsingMock {
-            try? await signIn(.demo, username: "jon", name: "Jon")
+            try? await createAccount(ticket: "mock-signup-ticket", username: "jon", name: "Jon")
+            finishOnboarding()
             isRestoringSession = false
             return
         }
@@ -162,6 +166,7 @@ final class AppModel {
         if let dump = await compose.retryQueuedPost(currentWeekStart: currentWeekStart, isSunday: isSunday) {
             feed.insertOwn(dump)
             shared.postedWeekStart = dump.weekStart
+            scheduleReminders()
         }
     }
 
@@ -199,24 +204,51 @@ final class AppModel {
 
     // MARK: - Session
 
-    func signIn(_ method: SignInMethod, username: String?, name: String?) async throws {
-        let session = try await api.signIn(method, username: username, name: name)
+    /// Someone coming back is signed in here, and nil comes back. `keepOnboarding` holds the
+    /// remaining steps on screen for them. Someone new gets the ticket for `createAccount` instead.
+    func signIn(_ method: SignInMethod, keepOnboarding: Bool) async throws -> String? {
+        switch try await api.signIn(method) {
+        case .signedIn(let session):
+            await adopt(session, keepOnboarding: keepOnboarding)
+            return nil
+        case .newAccount(let ticket):
+            return ticket
+        }
+    }
+
+    /// The new account, with the username they chose. Onboarding stays up for its last steps.
+    func createAccount(ticket: String, username: String, name: String?) async throws {
+        let session = try await api.createAccount(ticket: ticket, username: username, name: name)
+        await adopt(session, keepOnboarding: true)
+    }
+
+    func finishOnboarding() {
+        isFinishingOnboarding = false
+    }
+
+    private func adopt(_ session: Session, keepOnboarding: Bool) async {
+        // Before the user is set, so RootView never flashes the app on its way.
+        isFinishingOnboarding = keepOnboarding
         Keychain.set(session.token, for: Keys.session)
         currentUser = session.user
         cacheUser(session.user)
+        localIdeas.signedIn(userID: session.user.id)
         await didSignIn()
     }
 
     private func didSignIn() async {
         accountSettings = (try? await api.accountSettings()) ?? AccountSettings()
         await refreshPendingCount()
-        // The permission prompt must never hold up the first screen, and UI tests skip it entirely.
-        guard !ProcessInfo.processInfo.arguments.contains("-uiTestSignedIn") else { return }
-        let settings = accountSettings
-        Task {
-            await NotificationScheduler.requestAuthorizationIfNeeded()
-            NotificationScheduler.scheduleSundayReminders(reminder: settings.notifySundayReminder, lastCall: settings.notifyLastCall)
-        }
+        // Scheduling shows nothing until iOS has a yes. That question is asked only with its reason
+        // on screen: in onboarding, or when a reminder is switched on in Settings.
+        scheduleReminders()
+    }
+
+    func scheduleReminders() {
+        let posted = shared.postedWeekStart == currentWeekStart
+        NotificationScheduler.scheduleSundayReminders(reminder: accountSettings.notifySundayReminder,
+                                                      lastCall: accountSettings.notifyLastCall,
+                                                      postedUntil: posted ? clock.weekEnd() : nil)
     }
 
     /// Signs every device out, this one last. False when the server could not be reached, in which
@@ -232,7 +264,9 @@ final class AppModel {
     }
 
     func signOut() async {
-        localIdeas.disable()
+        localIdeas.signedOut(userID: currentUser?.id)
+        NotificationScheduler.cancelAll()
+        isFinishingOnboarding = false
         try? await api.signOut()
         Keychain.delete(Keys.session)
         cacheUser(nil)
@@ -271,7 +305,7 @@ final class AppModel {
             user.isPublic = settings.isPublic
             currentUser = user
         }
-        NotificationScheduler.scheduleSundayReminders(reminder: settings.notifySundayReminder, lastCall: settings.notifyLastCall)
+        scheduleReminders()
     }
 
     func refreshPendingCount() async {

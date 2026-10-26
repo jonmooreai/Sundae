@@ -17,13 +17,16 @@ authority for every rule in the PRD; the client only decides what to draw.
 
 | Method | Path | Body | Returns |
 | --- | --- | --- | --- |
-| POST | `auth/apple` | `identity_token`, `nonce`, `full_name?`, `username?`, `name?`, `timezone` | session; 403 `signups_closed` for someone new while sign-ups are closed |
+| POST | `auth/apple` | `identity_token`, `nonce`, `full_name?`, `timezone`, `profile_first: true` | session for an Apple ID with an account. For a new one, `{signup_ticket, expires_in}` and no account yet. 403 `signups_closed` for someone new while sign-ups are closed |
+| POST | `auth/apple/signup` | `signup_ticket`, `username`, `name?`, `timezone` | session for the new account. 409 `username_taken` (choose again, the ticket still works), 409 `account_exists` (the ticket is spent: sign in again), 400 `invalid_username`, 401 once the hour is up |
 | POST | `auth/phone/start` | `phone` | 204 |
 | POST | `auth/phone/verify` | `phone`, `code`, `username?`, `name?`, `timezone` | session |
 | POST | `auth/refresh` | `refresh_token` | `access_token`, `refresh_token`, `expires_in` |
 | POST | `auth/signout` | `everywhere?` | 204, revokes this device's refresh token, or with `everywhere: true` every device's (their access tokens lapse within 15 minutes) |
 
 `nonce` is the value whose SHA-256 (lowercase hex) the app set as the request's nonce, which Apple signs into the token. The server checks the pair and accepts each nonce once, so a captured token cannot be replayed.
+
+Someone signing back in is signed straight in, and their account comes back as they left it. Someone new chooses a username before any account exists: the signup ticket is signed by the server, lasts an hour, and can only ever create that Apple ID's account, never sign in to one. Builds from before `profile_first` send `username?` and `name?` with the first request instead, and get an account at once.
 
 A session is `{access_token, refresh_token, expires_in, user}`. App Attest assertions ride along on token issuance once the server supports them (header to be defined).
 

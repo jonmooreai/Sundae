@@ -32,6 +32,7 @@ final class LocalIdeasStore {
     private let onDevice: Bool
     private let shared: SharedDefaults
     private static let enabledKey = "localIdeas.enabled"
+    private static let resumeKey = "localIdeas.resumeFor"
 
     private(set) var isEnabled: Bool
     private(set) var status: Status
@@ -50,8 +51,14 @@ final class LocalIdeasStore {
 
     var isDenied: Bool { LocationCell.isDenied }
 
-    /// Called after the consent sheet, never before.
+    /// Called after a yes in Sundae that explains it, never before. iOS asks straight after, if
+    /// this phone has not answered it yet.
     func enable() {
+        turnOn()
+        LocationCell.requestAuthorization()
+    }
+
+    private func turnOn() {
         isEnabled = true
         UserDefaults.standard.set(true, forKey: Self.enabledKey)
         switch LocationCell.authorization {
@@ -59,6 +66,19 @@ final class LocalIdeasStore {
         case .denied, .restricted: status = .denied
         default: status = .loading
         }
+    }
+
+    /// Signing out turns ideas near you off, so whoever signs in next starts with them off. The
+    /// same person signing back in on this phone gets their yes back.
+    func signedOut(userID: ID?) {
+        UserDefaults.standard.set(isEnabled ? userID : nil, forKey: Self.resumeKey)
+        disable()
+    }
+
+    func signedIn(userID: ID) {
+        let resumeFor = UserDefaults.standard.string(forKey: Self.resumeKey)
+        UserDefaults.standard.removeObject(forKey: Self.resumeKey)
+        if resumeFor == userID { turnOn() }
     }
 
     /// Off, and nothing about the area stays on the phone.

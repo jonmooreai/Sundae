@@ -120,6 +120,7 @@ struct CaptionStep: View {
         if let dump = await compose.save(weekStart: model.currentWeekStart) {
             model.feed.insertOwn(dump)
             model.shared.postedWeekStart = model.currentWeekStart
+            model.scheduleReminders()
             WidgetCenter.shared.reloadAllTimelines()
             path.append(.posted)
         } else if compose.queuedOffline {

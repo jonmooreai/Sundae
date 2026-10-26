@@ -16,22 +16,26 @@ actor LiveSundaeAPI: SundaeAPI {
 
     // MARK: - Session
 
-    func signIn(_ method: SignInMethod, username: String?, name: String?) async throws -> Session {
-        let tz = TimeZone.current.identifier
-        let response: DTO.SessionResponse
-        switch method {
-        case .apple(let identityToken, let fullName, let nonce):
-            response = try await client.post("v1/auth/apple",
-                                             body: DTO.AppleSignIn(identityToken: identityToken, nonce: nonce, fullName: fullName,
-                                                                   username: username, name: name, timezone: tz),
-                                             authenticated: false)
-        case .phone(let number, let code):
-            response = try await client.post("v1/auth/phone/verify",
-                                             body: DTO.PhoneSignIn(phone: number, code: code, username: username, name: name, timezone: tz),
-                                             authenticated: false)
-        case .demo:
-            throw SundaeError.notAuthorized
-        }
+    func signIn(_ method: SignInMethod) async throws -> SignInOutcome {
+        // The server signs people in with Apple only (docs/SERVER.md).
+        guard case .apple(let identityToken, let fullName, let nonce) = method else { throw SundaeError.notAuthorized }
+        let response: DTO.AppleSignInResponse = try await client.post(
+            "v1/auth/apple",
+            body: DTO.AppleSignIn(identityToken: identityToken, nonce: nonce, fullName: fullName, timezone: TimeZone.current.identifier),
+            authenticated: false
+        )
+        if let ticket = response.signupTicket { return .newAccount(ticket: ticket) }
+        guard let tokens = response.tokens, let user = response.user else { throw SundaeError.signInAgain }
+        await client.storeTokens(tokens)
+        return .signedIn(Session(token: "live", user: user.model))
+    }
+
+    func createAccount(ticket: String, username: String, name: String?) async throws -> Session {
+        let response: DTO.SessionResponse = try await client.post(
+            "v1/auth/apple/signup",
+            body: DTO.AppleSignUp(signupTicket: ticket, username: username, name: name, timezone: TimeZone.current.identifier),
+            authenticated: false
+        )
         await client.storeTokens(response.tokens)
         return Session(token: "live", user: response.user.model)
     }
