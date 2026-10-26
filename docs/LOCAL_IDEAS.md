@@ -38,9 +38,12 @@ fix per look, with the accuracy iOS gives when asked for a hundred meters; and a
 
 Two sources, same shape, same rules:
 
-- **On the phone, from Apple Maps (the default).** `NearbyIdeas` runs one points-of-interest
-  search (`MKLocalPointsOfInterestRequest`) around the middle of the cell, once within a walk
-  and once within twenty miles, filtered to the kinds of places the copy knows about. The
+- **On the phone, from Apple Maps (the default).** `NearbyIdeas` runs one plain-words search
+  per kind of place (coffee shop, bakery, park, library, bookstore, record store, museum,
+  gallery, market, diner, ice cream, trail, beach, viewpoint) around the middle of the cell,
+  once within a walk and once within twenty miles, and merges the results. A single broad
+  search came back mostly parks; a search per kind gives every kind a fair chance. Eight
+  ideas a day, every kind before any kind repeats. The
   morning idea stays walkable; the afternoon and evening may be worth the drive, and the line
   under the idea shows the distance instead of a walking time. The same cell center goes to
   Open-Meteo, anonymously and without a key, so a wet day keeps to places with a roof. The pick is seeded by `cell:day`

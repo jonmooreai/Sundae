@@ -2,10 +2,10 @@ import CoreLocation
 import Foundation
 import MapKit
 
-/// Real places from Apple Maps, picked on the phone. Two points-of-interest searches around the
-/// middle of the cell, one walkable and one within twenty miles: Apple sees a neighborhood,
-/// never the fix, and Sundae's servers see nothing at all. The pick is seeded by cell and day,
-/// so the three ideas hold still all day.
+/// Real places from Apple Maps, picked on the phone. A plain-words search per kind of place
+/// around the middle of the cell, once walkable and once within twenty miles: Apple sees a
+/// neighborhood, never the fix, and Sundae's servers see nothing at all. The pick is seeded by
+/// cell and day, so the day's ideas hold still.
 enum NearbyIdeas {
     /// A walk: the cell plus about fifteen minutes on foot.
     static let walkMeters: CLLocationDistance = 1200
@@ -15,8 +15,29 @@ enum NearbyIdeas {
     /// Meters per minute on foot, for the "12 min walk" line.
     private static let walkPace = 80.0
 
-    enum Theme: String, Sendable {
+    enum Theme: String, Sendable, CaseIterable {
         case cafe, bakery, park, viewpoint, library, museum, market, trail, waterfront
+        case bookstore, recordStore, iceCream, gallery, diner
+
+        /// What to ask Maps for. Plain words find more than category filters do.
+        var query: String {
+            switch self {
+            case .cafe: "coffee shop"
+            case .bakery: "bakery"
+            case .park: "park"
+            case .viewpoint: "scenic viewpoint"
+            case .library: "library"
+            case .museum: "museum"
+            case .market: "farmers market"
+            case .trail: "hiking trail"
+            case .waterfront: "beach"
+            case .bookstore: "bookstore"
+            case .recordStore: "record store"
+            case .iceCream: "ice cream"
+            case .gallery: "art gallery"
+            case .diner: "diner"
+            }
+        }
     }
 
     /// What came back from Maps, reduced to plain values inside the callback.
@@ -39,54 +60,44 @@ enum NearbyIdeas {
 
     static func ideas(cell: String, day: Date, calendar: Calendar) async throws -> [Suggestion] {
         guard let origin = Geohash.center(cell) else { throw Failure.badCell }
-        // Maps returns a couple of dozen results per search, so the wide one alone would skip
-        // the corner café. Ask twice and merge.
-        async let near = search(around: origin, radius: walkMeters)
-        async let far = search(around: origin, radius: radiusMeters)
+        // Maps answers each search with a couple of dozen places, and a single broad search comes
+        // back mostly parks and landmarks. One plain-words search per kind of place, close by and
+        // within twenty miles, gives every kind a fair chance. Merged by place, duplicates dropped.
         async let sky = Weather.sky(latitude: origin.latitude, longitude: origin.longitude)
-        var seen = Set<String>()
-        let places = try await (near + far).filter { seen.insert($0.id).inserted }
+        let places = await withTaskGroup(of: [Place].self, returning: [Place].self) { group in
+            for theme in Theme.allCases {
+                group.addTask { await search(theme: theme, around: origin, radius: walkMeters) }
+                group.addTask { await search(theme: theme, around: origin, radius: radiusMeters) }
+            }
+            var seen = Set<String>()
+            var all: [Place] = []
+            for await batch in group {
+                for place in batch where seen.insert(place.id).inserted { all.append(place) }
+            }
+            return all
+        }
         let wet = await sky == .wet
         return pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar, wet: wet)
     }
 
     // MARK: - Maps
 
-    private static func theme(for category: MKPointOfInterestCategory) -> Theme? {
-        switch category {
-        case .cafe: .cafe
-        case .bakery: .bakery
-        case .park, .nationalPark: .park
-        case .landmark: .viewpoint
-        case .library: .library
-        case .museum: .museum
-        case .foodMarket: .market
-        case .hiking: .trail
-        case .beach, .marina: .waterfront
-        default: nil
-        }
-    }
-
-    private static func search(around origin: (latitude: Double, longitude: Double), radius: CLLocationDistance) async throws -> [Place] {
-        let center = CLLocationCoordinate2D(latitude: origin.latitude, longitude: origin.longitude)
-        let request = MKLocalPointsOfInterestRequest(center: center, radius: radius)
-        request.pointOfInterestFilter = MKPointOfInterestFilter(including: [
-            .cafe, .bakery, .park, .nationalPark, .landmark, .library, .museum, .foodMarket, .hiking, .beach, .marina,
-        ])
+    /// One search. Failures count as no places, so one bad request never empties the day.
+    private static func search(theme: Theme, around origin: (latitude: Double, longitude: Double),
+                               radius: CLLocationDistance) async -> [Place] {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = theme.query
+        request.resultTypes = .pointOfInterest
+        request.region = MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: origin.latitude, longitude: origin.longitude),
+                                            latitudinalMeters: radius * 2, longitudinalMeters: radius * 2)
         let search = MKLocalSearch(request: request)
-        return try await withCheckedThrowingContinuation { continuation in
-            search.start { response, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
+        return await withCheckedContinuation { continuation in
+            search.start { response, _ in
                 let places = (response?.mapItems ?? []).compactMap { item -> Place? in
-                    guard let name = item.name, !name.isEmpty,
-                          let category = item.pointOfInterestCategory,
-                          let theme = theme(for: category) else { return nil }
+                    guard let name = item.name, !name.isEmpty else { return nil }
                     let coordinate = item.placemark.coordinate
-                    return Place(id: "\(name)@\(coordinate.latitude),\(coordinate.longitude)", name: name, theme: theme,
-                                 latitude: coordinate.latitude, longitude: coordinate.longitude)
+                    let key = "\(name.lowercased())@\((coordinate.latitude * 1000).rounded()),\((coordinate.longitude * 1000).rounded())"
+                    return Place(id: key, name: name, theme: theme, latitude: coordinate.latitude, longitude: coordinate.longitude)
                 }
                 continuation.resume(returning: places)
             }
@@ -96,7 +107,7 @@ enum NearbyIdeas {
     // MARK: - Picking
 
     /// Places that are still a good idea in the rain.
-    private static let indoor: Set<Theme> = [.cafe, .bakery, .library, .museum, .market]
+    private static let indoor: Set<Theme> = [.cafe, .bakery, .library, .museum, .market, .bookstore, .recordStore, .iceCream, .gallery, .diner]
 
     private static func pick(from places: [Place], origin: (latitude: Double, longitude: Double),
                              cell: String, day: Date, calendar: Calendar, wet: Bool = false) -> [Suggestion] {
@@ -113,7 +124,10 @@ enum NearbyIdeas {
         var usedThemes = Set<Theme>()
         var ideas: [Suggestion] = []
         let slots: [Suggestion.TimeOfDay] = [.morning, .afternoon, .evening]
-        for (index, slot) in slots.enumerated() {
+        // Eight ideas: three for the parts of the day, five more so Shuffle has somewhere to go.
+        for index in 0..<8 {
+            let slot = slots[index % slots.count]
+            if usedThemes.count == Theme.allCases.count { usedThemes.removeAll() }
             var candidates = nearby.filter { !usedPlaces.contains($0.place.id) && !(lines[$0.place.theme]?[slot] ?? []).isEmpty }
             // A wet day keeps to places with a roof, as long as there are any.
             if wet {
@@ -157,6 +171,49 @@ enum NearbyIdeas {
 
     /// What to do at each kind of place, by time of day. {name} is the place.
     private static let lines: [Theme: [Suggestion.TimeOfDay: [Line]]] = [
+        .bookstore: [
+            .morning: [
+                Line(text: "Be the first one into {name}.", reason: "Empty aisles, coffee in hand. Buy the book with the best first sentence."),
+            ],
+            .afternoon: [
+                Line(text: "Buy a book you have never heard of at {name}.", reason: "Pick by the first sentence. Photograph it in your hands, outside the shop."),
+            ],
+            .evening: [
+                Line(text: "Browse {name} until they turn the lights down.", reason: "The staff picks shelf is the review. Shoot the handwritten cards."),
+            ],
+        ],
+        .recordStore: [
+            .afternoon: [
+                Line(text: "Flip through the dollar bin at {name}.", reason: "Pick the cover that makes you laugh. Shoot it in your hands, out on the sidewalk."),
+            ],
+            .evening: [
+                Line(text: "Ask the person at {name} what they are playing.", reason: "Buy it if you can. Photograph the sleeve under the shop lights."),
+            ],
+        ],
+        .iceCream: [
+            .afternoon: [
+                Line(text: "Get the flavor you would never get at {name}.", reason: "Eat it walking. Photograph the last bite, the cone, the sidewalk."),
+            ],
+            .evening: [
+                Line(text: "Walk to {name} after dinner.", reason: "The after-dinner walk is the point; the cone is the excuse. Shoot the queue."),
+            ],
+        ],
+        .gallery: [
+            .afternoon: [
+                Line(text: "Walk into {name} like you meant to.", reason: "It is free and nobody will ask you anything. Photograph the floor and one wall."),
+            ],
+            .evening: [
+                Line(text: "Check whether {name} has an opening tonight.", reason: "Free wine, strangers, art. Shoot the crowd, not the work."),
+            ],
+        ],
+        .diner: [
+            .morning: [
+                Line(text: "Have breakfast at the counter at {name}.", reason: "Order eggs however the person next to you did. Photograph the mug, not the plate."),
+            ],
+            .evening: [
+                Line(text: "Eat at {name}, at the counter, alone or not.", reason: "The line is the review. Shoot the counter, the specials board, the faces."),
+            ],
+        ],
         .cafe: [
             .morning: [
                 Line(text: "Have the first coffee of the day at {name}.", reason: "Sit by the window. Photograph the cup, then whatever is outside the glass."),

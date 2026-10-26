@@ -18,6 +18,9 @@ final class WeekdayStore {
     /// Set when the tenth shuffle in a row lands on the only idea that cannot be shuffled away.
     private(set) var restUntil: Date?
     private var shuffles = 0
+    /// Ideas shown today, so Shuffle visits everything once before anything comes round again.
+    private var shown: Set<String> = []
+    private var shownDay: Date?
 
     /// The Easter egg at the bottom of the shuffle well.
     static let rest = Suggestion(id: "secret:rest", text: "Put the phone down.",
@@ -97,13 +100,21 @@ final class WeekdayStore {
             Haptics.light()
             return
         }
-        let openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil }
-        // Half the time a nearby idea, while any are left; the catalog otherwise.
+        noteShown(current, on: now, calendar: clock.calendar)
+        var openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil && !shown.contains($0.id) }
+        if openLocal.isEmpty, local.count > 1 {
+            // Every nearby idea has had its turn today; let them come round again.
+            for idea in local { shown.remove(idea.id) }
+            openLocal = local.filter { $0.id != current?.id && done[$0.id] == nil }
+        }
+        // Half the time a nearby idea, while any are left; the catalog otherwise, skipping what
+        // has already been on screen today.
         if let nearby = openLocal.randomElement(), Bool.random() {
             current = nearby
         } else {
-            current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: Set(done.keys))
+            current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: Set(done.keys).union(shown))
         }
+        noteShown(current, on: now, calendar: clock.calendar)
         if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
         justMarkedDone = false
         WidgetCenter.shared.reloadAllTimelines()
@@ -133,6 +144,12 @@ final class WeekdayStore {
             .filter { $0.value >= weekStart }
             .compactMap { id, day in resolve(id).map { (suggestion: $0, day: day) } }
             .sorted { $0.day < $1.day }
+    }
+
+    private func noteShown(_ suggestion: Suggestion?, on day: Date, calendar: Calendar) {
+        if let shownDay, !calendar.isDate(shownDay, inSameDayAs: day) { shown.removeAll() }
+        shownDay = day
+        if let suggestion { shown.insert(suggestion.id) }
     }
 
     /// First nearby idea for this part of the day, else any nearby idea, skipping finished ones.
