@@ -1,6 +1,7 @@
 import CoreMotion
 import Observation
 import SwiftUI
+import UIKit
 import PhosphorSwift
 
 /// The app's mark: the felt cherry from the app icon. A picture, not a drawing, so it keeps its
@@ -64,9 +65,17 @@ final class DeviceTilt {
         motion.stopDeviceMotionUpdates()
     }
 
-    /// Smoothed, and only updated when it moves enough to see, so the screen redraws rarely.
+    /// Smoothed, and only updated when it moves enough to see, so the screen redraws rarely. The
+    /// sensor measures along the phone, not the screen, so it only counts held upright; turned on
+    /// its side, the cherry settles straight.
     private func follow(_ side: Double) {
-        let next = lean * 0.8 + max(-1, min(1, side)) * 0.2
+        let scene = UIApplication.shared.connectedScenes.first { $0.activationState == .foregroundActive } as? UIWindowScene
+        let along: Double = switch scene?.effectiveGeometry.interfaceOrientation {
+        case .portrait?: side
+        case .portraitUpsideDown?: -side
+        default: 0
+        }
+        let next = lean * 0.8 + max(-1, min(1, along)) * 0.2
         if abs(next - lean) > 0.004 { lean = next }
     }
 }

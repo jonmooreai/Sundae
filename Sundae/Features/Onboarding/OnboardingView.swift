@@ -22,6 +22,9 @@ struct OnboardingView: View {
     @State private var route: [Step] = Step.allCases
     /// From the server when this Apple ID has no account yet. It creates one, once.
     @State private var signupTicket: String?
+    /// True from sending the new account until it is confirmed, so a reply lost on the way is
+    /// finished off by signing in again instead of losing the photo and birthday.
+    @State private var signupSent = false
     /// The nonce for the Sign in with Apple attempt in progress. Apple only ever sees its hash.
     @State private var appleNonce = ""
     @State private var name = ""
@@ -58,6 +61,13 @@ struct OnboardingView: View {
         }
         .filmGrain()
         .sheet(isPresented: $showPrivacy) { PrivacySheet() }
+        .task {
+            // Opened again partway through, with the account already made: carry on from there.
+            guard model.isSignedIn, step == .welcome else { return }
+            showsIntro = false
+            route = [.welcome, .signIn] + (await unaskedSteps()) + [.friends]
+            step = route[2]
+        }
     }
 
     private var steps: some View {
@@ -97,7 +107,7 @@ struct OnboardingView: View {
     /// Back where there is somewhere to go back to, and a small dot for each step.
     private var topBar: some View {
         HStack {
-            if let previous = previousStep {
+            if !isWorking, let previous = previousStep {
                 IconButton(glyph: Glyph.back, label: "Back", size: 22) {
                     error = nil
                     step = previous
@@ -490,10 +500,17 @@ struct OnboardingView: View {
         error = nil
         do {
             let unasked = await unaskedSteps()
-            if let ticket = try await model.signIn(method, keepOnboarding: !unasked.isEmpty) {
+            let finishingSignup = signupSent
+            if let ticket = try await model.signIn(method, keepOnboarding: finishingSignup || !unasked.isEmpty) {
                 signupTicket = ticket
                 route = Step.allCases
                 step = .profile
+            } else if finishingSignup {
+                // The account was made but its reply never came. Finish what "Who are you?" started.
+                signupSent = false
+                await applyProfileExtras()
+                route = Step.allCases
+                step = .ideas
             } else if let first = unasked.first {
                 route = [.welcome, .signIn] + unasked
                 step = first
@@ -516,21 +533,20 @@ struct OnboardingView: View {
     private func createAccount() async {
         guard !isWorking else { return }
         guard let ticket = signupTicket else {
-            step = .signIn
+            step = model.isSignedIn ? .ideas : .signIn
             return
         }
         isWorking = true
         defer { isWorking = false }
         error = nil
         let chosenName = name.trimmingCharacters(in: .whitespaces)
+        signupSent = true
         do {
             try await model.createAccount(ticket: ticket, username: chosenUsername, name: chosenName.isEmpty ? nil : chosenName)
             signupTicket = nil
-            MomentMemory.birthdayMonthDay = MomentMemory.monthDay(birthday, calendar: Calendar.current)
-            if let avatarData {
-                try? await model.updateAvatar(avatarData)
-            }
-            next()
+            signupSent = false
+            await applyProfileExtras()
+            step = .ideas
         } catch SundaeError.notAuthorized, SundaeError.signInAgain {
             // The ticket ran out, or the account was made already. Apple once more sorts out both.
             signupTicket = nil
@@ -538,6 +554,15 @@ struct OnboardingView: View {
             self.error = SundaeError.signInAgain.localizedDescription
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    /// The birthday and photo from "Who are you?", once the account exists. A photo the account
+    /// already has is never replaced.
+    private func applyProfileExtras() async {
+        MomentMemory.birthdayMonthDay = MomentMemory.monthDay(birthday, calendar: Calendar.current)
+        if let avatarData, model.currentUser?.avatar == nil {
+            try? await model.updateAvatar(avatarData)
         }
     }
 
@@ -549,6 +574,13 @@ struct OnboardingView: View {
         defer { isWorking = false }
         askedReminders = true
         await NotificationScheduler.requestAuthorizationIfNeeded()
+        // Someone who once turned both off has just asked for them again.
+        if !model.accountSettings.notifySundayReminder, !model.accountSettings.notifyLastCall {
+            var settings = model.accountSettings
+            settings.notifySundayReminder = true
+            settings.notifyLastCall = true
+            await model.saveAccountSettings(settings)
+        }
         model.scheduleReminders()
         next()
     }

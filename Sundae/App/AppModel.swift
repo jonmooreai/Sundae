@@ -79,6 +79,8 @@ final class AppModel {
         static let debugDay = "debugDay"
         static let session = "session.token"
         static let cachedUser = "session.user"
+        /// The account whose onboarding is not finished yet, so a relaunch carries on with it.
+        static let finishingOnboarding = "onboarding.finishingFor"
     }
 
     var isSunday: Bool { phase == .sunday }
@@ -143,6 +145,7 @@ final class AppModel {
         if let token = Keychain.string(for: Keys.session) {
             do {
                 if let user = try await api.restoreSession(token: token) {
+                    isFinishingOnboarding = UserDefaults.standard.string(forKey: Keys.finishingOnboarding) == user.id
                     currentUser = user
                     cacheUser(user)
                     await didSignIn()
@@ -153,6 +156,7 @@ final class AppModel {
             } catch {
                 // Offline at launch. Trust the cached identity until the server can be reached.
                 if let cached = cachedUser() {
+                    isFinishingOnboarding = UserDefaults.standard.string(forKey: Keys.finishingOnboarding) == cached.id
                     currentUser = cached
                 }
             }
@@ -199,6 +203,8 @@ final class AppModel {
 
     func becameActive() async {
         refreshPhase()
+        // A week posted early skips its last call; a new week brings the weekly one back.
+        if isSignedIn { scheduleReminders() }
         await refreshPendingCount()
     }
 
@@ -224,15 +230,22 @@ final class AppModel {
 
     func finishOnboarding() {
         isFinishingOnboarding = false
+        UserDefaults.standard.removeObject(forKey: Keys.finishingOnboarding)
     }
 
     private func adopt(_ session: Session, keepOnboarding: Bool) async {
         // Before the user is set, so RootView never flashes the app on its way.
         isFinishingOnboarding = keepOnboarding
+        if keepOnboarding {
+            UserDefaults.standard.set(session.user.id, forKey: Keys.finishingOnboarding)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Keys.finishingOnboarding)
+        }
         Keychain.set(session.token, for: Keys.session)
         currentUser = session.user
         cacheUser(session.user)
         localIdeas.signedIn(userID: session.user.id)
+        MomentMemory.signedIn(userID: session.user.id)
         await didSignIn()
     }
 
@@ -265,8 +278,9 @@ final class AppModel {
 
     func signOut() async {
         localIdeas.signedOut(userID: currentUser?.id)
+        MomentMemory.signedOut(userID: currentUser?.id)
         NotificationScheduler.cancelAll()
-        isFinishingOnboarding = false
+        finishOnboarding()
         try? await api.signOut()
         Keychain.delete(Keys.session)
         cacheUser(nil)
@@ -280,6 +294,8 @@ final class AppModel {
         localIdeas.disable()
         try? await api.deleteAccount()
         await signOut()
+        // Nothing of a deleted account waits on this phone for it to come back.
+        MomentMemory.signedOut(userID: nil)
     }
 
     func updateProfile(name: String, username: String, bio: String) async throws {
