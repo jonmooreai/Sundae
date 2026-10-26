@@ -34,6 +34,8 @@ enum Glyph {
     static var plus: Ph { .plus }
     static var send: Ph { .arrowUp }
     static var pin: Ph { .mapPin }
+    static var bell: Ph { .bell }
+    static var moon: Ph { .moon }
 }
 
 enum IconWeight {

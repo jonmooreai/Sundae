@@ -13,6 +13,7 @@
 
 require "base64"
 require "spaceship"
+require "tmpdir"
 
 default_platform(:ios)
 
@@ -95,10 +96,11 @@ platform :ios do
       token = ENV["MATCH_GIT_TOKEN"].to_s.empty? ? ENV["GITHUB_TOKEN"] : ENV["MATCH_GIT_TOKEN"]
       git_auth = Base64.strict_encode64("x-access-token:#{token}")
     end
-    # [rotate-signing] in the commit message revokes the distribution certificate and profiles
-    # and starts fresh, for when the encrypted store may have been exposed. Set a new
-    # MATCH_PASSWORD first; the new certificate is encrypted with it.
-    if ENV["ROTATE_SIGNING"] == "true"
+    # Ticking rotate_signing when starting the workflow by hand revokes every distribution
+    # certificate on the team and its profiles and starts fresh, for when the encrypted store may
+    # have been exposed. Set a new MATCH_PASSWORD first; the new certificate is encrypted with it.
+    # Only a run started by hand can do this, whatever ROTATE_SIGNING says.
+    if ENV["ROTATE_SIGNING"] == "true" && ENV["GITHUB_EVENT_NAME"] == "workflow_dispatch"
       match_nuke(
         type: "appstore",
         api_key: api_key,
@@ -167,6 +169,19 @@ platform :ios do
         }
       }
     )
+
+    # The name under the icon is the binary's CFBundleDisplayName. Prove the build carries
+    # "Sundae" before it goes anywhere, and log the App Store Connect record's own name, which
+    # TestFlight shows in its list and which is separate from the one on the Home Screen.
+    ipa = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    Dir.mktmpdir do |dir|
+      sh("unzip", "-q", ipa, "Payload/*.app/Info.plist", "-d", dir, log: false)
+      plist = Dir.glob(File.join(dir, "Payload", "*.app", "Info.plist")).first
+      display = sh("/usr/libexec/PlistBuddy", "-c", "Print :CFBundleDisplayName", plist, log: false).strip
+      record = Spaceship::ConnectAPI::App.find(bundle_id)&.name
+      UI.important("Home Screen name in this build: '#{display}'. App Store Connect record name: '#{record}'.")
+      UI.user_error!("This build's Home Screen name is '#{display}', not 'Sundae'.") unless display == "Sundae"
+    end
 
     # Not waiting for processing keeps the runner minutes down; the build shows up in
     # App Store Connect a few minutes after upload.

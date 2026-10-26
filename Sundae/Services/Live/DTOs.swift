@@ -253,15 +253,28 @@ enum DTO {
         let identityToken: String
         let nonce: String
         let fullName: String?
-        let username: String?
-        let name: String?
         let timezone: String
+        /// Asks for a sign-up ticket, not an account, when this Apple ID is new.
+        var profileFirst = true
     }
 
-    struct PhoneSignIn: Encodable {
-        let phone: String
-        let code: String
-        let username: String?
+    /// A session for someone coming back, or a ticket for someone new.
+    struct AppleSignInResponse: Decodable {
+        let accessToken: String?
+        let refreshToken: String?
+        let expiresIn: TimeInterval?
+        let user: User?
+        let signupTicket: String?
+
+        var tokens: HTTPClient.TokenResponse? {
+            guard let accessToken, let refreshToken, let expiresIn else { return nil }
+            return HTTPClient.TokenResponse(accessToken: accessToken, refreshToken: refreshToken, expiresIn: expiresIn)
+        }
+    }
+
+    struct AppleSignUp: Encodable {
+        let signupTicket: String
+        let username: String
         let name: String?
         let timezone: String
     }

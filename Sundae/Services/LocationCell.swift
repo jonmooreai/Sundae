@@ -37,6 +37,14 @@ enum LocationCell {
         authorization == .denied || authorization == .restricted
     }
 
+    /// Shows iOS's location prompt now, if this phone has never answered it, so it follows straight
+    /// on from the yes in Sundae that explains it. While Using the App is all Sundae asks for. The
+    /// answer is read the next time the weekday screen looks.
+    @MainActor static func requestAuthorization() {
+        guard manager.authorizationStatus == .notDetermined else { return }
+        manager.requestWhenInUseAuthorization()
+    }
+
     /// Waits for one fix and returns its cell. If iOS has not asked the user yet, starting the
     /// updates shows the system prompt; the call then waits for the answer. Gives up after a while.
     static func currentCell(timeout seconds: Double = 60) async throws -> String {

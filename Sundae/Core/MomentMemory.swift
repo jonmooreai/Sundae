@@ -6,6 +6,7 @@ enum MomentMemory {
 
     private enum Key {
         static let birthday = "moments.birthdayMonthDay"
+        static let birthdayFor = "moments.birthdayFor"
         static let seenSeals = "moments.seenSeals"
         static let shownFirstSundays = "moments.shownFirstSundays"
         static let wrapShown = "moments.wrapShownWeekStart"
@@ -16,6 +17,23 @@ enum MomentMemory {
     static var birthdayMonthDay: String? {
         get { defaults.string(forKey: Key.birthday) }
         set { defaults.set(newValue, forKey: Key.birthday) }
+    }
+
+    /// Signing out puts the birthday away, so whoever signs in next never gets it. The same person
+    /// signing back in on this phone gets it back.
+    static func signedOut(userID: String?) {
+        if let userID, let birthday = birthdayMonthDay {
+            defaults.set([userID: birthday], forKey: Key.birthdayFor)
+        } else {
+            defaults.removeObject(forKey: Key.birthdayFor)
+        }
+        birthdayMonthDay = nil
+    }
+
+    static func signedIn(userID: String) {
+        let kept = defaults.dictionary(forKey: Key.birthdayFor) as? [String: String]
+        defaults.removeObject(forKey: Key.birthdayFor)
+        if let birthday = kept?[userID] { birthdayMonthDay = birthday }
     }
 
     static func isBirthday(_ date: Date, calendar: Calendar) -> Bool {

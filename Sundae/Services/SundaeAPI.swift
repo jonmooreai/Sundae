@@ -7,7 +7,10 @@ import Foundation
 /// `MockSundaeAPI` mirrors those rules so the app behaves honestly before the backend exists.
 protocol SundaeAPI: Sendable {
     // MARK: Session (every day)
-    func signIn(_ method: SignInMethod, username: String?, name: String?) async throws -> Session
+    /// Someone coming back is signed in. Someone new gets a ticket instead, and no account exists
+    /// until `createAccount` spends it on the username they choose.
+    func signIn(_ method: SignInMethod) async throws -> SignInOutcome
+    func createAccount(ticket: String, username: String, name: String?) async throws -> Session
     func restoreSession(token: String) async throws -> User?
     func signOut() async throws
     /// Signs out every device signed in to this account, this one included.

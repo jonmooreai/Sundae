@@ -6,8 +6,15 @@ name: TestFlight
 # pushes are blocked), so shipping is a commit on top of it carrying the work branch's files.
 # Costs about 15 minutes of macOS runner time per build, free only while the repository is public.
 # main is not listed: it is always fast-forwarded to the work branch, so it would build twice.
+# Rotating the signing certificate is only ever a box ticked when starting the workflow by hand,
+# never anything in a commit message.
 on:
   workflow_dispatch:
+    inputs:
+      rotate_signing:
+        description: Revoke every distribution certificate on the Apple team and make new ones (docs/TESTFLIGHT.md)
+        type: boolean
+        default: false
   push:
     branches: ["claude/**", "testflight"]
 
@@ -30,7 +37,7 @@ jobs:
       MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
       MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
       MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
-      ROTATE_SIGNING: ${{ contains(github.event.head_commit.message, '[rotate-signing]') }}
+      ROTATE_SIGNING: ${{ github.event_name == 'workflow_dispatch' && inputs.rotate_signing }}
       FASTLANE_SKIP_UPDATE_CHECK: "1"
     steps:
       - uses: actions/checkout@v4

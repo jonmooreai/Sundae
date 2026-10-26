@@ -10,7 +10,7 @@ struct RootView: View {
         Group {
             if model.isRestoringSession {
                 ProgressView()
-            } else if !model.isSignedIn {
+            } else if !model.isSignedIn || model.isFinishingOnboarding {
                 OnboardingView()
             } else if model.isSunday {
                 SundayShell()
@@ -20,6 +20,7 @@ struct RootView: View {
         }
         .animation(.default, value: model.isSunday)
         .animation(.default, value: model.isSignedIn)
+        .animation(.default, value: model.isFinishingOnboarding)
     }
 }
 

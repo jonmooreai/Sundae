@@ -248,6 +248,13 @@ struct Session: Hashable, Codable, Sendable {
     var user: User
 }
 
+enum SignInOutcome: Hashable, Sendable {
+    /// An account already exists for this sign-in: everything set up before comes back.
+    case signedIn(Session)
+    /// Nobody has signed in this way before. The ticket creates their account, once.
+    case newAccount(ticket: String)
+}
+
 enum SignInMethod: Hashable, Sendable {
     /// `nonce` is the one whose SHA-256 Apple signed into the token (AppleNonce).
     case apple(identityToken: String, fullName: String?, nonce: String)
@@ -266,6 +273,10 @@ enum SundaeError: LocalizedError, Equatable {
     case offline
     case invalidCode
     case invalidPhoto
+    case usernameTaken
+    case invalidUsername
+    case signupsClosed
+    case signInAgain
 
     var errorDescription: String? {
         switch self {
@@ -279,6 +290,10 @@ enum SundaeError: LocalizedError, Equatable {
         case .notFound: "That's gone."
         case .offline: "You're offline. We'll keep your draft."
         case .invalidCode: "That code didn't work."
+        case .usernameTaken: "That username is taken. Try another."
+        case .invalidUsername: "Usernames are 2 to 24 letters, numbers, dots or underscores."
+        case .signupsClosed: "Sundae is invite only right now. Ask the person who invited you."
+        case .signInAgain: "That took a while. Sign in with Apple once more to carry on."
         }
     }
 }

@@ -14,7 +14,7 @@ struct MockAPIGateTests {
 
     private func signedInAPI(at moment: Date) async throws -> MockSundaeAPI {
         let api = MockSundaeAPI(clock: SundayClock(now: { moment }, timeZone: zone))
-        _ = try await api.signIn(.demo, username: nil, name: nil)
+        _ = try await api.createAccount(ticket: "mock-signup-ticket", username: "", name: nil)
         return api
     }
 

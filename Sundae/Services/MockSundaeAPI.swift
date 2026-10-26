@@ -116,11 +116,17 @@ actor MockSundaeAPI: SundaeAPI {
 
     // MARK: - Session
 
-    func signIn(_ method: SignInMethod, username: String?, name: String?) async throws -> Session {
+    func signIn(_ method: SignInMethod) async throws -> SignInOutcome {
         try await latency()
         if case .phone(_, let code) = method, code.count != 6 { throw SundaeError.invalidCode }
+        // Demo data always starts as someone new, so every onboarding step can be seen.
+        return .newAccount(ticket: "mock-signup-ticket")
+    }
+
+    func createAccount(ticket: String, username: String, name: String?) async throws -> Session {
+        try await latency()
         var me = users[meID]!
-        if let username, !username.isEmpty { me.username = username }
+        if !username.isEmpty { me.username = username }
         if let name, !name.isEmpty { me.name = name }
         users[meID] = me
         signedInUserID = meID

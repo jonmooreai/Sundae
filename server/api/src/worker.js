@@ -11,6 +11,8 @@ import { stripJpegMetadata } from './jpeg.js';
 const ACCESS_SECONDS = 15 * 60;
 const REFRESH_SECONDS = 30 * 24 * 3600;
 const UPLOAD_SECONDS = 30 * 60;
+// How long someone new has, after Sign in with Apple, to choose a username.
+const SIGNUP_SECONDS = 60 * 60;
 // A used refresh token still works this long, so a reply lost on a bad connection does not sign
 // anyone out. After that, a second use means the token leaked.
 const REFRESH_GRACE_SECONDS = 60;
@@ -127,6 +129,7 @@ async function route(ctx, method, parts) {
   switch (key) {
     // Session
     case 'POST auth/apple': return signInWithApple(ctx);
+    case 'POST auth/apple/signup': return finishAppleSignUp(ctx);
     case 'POST auth/phone/start':
     case 'POST auth/phone/verify': fail(400, 'not_supported', 'Phone sign-in is not available. Use Sign in with Apple.');
     case 'POST auth/refresh': return refresh(ctx);
@@ -237,22 +240,61 @@ async function signInWithApple(ctx) {
     .bind(await sha256Hex(String(input.nonce)), Math.floor(ctx.now.getTime() / 1000) + 24 * 3600).run();
   if (!fresh.meta?.changes) fail(401, 'unauthorized', 'Sign in with Apple did not go through. Try again.');
   const timezone = safeZone(String(input.timezone || 'UTC'));
-  let user = await ctx.db.prepare(`${USER_WITH_ADMIN} WHERE users.apple_sub = ?`).bind(sub).first();
+  const user = await ctx.db.prepare(`${USER_WITH_ADMIN} WHERE users.apple_sub = ?`).bind(sub).first();
   if (user) {
+    // Someone coming back: straight in, with everything they set up before.
     await ctx.db.prepare('UPDATE users SET timezone = ? WHERE id = ?').bind(timezone, user.id).run();
     user.timezone = timezone;
-  } else {
-    // SIGNUPS "closed" keeps out anyone new once everyone invited has joined. People with an
-    // account still sign in.
-    if (ctx.env.SIGNUPS === 'closed') fail(403, 'signups_closed', 'Sundae is invite only right now. Ask the person who invited you.');
-    const name = clean(input.name || input.full_name || '', 60);
-    const username = await uniqueUsername(ctx, input.username || name || 'friend');
-    const id = newId('u');
-    await ctx.db.prepare('INSERT INTO users (id, apple_sub, username, name, timezone, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .bind(id, sub, username, name, timezone, ctx.now.toISOString()).run();
-    user = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
+    return json({ ...(await issueSession(ctx, user.id)), user: await meJSON(ctx, user) });
   }
-  return json({ ...(await issueSession(ctx, user.id)), user: await meJSON(ctx, user) });
+  // SIGNUPS "closed" keeps out anyone new once everyone invited has joined. People with an
+  // account still sign in.
+  if (ctx.env.SIGNUPS === 'closed') fail(403, 'signups_closed', 'Sundae is invite only right now. Ask the person who invited you.');
+  if (input.profile_first === true) {
+    // The app asks a new person for a username before there is an account. This ticket is all
+    // it holds meanwhile: it can create this Apple ID's account once, and do nothing else.
+    const exp = Math.floor(ctx.now.getTime() / 1000) + SIGNUP_SECONDS;
+    return json({ signup_ticket: await signToken({ typ: 'signup', apple: sub, exp }, ctx.secret), expires_in: SIGNUP_SECONDS });
+  }
+  // Builds from before profile_first send the username with the first request.
+  const name = clean(input.name || input.full_name || '', 60);
+  const username = await uniqueUsername(ctx, input.username || name || 'friend');
+  const created = await createAccount(ctx, { sub, username, name, timezone });
+  if (!created) fail(409, 'username_taken', 'That username was just taken. Sign in with Apple again.');
+  return json({ ...(await issueSession(ctx, created.id)), user: await meJSON(ctx, created) });
+}
+
+/** A new person's account, from the ticket Sign in with Apple gave them and the username they
+ * chose. A username someone has already is refused rather than changed, so they choose again. */
+async function finishAppleSignUp(ctx) {
+  const input = await body(ctx.request);
+  const ticket = await verifyToken(String(input.signup_ticket || ''), ctx.secret, ctx.now.getTime());
+  if (!ticket || ticket.typ !== 'signup' || typeof ticket.apple !== 'string') {
+    fail(401, 'unauthorized', 'That took a while. Sign in with Apple again.');
+  }
+  if (ctx.env.SIGNUPS === 'closed') fail(403, 'signups_closed', 'Sundae is invite only right now. Ask the person who invited you.');
+  const username = normalizeUsername(input.username);
+  if (username.length < 2) fail(400, 'invalid_username', 'Usernames are 2 to 24 letters, numbers, dots or underscores.');
+  const taken = await ctx.db.prepare('SELECT apple_sub FROM users WHERE apple_sub = ? OR username = ?').bind(ticket.apple, username).all();
+  // A ticket never signs in to an account that exists, so once it has made one it is spent.
+  if (taken.results.some((row) => row.apple_sub === ticket.apple)) {
+    fail(409, 'account_exists', 'This Apple ID has an account already. Sign in with Apple again.');
+  }
+  if (taken.results.length) fail(409, 'username_taken', 'That username is taken.');
+  const created = await createAccount(ctx, {
+    sub: ticket.apple, username, name: clean(input.name || '', 60), timezone: safeZone(String(input.timezone || 'UTC')),
+  });
+  if (!created) fail(409, 'username_taken', 'That username is taken.');
+  return json({ ...(await issueSession(ctx, created.id)), user: await meJSON(ctx, created) });
+}
+
+/** The new row, or null when the Apple ID or the username was claimed a moment earlier. */
+async function createAccount(ctx, { sub, username, name, timezone }) {
+  const id = newId('u');
+  const inserted = await ctx.db.prepare('INSERT OR IGNORE INTO users (id, apple_sub, username, name, timezone, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(id, sub, username, name, timezone, ctx.now.toISOString()).run();
+  if (!inserted.meta?.changes) return null;
+  return ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
 }
 
 /** Rotates the refresh token. A token used again after the grace period means it leaked: the

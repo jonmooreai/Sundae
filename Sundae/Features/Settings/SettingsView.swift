@@ -1,12 +1,14 @@
 import LocalAuthentication
 import SwiftUI
 import UIKit
+import UserNotifications
 import PhosphorSwift
 
 /// Account, privacy, weekday ideas, tags, notifications, data. Open every day.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var settings = AccountSettings()
     @State private var loaded = false
@@ -15,6 +17,8 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @State private var signOutFailed = false
     @State private var showLocationConsent = false
+    /// What iOS says about notifications for Sundae. Read when Settings opens and on coming back.
+    @State private var notificationStatus: UNAuthorizationStatus = .authorized
 
     var body: some View {
         SettingsScreen(title: "Settings") {
@@ -52,9 +56,17 @@ struct SettingsView: View {
                 SettingsToggle(title: "Comments on my weeks", isOn: $settings.commentsEnabled)
             }
 
-            SettingsGroup(title: "Notifications", footer: "Weekdays bring one at most, at noon.") {
+            SettingsGroup(title: "Notifications", footer: model.isUsingMock ? nil : "Sundae sends only these two, both on Sunday.") {
                 SettingsToggle(title: "Sunday reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
                 SettingsToggle(title: "Last call", detail: "8:00 pm, if you haven't posted", isOn: $settings.notifyLastCall)
+                // A switch that is on but can't deliver says how to fix it.
+                if settings.notifySundayReminder || settings.notifyLastCall {
+                    if notificationStatus == .notDetermined {
+                        SettingsActionRow(title: "Allow notifications") { Task { await allowNotifications() } }
+                    } else if notificationStatus == .denied {
+                        SettingsActionRow(title: "Turn on Notifications in iOS Settings") { openSystemSettings() }
+                    }
+                }
                 // These need push notifications, which the friends and family server does not send
                 // yet. Shown with demo data only, so no switch here promises something that never comes.
                 if model.isUsingMock {
@@ -101,12 +113,21 @@ struct SettingsView: View {
         }
         .task {
             settings = model.accountSettings
+            notificationStatus = await NotificationScheduler.authorizationStatus()
             taggable = (try? await model.api.taggableUsers()) ?? []
             loaded = true
         }
-        .onChange(of: settings) { _, new in
+        .onChange(of: settings) { old, new in
             guard loaded else { return }
             Task { await model.saveAccountSettings(new) }
+            // Switching a reminder on is the moment to ask iOS, if it has never been asked.
+            let switchedOn = (new.notifySundayReminder && !old.notifySundayReminder) || (new.notifyLastCall && !old.notifyLastCall)
+            if switchedOn, notificationStatus == .notDetermined { Task { await allowNotifications() } }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            // Back from iOS Settings, maybe with notifications turned on.
+            guard phase == .active else { return }
+            Task { notificationStatus = await NotificationScheduler.authorizationStatus() }
         }
         .sheet(isPresented: $showLocationConsent) {
             LocationConsentSheet { model.localIdeas.enable() }
@@ -128,6 +149,12 @@ struct SettingsView: View {
         } message: {
             Text("Your dumps, comments and tags are removed right away. Photos you were tagged in stay in the poster's dump with the tag removed.")
         }
+    }
+
+    private func allowNotifications() async {
+        await NotificationScheduler.requestAuthorizationIfNeeded()
+        notificationStatus = await NotificationScheduler.authorizationStatus()
+        model.scheduleReminders()
     }
 
     private func openSystemSettings() {

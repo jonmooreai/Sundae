@@ -60,7 +60,9 @@ final class ScreenshotTests: XCTestCase {
 
     func testOnboarding() {
         let app = launch(day: "weekday", signedIn: false)
-        XCTAssertTrue(app.staticTexts["Sundae"].waitForExistence(timeout: 15))
+        // The film plays full screen; the title and Begin come in when it ends.
+        let film = app.descendants(matching: .any)["A felt ice cream sundae, built scoop by scoop, with a cherry on top"].firstMatch
+        XCTAssertTrue(film.waitForExistence(timeout: 15))
         snap(app, "00-onboarding-intro-film")
         // A tap skips the film to the finished sundae, where Begin appears.
         app.tap()

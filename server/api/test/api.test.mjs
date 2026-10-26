@@ -34,6 +34,76 @@ test('Sign in with Apple creates an account once, then signs back in', async () 
   assert.equal(someoneElse.user.username, 'jonmoore2');
 });
 
+test('someone coming back signs straight in; someone new chooses a username first', async () => {
+  const s = await server();
+  const users = () => s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+
+  // New: no account yet, only a ticket, and the ticket opens nothing.
+  const first = await s.call('POST', 'v1/auth/apple', { json: { ...(await appleSignIn(s, 'apple-new')), profile_first: true } });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.access_token, undefined, 'no session before there is an account');
+  assert.equal(first.body.expires_in, 3600);
+  assert.equal(users(), 0, 'and no account either');
+  const ticket = first.body.signup_ticket;
+  assert.equal((await s.call('GET', 'v1/me', { token: ticket })).status, 401, 'a ticket is not a session');
+
+  // A username someone has is refused, not quietly changed; the ticket still works after.
+  await s.signUp('apple-maya', 'maya');
+  const taken = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: ticket, username: 'Maya', timezone: 'UTC' } });
+  assert.equal(taken.status, 409);
+  assert.equal(taken.body.error.code, 'username_taken');
+  const tooShort = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: ticket, username: '!', timezone: 'UTC' } });
+  assert.equal(tooShort.body.error.code, 'invalid_username');
+  const made = await s.call('POST', 'v1/auth/apple/signup', {
+    json: { signup_ticket: ticket, username: 'Pat.Doe', name: 'Pat Doe', timezone: 'America/Chicago' },
+  });
+  assert.equal(made.status, 200);
+  assert.equal(made.body.user.username, 'pat.doe');
+  assert.equal(made.body.user.name, 'Pat Doe');
+  assert.equal(made.body.user.timezone, 'America/Chicago');
+  assert.equal((await s.call('GET', 'v1/me', { token: made.body.access_token })).body.id, made.body.user.id);
+
+  // Spent: a ticket never signs in to an account, so it cannot be used again.
+  const again = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: ticket, username: 'pat2', timezone: 'UTC' } });
+  assert.equal(again.body.error.code, 'account_exists');
+  assert.equal(users(), 2);
+
+  // Coming back: straight in, with the profile and photo they set up.
+  await s.call('PATCH', 'v1/me', { token: made.body.access_token, json: { bio: 'Hi' } });
+  const back = await s.call('POST', 'v1/auth/apple', { json: { ...(await appleSignIn(s, 'apple-new')), profile_first: true } });
+  assert.equal(back.status, 200);
+  assert.equal(back.body.signup_ticket, undefined);
+  assert.equal(back.body.user.id, made.body.user.id);
+  assert.equal(back.body.user.username, 'pat.doe');
+  assert.equal(back.body.user.bio, 'Hi');
+  assert.ok(back.body.access_token && back.body.refresh_token);
+  assert.equal(users(), 2, 'the same account, not a second one');
+});
+
+test('a sign-up ticket has to be the server\'s, recent, and a ticket', async () => {
+  const s = await server();
+  const forged = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: 'e30.forged', username: 'pat', timezone: 'UTC' } });
+  assert.equal(forged.status, 401);
+  const jon = await s.signUp('apple-jon', 'jon');
+  const session = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: jon.token, username: 'pat', timezone: 'UTC' } });
+  assert.equal(session.status, 401, 'a session token is not a ticket');
+
+  const first = await s.call('POST', 'v1/auth/apple', { json: { ...(await appleSignIn(s, 'apple-slow')), profile_first: true } });
+  s.setNow(new Date(s.now().getTime() + 61 * 60 * 1000));
+  const late = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: first.body.signup_ticket, username: 'pat', timezone: 'UTC' } });
+  assert.equal(late.status, 401, 'an hour later it has run out');
+
+  // Closing sign-ups closes the second step too, for tickets already handed out.
+  const early = await s.call('POST', 'v1/auth/apple', { json: { ...(await appleSignIn(s, 'apple-early')), profile_first: true } });
+  s.env.SIGNUPS = 'closed';
+  const closed = await s.call('POST', 'v1/auth/apple/signup', { json: { signup_ticket: early.body.signup_ticket, username: 'early', timezone: 'UTC' } });
+  assert.equal(closed.body.error.code, 'signups_closed');
+  const fresh = await s.call('POST', 'v1/auth/apple', { json: { ...(await appleSignIn(s, 'apple-later')), profile_first: true } });
+  assert.equal(fresh.body.error.code, 'signups_closed');
+  const jonBack = await s.call('POST', 'v1/auth/apple', { json: { ...(await appleSignIn(s, 'apple-jon')), profile_first: true } });
+  assert.equal(jonBack.body.user.id, jon.user.id, 'people with an account still get in');
+});
+
 test('tokens from anyone but Apple, or for another app, are refused', async () => {
   const s = await server();
   const wrongApp = await s.call('POST', 'v1/auth/apple', { json: await appleSignIn(s, 'x', { aud: 'com.other.app' }) });
