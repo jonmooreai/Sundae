@@ -20,13 +20,15 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
 - **Who can get in.** Only people with the app: Apple issues Sign in with Apple tokens for
   this app to this app alone, and the app goes only to people invited by email in TestFlight
   (docs/TESTFLIGHT.md). Once everyone has joined, `SIGNUPS` closes the door to new accounts.
+  Closing it also stops a blocked person rejoining with a new account.
 - **Sign-in.** Apple only, so there are no passwords to leak and no SMS codes to intercept.
   Each identity token is checked against Apple's keys, this app's bundle id, its expiry, and a
   nonce the phone made for that attempt, and each nonce works once, so a copied token cannot
   be replayed. The server keeps Apple's private user id, never an email address.
 - **Sessions.** Access tokens last 15 minutes. Refresh tokens are stored only as SHA-256
   hashes, change on every use, and a used one coming back more than a minute later signs that
-  session out everywhere.
+  session out everywhere. A new one is only written while the old one is still live, so a
+  refresh under way when someone signs out cannot outlast it.
 - **Photos.** Location, camera details and comments are removed on the phone and again on the
   server. The server also refuses any photo over 4096 pixels a side, twice what the app sends,
   so nobody's phone is handed one too big to open. The R2 bucket is private; photos are only
@@ -34,7 +36,10 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
 - **The web.** Every response forbids MIME sniffing, framing, scripts and referrers, and
   insists on HTTPS. There are no CORS headers, so no website can read the API from a browser.
 - **Nothing extra kept.** No request logs (observability is off), no analytics, no location.
-  Deleting an account removes it at once; D1's own recovery history rolls past it in 7 days.
+  Deleting an account removes it at once, with reports they sent and reports about them; D1's
+  own recovery history rolls past it in 7 days. Their upload records stay, with no owner, until
+  the next daily cleanup, which deletes any photo that could not be deleted at that moment or
+  was still arriving. The records hold only a file name, size and pixel dimensions.
 
 ## The privacy text
 

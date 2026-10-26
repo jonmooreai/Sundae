@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { server, r2, jpeg, frame, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
+import { cleanUp } from '../src/worker.js';
 
 /** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
 async function appleSignIn(s, sub, { nonce = `nonce-${Math.random()}-${Date.now()}`, sent = nonce, timezone = 'UTC', ...claims } = {}) {
@@ -605,14 +606,94 @@ test('nobody\'s time zone goes to anyone else; their own account still has it', 
 test('deleting an account removes everything of theirs', async () => {
   const s = await server();
   const { jon, maya } = await friends(s);
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
   const up = await uploadPhoto(s, jon);
   const dump = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: up, tagged_user_ids: [maya.user.id] }] } })).body;
   await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: maya.token, json: { body: 'hi' } });
+  const his = await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: jon.token, json: { body: 'thanks' } });
+  // Reports he sent, reports about him and everything of his, and one about someone else.
+  const report = (who, target_type, target_id, note) => s.call('POST', 'v1/reports', { token: who.token, json: { target_type, target_id, reason: 'other', note } });
+  await report(jon, 'profile', pat.user.id, 'Pat Doe posted something unkind');
+  for (const [type, id] of [['profile', jon.user.id], ['dump', dump.id], ['photo', dump.photos[0].id], ['comment', his.body.id]]) {
+    assert.equal((await report(maya, type, id)).status, 204);
+  }
+  await report(maya, 'profile', pat.user.id);
   assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
   assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).status, 401);
   assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body.length, 0);
   const left = s.env.DB.sqlite.prepare('SELECT (SELECT COUNT(*) FROM photos) AS photos, (SELECT COUNT(*) FROM blob_chunks) AS blobs, (SELECT COUNT(*) FROM tags) AS tags, (SELECT COUNT(*) FROM comments) AS comments').get();
   assert.deepEqual({ ...left }, { photos: 0, blobs: 0, tags: 0, comments: 0 });
+  const reports = s.env.DB.sqlite.prepare('SELECT reporter_id, target_id FROM reports').all().map((r) => ({ ...r }));
+  assert.deepEqual(reports, [{ reporter_id: maya.user.id, target_id: pat.user.id }], 'only Maya\'s report about Pat is left');
+});
+
+test('a photo stored while its account is deleted goes with the account', async () => {
+  const photos = r2();
+  const s = await server({ photos });
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  // The account is deleted after the PUT has claimed its ticket, before R2 has the photo.
+  const put = photos.put;
+  photos.put = async (key, bytes) => {
+    photos.put = put;
+    assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
+    return put(key, bytes);
+  };
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 404);
+  assert.equal(photos.objects.size, 0, 'nothing of Jon\'s is left in storage');
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 404, 'the ticket is no good now');
+  assert.equal(photos.objects.size, 0);
+});
+
+test('when photos cannot be deleted with the account, the account still goes and the daily cleanup takes them', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const photos = r2();
+  const s = await server({ photos });
+  const { jon, maya } = await friends(s);
+  const posted = await uploadPhoto(s, jon);
+  const avatar = await uploadPhoto(s, jon);
+  await uploadPhoto(s, jon);
+  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: posted }] } });
+  await s.call('PATCH', 'v1/me', { token: jon.token, json: { avatar_upload_id: avatar } });
+  const mayas = await uploadPhoto(s, maya);
+  assert.equal(photos.objects.size, 4);
+
+  const remove = photos.delete;
+  photos.delete = async () => { photos.delete = remove; throw new Error('storage is down'); };
+  assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204, 'the account is gone, so say so');
+  assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).status, 401);
+  assert.equal(photos.objects.size, 4, 'R2 still has them for now');
+
+  await cleanUp(s.env, new Date(SUNDAY.getTime() + 60_000));
+  assert.deepEqual([...photos.objects.keys()], [`${mayas}.jpg`], 'the next cleanup deletes all of Jon\'s');
+  assert.equal(s.env.DB.sqlite.prepare("SELECT COUNT(*) AS n FROM uploads WHERE user_id = ''").get().n, 0);
+});
+
+test('a refresh under way when someone signs out everywhere is refused', async () => {
+  for (const everywhere of [true, false]) {
+    const s = await server();
+    const phone = await s.signUp('apple-jon', 'jon');
+    const thief = { ...phone };
+    // Sign out lands after the refresh has checked its token, before it writes the next one.
+    const prepare = s.env.DB.prepare;
+    let armed = true;
+    s.env.DB.prepare = (sql) => {
+      const statement = prepare(sql);
+      if (!armed || !sql.includes('INSERT INTO refresh_tokens')) return statement;
+      return { ...statement, bind: (...values) => {
+        const bound = statement.bind(...values);
+        return { ...bound, run: async () => {
+          armed = false;
+          assert.equal((await s.call('POST', 'v1/auth/signout', { token: phone.token, json: { everywhere } })).status, 204);
+          return bound.run();
+        } };
+      } };
+    };
+    assert.equal((await s.call('POST', 'v1/auth/refresh', { json: { refresh_token: thief.refresh } })).status, 401);
+    s.env.DB.prepare = prepare;
+    const live = s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM refresh_tokens WHERE revoked = 0').get().n;
+    assert.equal(live, 0, 'no refresh token is left that still works');
+  }
 });
 
 test('profile, settings, the privacy page, and a bigger photo across chunks', async () => {

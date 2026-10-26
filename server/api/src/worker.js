@@ -226,10 +226,20 @@ function requireSunday(ctx) {
   if (!isSunday(ctx.now, ctx.me.timezone)) fail(423, 'sunday_closed', 'Come back Sunday.');
 }
 
-async function issueSession(ctx, userId, family = newId('fam')) {
+/** A new pair. Given the refresh token being swapped, the new one is written only while that one
+ * is still live, in one statement, so a sign-out that lands mid-refresh catches it too. */
+async function issueSession(ctx, userId, family = newId('fam'), parentHash = null) {
   const refreshToken = randomToken(32);
-  await ctx.db.prepare('INSERT INTO refresh_tokens (hash, user_id, family, expires_at) VALUES (?, ?, ?, ?)')
-    .bind(await sha256Hex(refreshToken), userId, family, Math.floor(ctx.now.getTime() / 1000) + REFRESH_SECONDS).run();
+  const hash = await sha256Hex(refreshToken);
+  const expires = Math.floor(ctx.now.getTime() / 1000) + REFRESH_SECONDS;
+  if (parentHash) {
+    const child = await ctx.db.prepare(`INSERT INTO refresh_tokens (hash, user_id, family, expires_at)
+      SELECT ?1, user_id, family, ?2 FROM refresh_tokens WHERE hash = ?3 AND revoked = 0`).bind(hash, expires, parentHash).run();
+    if (!child.meta?.changes) fail(401, 'unauthorized', 'Sign in again.');
+  } else {
+    await ctx.db.prepare('INSERT INTO refresh_tokens (hash, user_id, family, expires_at) VALUES (?, ?, ?, ?)')
+      .bind(hash, userId, family, expires).run();
+  }
   const accessToken = await signToken({ sub: userId, fam: family, typ: 'a', exp: Math.floor(ctx.now.getTime() / 1000) + ACCESS_SECONDS }, ctx.secret);
   return { access_token: accessToken, refresh_token: refreshToken, expires_in: ACCESS_SECONDS };
 }
@@ -318,7 +328,7 @@ async function refresh(ctx) {
     fail(401, 'unauthorized', 'Sign in again.');
   }
   if (!row.used) await ctx.db.prepare('UPDATE refresh_tokens SET used = ? WHERE hash = ? AND used = 0').bind(nowSeconds, hash).run();
-  return json(await issueSession(ctx, row.user_id, row.family));
+  return json(await issueSession(ctx, row.user_id, row.family, hash));
 }
 
 /** This device, or with {"everywhere": true} every device. Access tokens elsewhere run out within
@@ -435,7 +445,9 @@ async function updateSettings(ctx) {
 }
 
 /** Everything about the account, now, in one transaction. Tags of them on other people's photos
- * are removed. A handful of queries however many weeks they posted. */
+ * are removed, and so are reports they sent and reports about them. Their uploads rows are kept
+ * with no owner, so the daily cleanup deletes any photo that could not be deleted here, or that
+ * was still arriving. A handful of queries however many weeks they posted. */
 async function deleteMe(ctx) {
   const me = ctx.me.id;
   const db = ctx.db;
@@ -446,6 +458,12 @@ async function deleteMe(ctx) {
   const keys = new Set(results.map((r) => r.object_key));
   if (ctx.me.avatar_key) keys.add(ctx.me.avatar_key);
   await db.batch([
+    // First, while their weeks, photos and comments are still there to match.
+    db.prepare(`DELETE FROM reports WHERE reporter_id = ?1
+      OR (target_type = 'profile' AND target_id = ?1)
+      OR (target_type = 'dump' AND target_id IN ${mine})
+      OR (target_type = 'photo' AND target_id IN (SELECT id FROM photos WHERE dump_id IN ${mine}))
+      OR (target_type = 'comment' AND target_id IN (SELECT id FROM comments WHERE author_id = ?1))`).bind(me),
     db.prepare(`DELETE FROM tags WHERE tagged_user_id = ?1 OR tagger_id = ?1 OR photo_id IN (SELECT id FROM photos WHERE dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM comment_likes WHERE user_id = ?1 OR comment_id IN (SELECT id FROM comments WHERE author_id = ?1 OR dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM comments WHERE author_id = ?1 OR dump_id IN ${mine}`).bind(me),
@@ -455,11 +473,16 @@ async function deleteMe(ctx) {
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
     db.prepare('DELETE FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(me),
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?1').bind(me),
-    db.prepare('DELETE FROM uploads WHERE user_id = ?1').bind(me),
+    db.prepare("UPDATE uploads SET user_id = '', expires_at = 0 WHERE user_id = ?1").bind(me),
     db.prepare('DELETE FROM suggestions_done WHERE user_id = ?1').bind(me),
     db.prepare('DELETE FROM users WHERE id = ?1').bind(me),
   ]);
-  await storage(ctx.env).deleteMany([...keys]);
+  try {
+    await storage(ctx.env).deleteMany([...keys]);
+  } catch (error) {
+    // The account is gone either way; the daily cleanup deletes these photos.
+    console.error('photos left for cleanup', error?.stack || error);
+  }
   return empty();
 }
 
@@ -621,7 +644,7 @@ async function receiveUpload(ctx, id) {
   const sig = ctx.url.searchParams.get('s') || '';
   if (!exp || exp * 1000 < ctx.now.getTime() || !sameString(sig, await hmac(ctx.secret, `u|${id}|${exp}`))) fail(403, 'forbidden');
   const upload = await ctx.db.prepare('SELECT * FROM uploads WHERE id = ?').bind(id).first();
-  if (!upload) fail(404, 'not_found');
+  if (!upload || !upload.user_id) fail(404, 'not_found');
   if (upload.uploaded) return empty();
   const bytes = new Uint8Array(await ctx.request.arrayBuffer());
   if (!bytes.length || bytes.length > Math.min(MAX_UPLOAD_BYTES, upload.byte_size + 1024)) fail(400, 'invalid_photo', 'Unexpected size.');
@@ -629,13 +652,19 @@ async function receiveUpload(ctx, id) {
   if (!clean) fail(400, 'invalid_photo', 'Not a JPEG, or over 4096 pixels a side.');
   // Claimed before anything is written, so a second PUT on the same ticket, however long its
   // body took, or one still arriving after the account was deleted, writes nothing.
-  const claim = await ctx.db.prepare('UPDATE uploads SET uploaded = 1 WHERE id = ? AND uploaded = 0').bind(id).run();
+  const claim = await ctx.db.prepare("UPDATE uploads SET uploaded = 1 WHERE id = ? AND uploaded = 0 AND user_id != ''").bind(id).run();
   if (!claim.meta?.changes) return empty();
   try {
     await storage(ctx.env).put(upload.object_key, clean);
   } catch (error) {
     await ctx.db.prepare('UPDATE uploads SET uploaded = 0 WHERE id = ?').bind(id).run();
     throw error;
+  }
+  // An account deleted while the photo was being stored takes the photo with it.
+  const kept = await ctx.db.prepare("UPDATE uploads SET uploaded = 1 WHERE id = ? AND user_id != ''").bind(id).run();
+  if (!kept.meta?.changes) {
+    await storage(ctx.env).deleteMany([upload.object_key]);
+    fail(404, 'not_found');
   }
   return empty();
 }
@@ -1095,8 +1124,8 @@ async function markDone(ctx, suggestionId) {
 
 // MARK: - Daily cleanup
 
-/** Photos uploaded but never posted, and sign-ins long expired. Runs once a day; each run clears
- * up to 500 uploads, far more than a dozen friends leave behind. */
+/** Photos uploaded but never posted or left by a deleted account, and sign-ins long expired.
+ * Runs once a day; each run clears up to 500 uploads, far more than a dozen friends leave behind. */
 export async function cleanUp(env, now = new Date()) {
   await ensureSchema(env.DB);
   const nowSeconds = Math.floor(now.getTime() / 1000);
@@ -1105,12 +1134,13 @@ export async function cleanUp(env, now = new Date()) {
       AND object_key NOT IN (SELECT object_key FROM photos)
       AND object_key NOT IN (SELECT avatar_key FROM users WHERE avatar_key IS NOT NULL)
     LIMIT 500`).bind(nowSeconds - 2 * 24 * 3600).all();
+  // Photos first: if that fails, the rows stay for tomorrow's run.
+  await storage(env).deleteMany(results.map((r) => r.object_key));
   await env.DB.batch([
     env.DB.prepare('DELETE FROM uploads WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(results.map((r) => r.id))),
     env.DB.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').bind(nowSeconds),
     env.DB.prepare('DELETE FROM used_nonces WHERE expires_at < ?').bind(nowSeconds),
   ]);
-  await storage(env).deleteMany(results.map((r) => r.object_key));
   return { uploads: results.length };
 }
 

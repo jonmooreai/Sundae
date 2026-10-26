@@ -135,6 +135,19 @@ test('the daily cleanup clears photos that were never posted and keeps everythin
   assert.ok(!storedKeys(s).includes(`${abandoned}.jpg`));
 });
 
+test('a cleanup that cannot reach storage leaves its rows for the next one', async () => {
+  const photos = r2();
+  const s = await server({ photos });
+  const jon = await s.signUp('apple-jon', 'jon');
+  await uploadPhoto(s, jon);
+  const remove = photos.delete;
+  photos.delete = async () => { photos.delete = remove; throw new Error('storage is down'); };
+  await assert.rejects(cleanUp(s.env, new Date(SUNDAY.getTime() + 3 * DAY)));
+  assert.equal(photos.objects.size, 1);
+  assert.equal((await cleanUp(s.env, new Date(SUNDAY.getTime() + 3 * DAY))).uploads, 1, 'the row was still there');
+  assert.equal(photos.objects.size, 0);
+});
+
 test('one person can upload 150 photos a day, each up to 10 MB', async () => {
   const s = await server();
   const jon = await s.signUp('apple-jon', 'jon');
