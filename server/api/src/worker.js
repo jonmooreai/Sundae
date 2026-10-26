@@ -104,7 +104,7 @@ export async function handle(request, env) {
     await ensureSchema(env.DB);
     // env.CLOCK exists only in tests, to stand on a Sunday or a Wednesday.
     const now = typeof env.CLOCK === 'function' ? env.CLOCK() : new Date();
-    const ctx = { env, db: env.DB, url, origin: url.origin, request, now, me: null, secret: await tokenSecret(env), media: new Map() };
+    const ctx = { env, db: env.DB, url, origin: url.origin, request, now, me: null, blocked: null, secret: await tokenSecret(env), media: new Map() };
     return await route(ctx, request.method, url.pathname.slice(4).split('/').filter(Boolean));
   } catch (error) {
     if (error instanceof HttpError) return json({ error: { code: error.code, message: error.message } }, error.status);
@@ -369,13 +369,14 @@ async function userJSON(ctx, row) {
   return {
     id: row.id, username: row.username, name: row.name || null, bio: row.bio || null,
     avatar_url: row.avatar_key ? await mediaUrl(ctx, row.avatar_key) : null,
-    is_public: Boolean(row.is_public), timezone: row.timezone, birthday: null, invited_by_me: null,
+    // Nobody's time zone goes to anyone else: it says roughly where they are.
+    is_public: Boolean(row.is_public), timezone: null, birthday: null, invited_by_me: null,
   };
 }
 
-/** Someone's own account. Only an admin's says so; nobody else's mentions it. */
+/** Someone's own account, with their time zone. Only an admin's says so; nobody else's mentions it. */
 async function meJSON(ctx, row) {
-  return { ...(await userJSON(ctx, row)), ...(row.is_admin ? { is_admin: true } : {}) };
+  return { ...(await userJSON(ctx, row)), timezone: row.timezone, ...(row.is_admin ? { is_admin: true } : {}) };
 }
 
 async function usersJSON(ctx, rows) {
@@ -462,10 +463,11 @@ async function deleteMe(ctx) {
   return empty();
 }
 
-/** Everyone the caller has blocked or been blocked by. */
-async function blockedIds(ctx) {
-  const { results } = await ctx.db.prepare('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(ctx.me.id).all();
-  return new Set(results.map((r) => (r.blocker_id === ctx.me.id ? r.blocked_id : r.blocker_id)));
+/** Everyone the caller has blocked or been blocked by. One query a request, however often it is asked. */
+function blockedIds(ctx) {
+  ctx.blocked ??= ctx.db.prepare('SELECT blocker_id, blocked_id FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(ctx.me.id).all()
+    .then(({ results }) => new Set(results.map((r) => (r.blocker_id === ctx.me.id ? r.blocked_id : r.blocker_id))));
+  return ctx.blocked;
 }
 
 /** Of these authors, the ones whose weeks the caller can read: themselves, public people and people
@@ -541,13 +543,26 @@ async function unfollow(ctx, userId) {
   return empty();
 }
 
+/** Hides the two people from each other for good, and takes away everything between them that
+ * others could still see: follows, tags, and each one's comments and likes on the other's weeks
+ * and comments. There is no unblock, so nothing is kept to bring back. */
 async function block(ctx, userId) {
   if (userId === ctx.me.id) fail(400, 'bad_request', 'That is you.');
-  await ctx.db.batch([
+  const db = ctx.db;
+  // Rows one of them left on the other's weeks; ?1 is the caller, ?2 the person blocked.
+  const onEachOthers = (person) => `(${person} = ?2 AND dump_id IN (SELECT id FROM dumps WHERE author_id = ?1))
+    OR (${person} = ?1 AND dump_id IN (SELECT id FROM dumps WHERE author_id = ?2))`;
+  const comments = `SELECT id FROM comments WHERE ${onEachOthers('author_id')}`;
+  await db.batch([
     // Only someone who exists, so made-up ids never fill the database.
-    ctx.db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) SELECT ?, id FROM users WHERE id = ?').bind(ctx.me.id, userId),
-    ctx.db.prepare('DELETE FROM follows WHERE (follower_id = ? AND followee_id = ?) OR (follower_id = ? AND followee_id = ?)')
-      .bind(ctx.me.id, userId, userId, ctx.me.id),
+    db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) SELECT ?1, id FROM users WHERE id = ?2').bind(ctx.me.id, userId),
+    db.prepare('DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)').bind(ctx.me.id, userId),
+    db.prepare('DELETE FROM tags WHERE (tagger_id = ?1 AND tagged_user_id = ?2) OR (tagger_id = ?2 AND tagged_user_id = ?1)').bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM comment_likes WHERE comment_id IN (${comments})
+      OR (user_id = ?2 AND comment_id IN (SELECT id FROM comments WHERE author_id = ?1))
+      OR (user_id = ?1 AND comment_id IN (SELECT id FROM comments WHERE author_id = ?2))`).bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM comments WHERE id IN (${comments})`).bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM likes WHERE ${onEachOthers('user_id')}`).bind(ctx.me.id, userId),
   ]);
   return empty();
 }
@@ -571,16 +586,13 @@ async function search(ctx) {
   return json(await usersJSON(ctx, results));
 }
 
-/** Friends of the people the caller follows, that they do not follow yet. */
+/** Public accounts the caller has not followed or asked to follow yet, newest first. Never built
+ * from who anyone follows, which nobody else gets to see. */
 async function suggested(ctx) {
   const { results } = await ctx.db.prepare(`
-    SELECT u.* FROM users u WHERE u.id != ?1
-      AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
-      AND u.id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)
-      AND u.id NOT IN (SELECT followee_id FROM follows WHERE follower_id = ?1)
-      AND u.id IN (SELECT f2.followee_id FROM follows f1 JOIN follows f2 ON f2.follower_id = f1.followee_id
-                   WHERE f1.follower_id = ?1 AND f1.status = 'accepted' AND f2.status = 'accepted')
-    ORDER BY u.username LIMIT 20`).bind(ctx.me.id).all();
+    SELECT * FROM users WHERE id != ?1 AND is_public = 1 AND ${NOT_BLOCKED}
+      AND id NOT IN (SELECT followee_id FROM follows WHERE follower_id = ?1)
+    ORDER BY created_at DESC, username LIMIT 20`).bind(ctx.me.id).all();
   return json(await usersJSON(ctx, results));
 }
 
@@ -651,18 +663,21 @@ function lockedAt(dump, author, now) {
   return zonedMidnight(addDays(dump.week_start, 7), author.timezone).toISOString();
 }
 
-/** Photos with their visible tags, keyed by photo id. */
+/** Photos with their visible tags, keyed by photo id. Nobody blocked either way shows up tagged. */
 async function photosJSON(ctx, photos) {
   if (!photos.length) return new Map();
-  const { results: tags } = await ctx.db.prepare(`
-    SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
-    .bind(JSON.stringify(photos.map((p) => p.id))).all();
+  const [{ results: tags }, blocked] = await Promise.all([
+    ctx.db.prepare(`
+      SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
+      .bind(JSON.stringify(photos.map((p) => p.id))).all(),
+    blockedIds(ctx),
+  ]);
   const people = await usersById(ctx, tags.map((t) => t.tagged_user_id));
   const out = new Map();
   for (const photo of photos) {
     const photoTags = [];
     for (const tag of tags.filter((t) => t.photo_id === photo.id)) {
-      const tagged = people.get(tag.tagged_user_id);
+      const tagged = !blocked.has(tag.tagged_user_id) && people.get(tag.tagged_user_id);
       if (tagged) photoTags.push(await tagJSON(ctx, tag, tagged));
     }
     out.set(photo.id, {
@@ -684,12 +699,18 @@ async function dumpsJSON(ctx, dumps) {
   if (!dumps.length) return [];
   const ids = JSON.stringify(dumps.map((d) => d.id));
   const db = ctx.db;
-  const [{ results: photos }, { results: likes }, { results: counts }, { results: firsts }] = await Promise.all([
+  // Likes and comments from anyone blocked either way are left out, as the comment list leaves them out.
+  const [{ results: photos }, { results: likes }, { results: counts }, { results: firsts }, blocked] = await Promise.all([
     db.prepare('SELECT * FROM photos WHERE dump_id IN (SELECT value FROM json_each(?)) ORDER BY ord').bind(ids).all(),
     db.prepare('SELECT dump_id, user_id FROM likes WHERE dump_id IN (SELECT value FROM json_each(?)) ORDER BY created_at DESC').bind(ids).all(),
-    db.prepare('SELECT dump_id, COUNT(*) AS n FROM comments WHERE dump_id IN (SELECT value FROM json_each(?)) GROUP BY dump_id').bind(ids).all(),
+    db.prepare(`
+      SELECT dump_id, COUNT(*) AS n FROM comments WHERE dump_id IN (SELECT value FROM json_each(?1))
+        AND author_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?2)
+        AND author_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?2)
+      GROUP BY dump_id`).bind(ids, ctx.me.id).all(),
     db.prepare('SELECT author_id, MIN(week_start) AS first FROM dumps WHERE author_id IN (SELECT value FROM json_each(?)) GROUP BY author_id')
       .bind(JSON.stringify(dumps.map((d) => d.author_id))).all(),
+    blockedIds(ctx),
   ]);
   const photoMap = await photosJSON(ctx, photos);
   const people = await usersById(ctx, [...dumps.map((d) => d.author_id), ...likes.map((l) => l.user_id)]);
@@ -697,7 +718,7 @@ async function dumpsJSON(ctx, dumps) {
   for (const dump of dumps) {
     const author = people.get(dump.author_id);
     if (!author) continue;
-    const likers = likes.filter((l) => l.dump_id === dump.id).map((l) => people.get(l.user_id)).filter(Boolean);
+    const likers = likes.filter((l) => l.dump_id === dump.id && !blocked.has(l.user_id)).map((l) => people.get(l.user_id)).filter(Boolean);
     out.push({
       id: dump.id, author: await userJSON(ctx, author), week_start: dump.week_start, caption: dump.caption || null,
       created_at: dump.created_at, locked_at: lockedAt(dump, author, ctx.now),
@@ -937,8 +958,10 @@ async function editComment(ctx, id) {
 }
 
 async function deleteComment(ctx, id) {
-  const { row, dump } = await commentFor(ctx, id);
-  if (row.author_id !== ctx.me.id && dump.author_id !== ctx.me.id) fail(403, 'forbidden');
+  const row = await ctx.db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
+  if (!row) fail(404, 'not_found');
+  // Anyone can take back their own comment, even on a week they can no longer open.
+  if (row.author_id !== ctx.me.id && (await readableDump(ctx, row.dump_id)).author_id !== ctx.me.id) fail(403, 'forbidden');
   await ctx.db.batch([
     ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ?').bind(id),
     ctx.db.prepare('DELETE FROM comments WHERE id = ?').bind(id),
@@ -1015,8 +1038,11 @@ async function profile(ctx, userId) {
         JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
       WHERE t.tagged_user_id = ? AND t.status = 'approved' AND d.author_id != ? AND d.week_start >= ?
       ORDER BY t.responded_at`).bind(user.id, user.id, oldest).all();
-    const readable = await readableAuthors(ctx, taggedRows.map((r) => r.author_id));
-    const visible = taggedRows.filter((r) => readable.has(r.author_id));
+    // Someone looking at their own profile sees every tag of them, even on a week they cannot
+    // open, so they can remove it; never from anyone blocked either way.
+    const blocked = rel === 'me' ? await blockedIds(ctx) : null;
+    const readable = rel === 'me' ? null : await readableAuthors(ctx, taggedRows.map((r) => r.author_id));
+    const visible = taggedRows.filter((r) => (rel === 'me' ? !blocked.has(r.author_id) : readable.has(r.author_id)));
     const { results: taggedPhotos } = visible.length
       ? await ctx.db.prepare('SELECT * FROM photos WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(visible.map((r) => r.photo_id))).all()
       : { results: [] };

@@ -50,7 +50,7 @@ Nothing, for a group this size.
 |---|---|---|
 | Worker requests | 100,000 a day | a few thousand on a Sunday |
 | D1 database | 500 MB, 5 million rows read a day | a few MB a year |
-| D1 queries | 50 per request | the busiest request makes 17 (the tests fail past 50) |
+| D1 queries | 50 per request | the busiest request makes 18 (the tests fail past 50) |
 | R2 photos | 10 GB, a million uploads a month | about 1 MB a photo |
 
 Past a free allowance, the Worker and D1 stop answering until the next day rather than bill.
@@ -118,6 +118,31 @@ INSERT INTO admins (user_id) SELECT id FROM users WHERE username = 'their-userna
 ```
 
 Delete the row to take it away; their phone drops back to the real day on its next launch.
+
+## After deploying
+
+Blocking now also removes tags between the two people and each one's comments and likes on
+the other's weeks and comments. Blocks made before that left those rows behind. Once the new
+Worker is live, clear them once from the D1 console:
+
+```sql
+DELETE FROM tags WHERE EXISTS (SELECT 1 FROM blocks b WHERE
+  (b.blocker_id = tags.tagger_id AND b.blocked_id = tags.tagged_user_id) OR
+  (b.blocker_id = tags.tagged_user_id AND b.blocked_id = tags.tagger_id));
+DELETE FROM comment_likes WHERE EXISTS (SELECT 1 FROM comments c JOIN dumps d ON d.id = c.dump_id JOIN blocks b ON
+  (b.blocker_id = c.author_id AND b.blocked_id IN (d.author_id, comment_likes.user_id)) OR
+  (b.blocked_id = c.author_id AND b.blocker_id IN (d.author_id, comment_likes.user_id))
+  WHERE c.id = comment_likes.comment_id);
+DELETE FROM comments WHERE EXISTS (SELECT 1 FROM dumps d JOIN blocks b ON
+  (b.blocker_id = comments.author_id AND b.blocked_id = d.author_id) OR (b.blocker_id = d.author_id AND b.blocked_id = comments.author_id)
+  WHERE d.id = comments.dump_id);
+DELETE FROM likes WHERE EXISTS (SELECT 1 FROM dumps d JOIN blocks b ON
+  (b.blocker_id = likes.user_id AND b.blocked_id = d.author_id) OR (b.blocker_id = d.author_id AND b.blocked_id = likes.user_id)
+  WHERE d.id = likes.dump_id);
+```
+
+Until then nobody blocked either way sees the other in likes, tags or comment counts, but
+someone else could still see those old rows.
 
 ## Settings
 

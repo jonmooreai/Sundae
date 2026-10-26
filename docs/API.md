@@ -59,11 +59,11 @@ Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challe
 | PUT | `dumps/{id}/like` | `{liked: bool}`, returns the dump |
 | GET / POST | `dumps/{id}/comments` | POST body `{body}`; up to 30 comments a person on each week, then 429 `too_many_comments` |
 | PATCH | `comments/{id}` | `{body}`; author only; sets `edited_at` |
-| DELETE | `comments/{id}` | author, or the dump's author |
+| DELETE | `comments/{id}` | author, even on a week they can no longer open, or the dump's author |
 | PUT / DELETE | `comments/{id}/like` | returns the comment with `like_count` and `liked_by_me` |
 | GET | `users/{id}/profile` | profile object below |
 | GET | `users/search?q=` | name or username only |
-| GET | `users/suggested` | friends of people the caller follows |
+| GET | `users/suggested` | public accounts the caller has not followed or asked to follow, newest first, up to 20; never built from who anyone follows |
 | POST / DELETE | `users/{id}/follow` | POST returns `{relationship}`: `following` or `requested` |
 
 ### Saving a dump
@@ -106,7 +106,7 @@ Server rules: `week_start` must be the caller's current week and today must be S
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| POST | `users/{id}/block` | removes follows and tags both ways |
+| POST | `users/{id}/block` | removes follows and tags both ways, and each one's comments and likes on the other's weeks and comments |
 | POST | `reports` | `{target_type: photo|dump|comment|profile, target_id, reason, note?}` |
 
 ## Shapes
@@ -114,6 +114,7 @@ Server rules: `week_start` must be the caller's current week and today must be S
 ```
 user:     {id, username, name?, bio?, avatar_url?, is_public, timezone?,
            birthday?: "MM-DD" (friends only, never a year), invited_by_me?}
+                                                   timezone only on the caller's own account (me, sign-in), null for anyone else
 tag:      {id, photo_id, tagger_id, tagged_user: user, status: pending|approved|declined|removed, responded_at?}
 photo:    {id, dump_id, order, url, width, height, alt_text?, tags: [tag]}
 dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photos: [photo],
@@ -128,4 +129,4 @@ local_idea: {id, text, reason, time_of_day: morning|afternoon|evening|any,
                                                    the place's position, never the caller's; walk_minutes only within a walk
 ```
 
-`liked_by` carries names for the "Liked by Maya and Theo" line; the client switches to a count past 10.
+`liked_by` carries names for the "Liked by Maya and Theo" line; the client switches to a count past 10. `liked_by`, photo tags, `comment_count` and comment lists leave out anyone blocked either way with the caller.
