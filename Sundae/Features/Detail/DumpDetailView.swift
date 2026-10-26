@@ -230,25 +230,16 @@ struct ReportSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    Picker("Reason", selection: $reason) {
-                        ForEach(Report.Reason.allCases) { Text($0.label).tag($0) }
+            SettingsScreen(title: "Report") {
+                SettingsGroup(title: "Reason") {
+                    ForEach(Report.Reason.allCases) { option in
+                        RadioRow(title: option.label, isSelected: reason == option) { reason = option }
                     }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
                 }
-                Section("Anything else?") {
-                    TextField("Optional", text: $note, axis: .vertical).lineLimit(2...5)
-                }
-                Section {
-                    Text("Reports go to a review queue. The person is not told who reported them.")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
+                SettingsGroup(title: "Anything else?", footer: "They are not told who reported them.") {
+                    SettingsFieldRow(label: "Note", text: $note, prompt: "Optional", multiline: true)
                 }
             }
-            .navigationTitle("Report")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.textButtonTint() }
                 ToolbarItem(placement: .confirmationAction) {

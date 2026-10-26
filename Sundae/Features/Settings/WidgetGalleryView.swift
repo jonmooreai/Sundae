@@ -17,39 +17,31 @@ struct WidgetGalleryView: View {
             at: Date(), mode: mode, catalog: model.suggestions, shared: model.shared,
             photos: mode == .sunday ? photos : ([], 0))
 
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                Picker("Day", selection: $mode.animation(.snappy(duration: 0.3))) {
-                    Text("Monday to Saturday").tag(WidgetSnapshot.Mode.weekday)
-                    Text("Sunday").tag(WidgetSnapshot.Mode.sunday)
-                }
-                .pickerStyle(.segmented)
+        SettingsScreen(title: "Widgets") {
+            SegmentedChoice(options: [(WidgetSnapshot.Mode.weekday, "Monday to Saturday"), (.sunday, "Sunday")],
+                            selection: $mode)
 
-                VStack(alignment: .leading, spacing: 18) {
-                    preview(snapshot, family: .systemMedium, size: sizes.medium, label: "Wide")
-                    preview(snapshot, family: .systemSmall, size: sizes.small, label: "Small")
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity)
-                .background(Theme.fill, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-
-                Text(mode == .weekday
-                     ? "Monday to Saturday it shows today's idea, the same one the app shows, and what the next days hold. Ideas near you appear here too when that is on."
-                     : "On Sunday it shows a few photos you took this week and a nudge to post. Once your week is up, it says so.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                if mode == .sunday { photosNote }
-
-                steps
+            VStack(alignment: .leading, spacing: 18) {
+                preview(snapshot, family: .systemMedium, size: sizes.medium, label: "Wide")
+                preview(snapshot, family: .systemSmall, size: sizes.small, label: "Small")
             }
-            .padding(Theme.pagePadding)
-            .frame(maxWidth: 640)
+            .padding(14)
             .frame(maxWidth: .infinity)
+            .background(Theme.fill, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .animation(.snappy(duration: 0.3), value: mode)
+
+            Text(mode == .weekday ? "Today's idea and the next few days." : "A few photos from this week, and a nudge to post.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if mode == .sunday { photosNote }
+
+            SettingsGroup(title: "Add it") {
+                step(1, "Touch and hold your Home Screen.")
+                step(2, "Tap Edit, then Add Widget.")
+                step(3, "Find Sundae and pick a size.")
+            }
         }
-        .background(Theme.background)
-        .navigationTitle("Widgets")
-        .navigationBarTitleDisplayMode(.inline)
         .onAppear { mode = model.isSunday ? .sunday : .weekday }
         .task { await loadPhotos() }
     }
@@ -70,66 +62,45 @@ struct WidgetGalleryView: View {
         .frame(maxWidth: .infinity, alignment: family == .systemSmall ? .leading : .center)
     }
 
-    /// Photos are read on the phone with the app's own access. Asking here is optional and says why.
+    /// Photos are read on the phone with the app's own access. Asking here is optional.
     @ViewBuilder
     private var photosNote: some View {
         switch photoStatus {
         case .notDetermined:
-            VStack(alignment: .leading, spacing: 10) {
-                Text("The Sunday widget can show a few photos you took this week. It reads them on this phone with the same Photos access as posting. Nothing is copied or uploaded.")
-                    .font(.subheadline)
-                Button("Allow Photos") {
+            SettingsGroup(footer: "Read on this phone. Never uploaded.") {
+                SettingsActionRow(title: "Show this week's photos") {
                     Task {
                         photoStatus = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
                         await loadPhotos()
                         WidgetCenter.shared.reloadAllTimelines()
                     }
                 }
-                .buttonStyle(.pill(.secondary, size: .small))
             }
-            .card(padding: 14)
         case .denied, .restricted:
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Photos is off for Sundae, so the Sunday widget shows the sundae instead of your week.")
-                    .font(.subheadline)
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    Link("Open iOS Settings", destination: url)
-                        .font(.subheadline.weight(.medium))
-                        .textButtonTint()
+            SettingsGroup(footer: "Photos is off for Sundae, so Sunday shows the sundae.") {
+                SettingsActionRow(title: "Open iOS Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
             }
-            .card(padding: 14)
         default:
             if photos.count == 0 {
-                Text("No photos from this week yet. Take a few and they show up here.")
+                Text("No photos from this week yet.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
         }
     }
 
-    private var steps: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Add it")
-                .font(.headline)
-            step(1, "Touch and hold an empty spot on your Home Screen until the apps jiggle.")
-            step(2, "Tap Edit in the top corner, then Add Widget.")
-            step(3, "Search for Sundae, swipe to the size you want, and tap Add Widget.")
-            Text("It works on iPhone and iPad Home Screens, in StandBy, and on the Lock Screen as a one-line version.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.top, 2)
-        }
-    }
-
     private func step(_ number: Int, _ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("\(number)")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
-                .frame(width: 16, alignment: .leading)
-            Text(text).font(.subheadline)
+                .frame(width: 14, alignment: .leading)
+            Text(text).font(.body)
         }
+        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .padding(.horizontal, 16)
     }
 
     private func loadPhotos() async {

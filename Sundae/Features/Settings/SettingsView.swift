@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import PhosphorSwift
 
-/// Account, privacy, auto-approve list, notifications. Open every day.
+/// Account, privacy, weekday ideas, tags, notifications, data. Open every day.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -16,120 +16,77 @@ struct SettingsView: View {
     @State private var showLocationConsent = false
 
     var body: some View {
-        Form {
-            Section("Appearance") {
-                Picker("Theme", selection: Binding(get: { model.appearance }, set: { model.setAppearance($0) })) {
-                    ForEach(Appearance.allCases) { Text($0.label).tag($0) }
+        SettingsScreen(title: "Settings") {
+            SettingsGroup(title: "Appearance", card: false) {
+                SegmentedChoice(options: Appearance.allCases.map { ($0, $0.shortLabel) },
+                                selection: Binding(get: { model.appearance }, set: { model.setAppearance($0) }))
+            }
+
+            SettingsGroup(title: "Account") {
+                RadioRow(title: "Private", detail: "You approve each follower.", isSelected: !settings.isPublic) {
+                    settings.isPublic = false
+                }
+                RadioRow(title: "Public", detail: "Anyone can follow you.", isSelected: settings.isPublic) {
+                    settings.isPublic = true
                 }
             }
 
-            Section {
-                Toggle("Public account", isOn: $settings.isPublic)
-            } header: {
-                Text("Privacy")
-            } footer: {
-                Text(settings.isPublic
-                     ? "Anyone can follow you without asking and see your weeks."
-                     : "People ask to follow you and you decide. Your weeks are only visible to people you accept.")
-            }
-
-            Section {
-                Toggle("Ideas near me", isOn: Binding(
-                    get: { model.localIdeas.isEnabled },
-                    set: { on in
-                        if on { showLocationConsent = true } else { model.localIdeas.disable() }
-                    }))
-                if model.localIdeas.isEnabled, model.localIdeas.isDenied,
-                   let url = URL(string: UIApplication.openSettingsURLString) {
-                    Link("Location is off for Sundae in iOS Settings. Open Settings", destination: url)
-                        .textButtonTint()
+            SettingsGroup(title: "Weekdays") {
+                SettingsToggle(title: "Ideas near me", detail: "From your neighborhood. Never on Sunday.",
+                               isOn: Binding(get: { model.localIdeas.isEnabled },
+                                             set: { on in
+                                                 if on { showLocationConsent = true } else { model.localIdeas.disable() }
+                                             }))
+                if model.localIdeas.isEnabled, model.localIdeas.isDenied {
+                    SettingsActionRow(title: "Turn on Location in iOS Settings") { openSystemSettings() }
                 }
-            } header: {
-                Text("Weekday ideas")
-            } footer: {
-                Text("Monday to Saturday, today's idea can come from your neighborhood. Your exact location never leaves this phone: only a neighborhood-sized area, about a kilometer across, is looked up, with no account attached, and only when you open the app on a weekday. Never on Sunday, never on your photos, never shown to anyone.")
+                SettingsLinkRow(title: "Home Screen widgets") { WidgetGalleryView() }
             }
 
-            Section {
-                NavigationLink {
-                    WidgetGalleryView()
-                } label: {
-                    Text("Home Screen widgets")
-                }
-            } footer: {
-                Text("See exactly what the small and wide widgets show on this phone, and how to add one.")
-            }
-
-            Section {
-                NavigationLink {
+            SettingsGroup(title: "Tags and comments") {
+                SettingsLinkRow(title: "Auto-approve tags",
+                                value: settings.autoApproveUserIDs.isEmpty ? "Nobody" : "\(settings.autoApproveUserIDs.count)") {
                     AutoApproveList(settings: $settings, people: taggable)
-                } label: {
-                    HStack {
-                        Text("Auto-approve tags")
-                        Spacer()
-                        Text(settings.autoApproveUserIDs.isEmpty ? "Nobody" : "\(settings.autoApproveUserIDs.count)")
-                            .foregroundStyle(.secondary)
-                    }
                 }
-                Toggle("Allow comments on my weeks", isOn: $settings.commentsEnabled)
-            } footer: {
-                Text("Tags from auto-approved friends land on your week right away. Everyone else waits for you.")
+                SettingsToggle(title: "Comments on my weeks", isOn: $settings.commentsEnabled)
             }
 
-            Section {
-                Toggle("Sunday reminder, 9:00 am", isOn: $settings.notifySundayReminder)
-                Toggle("Last call, 8:00 pm if you haven't posted", isOn: $settings.notifyLastCall)
-                Toggle("Someone tagged you", isOn: $settings.notifyTags)
-                Toggle("Follow requests", isOn: $settings.notifyFollowRequests)
-                Toggle("Likes and comments, Sunday only", isOn: $settings.notifyLikesAndComments)
-                Toggle("Your tag was approved", isOn: $settings.notifyTagApproved)
-            } header: {
-                Text("Notifications")
-            } footer: {
-                Text("At most one push per weekday, as a noon digest. Nothing ever tells you what's in the feed. Weekday suggestions are never pushed.")
+            SettingsGroup(title: "Notifications", footer: "Weekdays bring one at most, at noon.") {
+                SettingsToggle(title: "Sunday reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
+                SettingsToggle(title: "Last call", detail: "8:00 pm, if you haven't posted", isOn: $settings.notifyLastCall)
+                SettingsToggle(title: "Tags", isOn: $settings.notifyTags)
+                SettingsToggle(title: "Follow requests", isOn: $settings.notifyFollowRequests)
+                SettingsToggle(title: "Likes and comments", detail: "Sundays only", isOn: $settings.notifyLikesAndComments)
+                SettingsToggle(title: "Approved tags", isOn: $settings.notifyTagApproved)
             }
 
-            Section("Devices") {
-                LabeledContent("This device", value: UIDevice.current.name)
-                Button("Sign out everywhere", role: .destructive) { confirmSignOut = true }
+            SettingsGroup(title: "Devices") {
+                SettingsValueRow(title: "This device", value: UIDevice.current.name)
+                SettingsActionRow(title: "Sign out everywhere", isDestructive: true) { confirmSignOut = true }
             }
 
-            Section {
-                Button("Export my data") { }
+            SettingsGroup(title: "Your data", footer: "Deletion completes within 30 days.") {
+                SettingsActionRow(title: "Export my data", value: "Soon") { }
                     .disabled(true)
-                    .textButtonTint()
-                Button("Delete account", role: .destructive) {
+                SettingsActionRow(title: "Delete account", isDestructive: true) {
                     Task { if await freshAuthentication() { confirmDelete = true } }
                 }
-            } header: {
-                Text("Your data")
-            } footer: {
-                Text("Export arrives within 24 hours as a zip of your photos, captions, tags and settings. Deletion completes within 30 days.")
             }
 
             if model.isUsingMock {
-                Section {
-                    Picker("Day", selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) })) {
-                        ForEach(DebugDay.allCases) { Text($0.label).tag($0) }
-                    }
-                    .pickerStyle(.inline)
-                    .labelsHidden()
-                    Toggle("Always open on the post screen",
-                           isOn: Binding(get: { model.compose.alwaysShowPrompt }, set: { model.compose.alwaysShowPrompt = $0 }))
-                } header: {
-                    Text("Demo")
-                } footer: {
-                    Text("This build runs on built-in demo data. Move the clock to see the Sunday screens on any day. The post screen normally shows once per Sunday until you post or wave it away; the switch shows it on every open.")
+                SettingsGroup(title: "Demo", footer: "Built-in demo data. Move the clock to see Sunday any day.") {
+                    SegmentedChoice(options: DebugDay.allCases.map { ($0, $0.shortLabel) },
+                                    selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) }))
+                        .padding(10)
+                    SettingsToggle(title: "Always open on the post screen",
+                                   isOn: Binding(get: { model.compose.alwaysShowPrompt }, set: { model.compose.alwaysShowPrompt = $0 }))
                 }
             }
 
-            Section {
-                Button("Sign out") { Task { await model.signOut() } }
-                    .textButtonTint()
+            SettingsGroup {
+                SettingsActionRow(title: "Sign out") { Task { await model.signOut() } }
             }
         }
-        .navigationTitle("Settings")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.textButtonTint() }
         }
@@ -155,6 +112,10 @@ struct SettingsView: View {
         }
     }
 
+    private func openSystemSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+    }
+
     /// Sensitive actions need fresh authentication. Face ID or Touch ID when available, passcode otherwise.
     private func freshAuthentication() async -> Bool {
         let context = LAContext()
@@ -169,35 +130,63 @@ struct AutoApproveList: View {
     let people: [User]
 
     var body: some View {
-        List {
+        SettingsScreen(title: "Auto-approve") {
             if people.isEmpty {
-                Text("Follow some friends first.").foregroundStyle(.secondary)
-            }
-            ForEach(people) { user in
-                let isOn = settings.autoApproveUserIDs.contains(user.id)
-                Button {
-                    if isOn {
-                        settings.autoApproveUserIDs.removeAll { $0 == user.id }
-                    } else {
-                        settings.autoApproveUserIDs.append(user.id)
-                    }
-                } label: {
-                    HStack {
-                        UserRow(user: user)
-                        ZStack {
-                            Circle().strokeBorder(isOn ? Color.accentColor : Theme.hairline, lineWidth: 1.5)
-                            if isOn {
-                                Circle().fill(Color.accentColor)
-                                Icon(Glyph.done, weight: .bold, size: 14).foregroundStyle(.white)
+                Text("Follow some friends first.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 40)
+            } else {
+                SettingsGroup(footer: "Their tags land on your week without waiting.") {
+                    ForEach(people) { user in
+                        let isOn = settings.autoApproveUserIDs.contains(user.id)
+                        Button {
+                            withAnimation(.snappy(duration: 0.2)) {
+                                if isOn {
+                                    settings.autoApproveUserIDs.removeAll { $0 == user.id }
+                                } else {
+                                    settings.autoApproveUserIDs.append(user.id)
+                                }
                             }
+                            Haptics.light()
+                        } label: {
+                            HStack(spacing: 12) {
+                                AvatarView(user: user, size: 40)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(user.displayName).font(.body).lineLimit(1)
+                                    Text("@\(user.username)").font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer(minLength: 8)
+                                CheckMark(isOn: isOn)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
                         }
-                        .frame(width: 26, height: 26)
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(isOn ? .isSelected : [])
                     }
                 }
-                .buttonStyle(.plain)
             }
         }
-        .navigationTitle("Auto-approve")
-        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// A round check that fills sage when chosen.
+private struct CheckMark: View {
+    let isOn: Bool
+
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(isOn ? Color.accentColor : Color.primary.opacity(0.25), lineWidth: 1.5)
+            if isOn {
+                Circle().fill(Color.accentColor)
+                Icon(Glyph.done, weight: .bold, size: 13).foregroundStyle(.white)
+            }
+        }
+        .frame(width: 24, height: 24)
+        .animation(.snappy(duration: 0.2), value: isOn)
+        .accessibilityHidden(true)
     }
 }

@@ -18,6 +18,13 @@ enum DebugDay: String, CaseIterable, Identifiable {
         case .weekday: "Pretend it's Wednesday"
         }
     }
+    var shortLabel: String {
+        switch self {
+        case .real: "Real time"
+        case .sunday: "Sunday"
+        case .weekday: "Wednesday"
+        }
+    }
 }
 
 enum Route: Hashable {
