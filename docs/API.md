@@ -9,7 +9,7 @@ authority for every rule in the PRD; the client only decides what to draw.
 - JSON, snake_case keys. Timestamps are ISO 8601 with fractional seconds, UTC.
 - `week_start` is a plain `YYYY-MM-DD` date (the Monday) in the user's stored time zone.
 - Errors: `{"error": {"code": "sunday_closed", "message": "..."}}` with the HTTP status. Codes the client maps: `sunday_closed`, `dump_locked`, `too_many_photos`, `too_many_tags`, `caption_too_long`, `invalid_code`, `not_found`, `forbidden`. Anything else (`too_many_uploads`, 429, among them) falls back on the status.
-- Auth: `Authorization: Bearer <access_token>`. Access tokens last 15 minutes; refresh tokens 30 days, rotated on every use, family revoked on reuse more than a minute later (a retry within the minute, after a lost reply, gets a fresh pair). The client refreshes once on expiry or 401 and signs out locally if the refresh is rejected.
+- Auth: `Authorization: Bearer <access_token>`. Access tokens last 15 minutes; refresh tokens 30 days, rotated on every use, family revoked on reuse more than a minute later (a retry within the minute, after a lost reply, gets a fresh pair). The client refreshes once on expiry or 401 and signs out locally if the refresh answers 401. A server error or a rate limit on the refresh keeps the session for a later try.
 - Photo URLs in responses are signed, bound to the requesting account, and expire in 10 minutes.
 - Every write is checked against the user's stored time zone and server time. Tag approvals and settings are exempt from the Sunday gate; everything under "Sunday only" returns `sunday_closed` (HTTP 423) off-Sunday.
 
@@ -46,6 +46,10 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 | PUT | `me/suggestions/{id}/done` | `{done_on}` |
 
 Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challenges`, `notify_sunday_reminder`, `notify_last_call`, `notify_tags`, `notify_follow_requests`, `notify_likes_and_comments`, `notify_tag_approved`.
+
+`PUT me/settings` changes only the fields it is sent and keeps the rest. The client loads them fresh whenever Settings opens, sends only the fields that changed, one save at a time, keeps a change only once the server has taken it, and puts the switch back when a save fails. `auto_approve_user_ids` is replaced whole, so two devices editing that list at the same moment keep whichever saved last.
+
+The client signs out after `DELETE me` only on a 2xx, or when the server says the session is gone (401 or 403), which then means an earlier try deleted the account and its reply was lost. Otherwise it stays signed in and asks the person to try again.
 
 ## Sunday only
 

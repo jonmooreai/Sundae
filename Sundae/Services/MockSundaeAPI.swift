@@ -165,9 +165,9 @@ actor MockSundaeAPI: SundaeAPI {
         return settings
     }
 
-    func updateAccountSettings(_ settings: AccountSettings) async throws {
+    func updateAccountSettings(_ patch: AccountSettingsPatch) async throws {
         var me = try requireSignedIn()
-        self.settings = settings
+        settings = patch.applied(to: settings)
         me.isPublic = settings.isPublic
         users[me.id] = me
     }

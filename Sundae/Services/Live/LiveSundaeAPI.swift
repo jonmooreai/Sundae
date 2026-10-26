@@ -45,7 +45,7 @@ actor LiveSundaeAPI: SundaeAPI {
         do {
             let user: DTO.User = try await client.get("v1/me")
             return user.model
-        } catch SundaeError.notAuthorized {
+        } catch SundaeError.notAuthorized, SundaeError.sessionExpired {
             return nil
         }
     }
@@ -85,8 +85,9 @@ actor LiveSundaeAPI: SundaeAPI {
         return settings.model
     }
 
-    func updateAccountSettings(_ settings: AccountSettings) async throws {
-        let _: HTTPClient.Empty = try await client.put("v1/me/settings", body: DTO.Settings(settings))
+    func updateAccountSettings(_ patch: AccountSettingsPatch) async throws {
+        // Only what changed: the server merges it, so a stale copy can't undo a newer change.
+        let _: HTTPClient.Empty = try await client.put("v1/me/settings", body: DTO.SettingsPatch(patch))
     }
 
     func deleteAccount() async throws {

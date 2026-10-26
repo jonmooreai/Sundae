@@ -241,6 +241,62 @@ struct AccountSettings: Hashable, Codable, Sendable {
     var notifyFollowRequests = true
     var notifyLikesAndComments = true
     var notifyTagApproved = false
+
+    /// Auto-approved people who are not among `taggable`, the people who can tag you now: neither
+    /// of you follows the other any more. Their old yes would count again if one of you followed.
+    func autoApprovedIDs(notIn taggable: [User]) -> [ID] {
+        let current = Set(taggable.map(\.id))
+        return autoApproveUserIDs.filter { !current.contains($0) }
+    }
+}
+
+/// Only the account settings that changed. Saving sends just these, so a copy of the settings
+/// that went stale on another device or window can't undo what was saved there since.
+struct AccountSettingsPatch: Hashable, Sendable {
+    var isPublic: Bool?
+    var autoApproveUserIDs: [ID]?
+    var commentsEnabled: Bool?
+    var hideChallenges: Bool?
+    var notifySundayReminder: Bool?
+    var notifyLastCall: Bool?
+    var notifyTags: Bool?
+    var notifyFollowRequests: Bool?
+    var notifyLikesAndComments: Bool?
+    var notifyTagApproved: Bool?
+
+    init() {}
+
+    /// The fields where `new` differs from `old`, with their new values.
+    init(from old: AccountSettings, to new: AccountSettings) {
+        if new.isPublic != old.isPublic { isPublic = new.isPublic }
+        if new.autoApproveUserIDs != old.autoApproveUserIDs { autoApproveUserIDs = new.autoApproveUserIDs }
+        if new.commentsEnabled != old.commentsEnabled { commentsEnabled = new.commentsEnabled }
+        if new.hideChallenges != old.hideChallenges { hideChallenges = new.hideChallenges }
+        if new.notifySundayReminder != old.notifySundayReminder { notifySundayReminder = new.notifySundayReminder }
+        if new.notifyLastCall != old.notifyLastCall { notifyLastCall = new.notifyLastCall }
+        if new.notifyTags != old.notifyTags { notifyTags = new.notifyTags }
+        if new.notifyFollowRequests != old.notifyFollowRequests { notifyFollowRequests = new.notifyFollowRequests }
+        if new.notifyLikesAndComments != old.notifyLikesAndComments { notifyLikesAndComments = new.notifyLikesAndComments }
+        if new.notifyTagApproved != old.notifyTagApproved { notifyTagApproved = new.notifyTagApproved }
+    }
+
+    var isEmpty: Bool { self == AccountSettingsPatch() }
+
+    /// `settings` with these fields changed and every other field left as it was.
+    func applied(to settings: AccountSettings) -> AccountSettings {
+        var result = settings
+        if let isPublic { result.isPublic = isPublic }
+        if let autoApproveUserIDs { result.autoApproveUserIDs = autoApproveUserIDs }
+        if let commentsEnabled { result.commentsEnabled = commentsEnabled }
+        if let hideChallenges { result.hideChallenges = hideChallenges }
+        if let notifySundayReminder { result.notifySundayReminder = notifySundayReminder }
+        if let notifyLastCall { result.notifyLastCall = notifyLastCall }
+        if let notifyTags { result.notifyTags = notifyTags }
+        if let notifyFollowRequests { result.notifyFollowRequests = notifyFollowRequests }
+        if let notifyLikesAndComments { result.notifyLikesAndComments = notifyLikesAndComments }
+        if let notifyTagApproved { result.notifyTagApproved = notifyTagApproved }
+        return result
+    }
 }
 
 struct Session: Hashable, Codable, Sendable {
@@ -277,6 +333,8 @@ enum SundaeError: LocalizedError, Equatable {
     case invalidUsername
     case signupsClosed
     case signInAgain
+    /// The server refused to renew the session: it was revoked, ran out or was used elsewhere.
+    case sessionExpired
 
     var errorDescription: String? {
         switch self {
@@ -294,6 +352,7 @@ enum SundaeError: LocalizedError, Equatable {
         case .invalidUsername: "Usernames are 2 to 24 letters, numbers, dots or underscores."
         case .signupsClosed: "Sundae is invite only right now. Ask the person who invited you."
         case .signInAgain: "That took a while. Sign in with Apple once more to carry on."
+        case .sessionExpired: "You've been signed out. Sign in again to carry on."
         }
     }
 }

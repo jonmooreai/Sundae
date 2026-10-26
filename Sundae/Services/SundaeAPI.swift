@@ -19,7 +19,8 @@ protocol SundaeAPI: Sendable {
     /// Replaces the profile photo with an already re-encoded image.
     func updateAvatar(_ photo: ProcessedPhoto) async throws -> User
     func accountSettings() async throws -> AccountSettings
-    func updateAccountSettings(_ settings: AccountSettings) async throws
+    /// Changes only the fields in the patch. The server keeps every other one as it is.
+    func updateAccountSettings(_ patch: AccountSettingsPatch) async throws
     func deleteAccount() async throws
 
     // MARK: Sunday only

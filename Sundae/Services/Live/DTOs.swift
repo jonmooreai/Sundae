@@ -199,7 +199,8 @@ enum DTO {
         }
     }
 
-    struct Settings: Codable {
+    /// The whole settings object, as `GET me/settings` sends it. Saving sends `SettingsPatch`.
+    struct Settings: Decodable {
         var isPublic: Bool
         var autoApproveUserIds: [String]
         var commentsEnabled: Bool
@@ -210,19 +211,6 @@ enum DTO {
         var notifyFollowRequests: Bool
         var notifyLikesAndComments: Bool
         var notifyTagApproved: Bool
-
-        init(_ s: AccountSettings) {
-            isPublic = s.isPublic
-            autoApproveUserIds = s.autoApproveUserIDs
-            commentsEnabled = s.commentsEnabled
-            hideChallenges = s.hideChallenges
-            notifySundayReminder = s.notifySundayReminder
-            notifyLastCall = s.notifyLastCall
-            notifyTags = s.notifyTags
-            notifyFollowRequests = s.notifyFollowRequests
-            notifyLikesAndComments = s.notifyLikesAndComments
-            notifyTagApproved = s.notifyTagApproved
-        }
 
         var model: AccountSettings {
             AccountSettings(isPublic: isPublic, autoApproveUserIDs: autoApproveUserIds, commentsEnabled: commentsEnabled,
@@ -244,6 +232,34 @@ enum DTO {
     }
 
     // MARK: Requests
+
+    /// Only the settings that changed. A nil field is left out of the JSON, and the server
+    /// keeps what it has for it.
+    struct SettingsPatch: Encodable {
+        var isPublic: Bool?
+        var autoApproveUserIds: [String]?
+        var commentsEnabled: Bool?
+        var hideChallenges: Bool?
+        var notifySundayReminder: Bool?
+        var notifyLastCall: Bool?
+        var notifyTags: Bool?
+        var notifyFollowRequests: Bool?
+        var notifyLikesAndComments: Bool?
+        var notifyTagApproved: Bool?
+
+        init(_ p: AccountSettingsPatch) {
+            isPublic = p.isPublic
+            autoApproveUserIds = p.autoApproveUserIDs
+            commentsEnabled = p.commentsEnabled
+            hideChallenges = p.hideChallenges
+            notifySundayReminder = p.notifySundayReminder
+            notifyLastCall = p.notifyLastCall
+            notifyTags = p.notifyTags
+            notifyFollowRequests = p.notifyFollowRequests
+            notifyLikesAndComments = p.notifyLikesAndComments
+            notifyTagApproved = p.notifyTagApproved
+        }
+    }
 
     struct SignOut: Encodable {
         let everywhere: Bool

@@ -34,14 +34,22 @@ final class StubURLProtocol: URLProtocol {
 
 @Suite(.serialized)
 struct HTTPClientTests {
-    private func makeClient() -> (HTTPClient, TokenStore) {
+    private func makeClient(onSessionExpired: AsyncStream<Void>.Continuation? = nil) -> (HTTPClient, TokenStore) {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         let tokens = TokenStore(storage: InMemorySecretStorage())
         tokens.store(accessToken: "access-1", refreshToken: "refresh-1", expiresIn: 3600)
         let client = HTTPClient(baseURL: URL(string: "https://api.sundae.test")!, tokens: tokens,
-                                session: URLSession(configuration: configuration))
+                                session: URLSession(configuration: configuration), onSessionExpired: onSessionExpired)
         return (client, tokens)
+    }
+
+    /// How many times the client said the session ended, once it can't say so again.
+    private func timesTold(_ ended: AsyncStream<Void>, _ onEnded: AsyncStream<Void>.Continuation) async -> Int {
+        onEnded.finish()
+        var count = 0
+        for await _ in ended { count += 1 }
+        return count
     }
 
     @Test func serverErrorCodesBecomeSundaeErrors() async throws {
@@ -84,11 +92,37 @@ struct HTTPClientTests {
             }
             return (401, Data())
         }
-        let (client, tokens) = makeClient()
-        await #expect(throws: SundaeError.notAuthorized) {
+        let (ended, onEnded) = AsyncStream.makeStream(of: Void.self)
+        let (client, tokens) = makeClient(onSessionExpired: onEnded)
+        await #expect(throws: SundaeError.sessionExpired) {
             let _: DTO.User = try await client.get("v1/me")
         }
         #expect(tokens.refreshToken == nil)
+        let told = await timesTold(ended, onEnded)
+        #expect(told == 1)
+    }
+
+    /// An outage or a rate limit is not a refused session: nobody is signed out by one.
+    @Test(arguments: [429, 500, 503])
+    func aRefreshThatFailsOnTheServerKeepsTheSession(status: Int) async throws {
+        StubURLProtocol.reset { request in
+            if (request.url?.path() ?? "").hasSuffix("auth/refresh") {
+                return (status, Data(#"{"error":{"code":"server_error"}}"#.utf8))
+            }
+            return (401, Data())
+        }
+        let (ended, onEnded) = AsyncStream.makeStream(of: Void.self)
+        let (client, tokens) = makeClient(onSessionExpired: onEnded)
+        do {
+            let _: DTO.User = try await client.get("v1/me")
+            Issue.record("The request should have failed")
+        } catch {
+            #expect((error as? SundaeError) != SundaeError.sessionExpired)
+        }
+        #expect(tokens.accessToken == "access-1")
+        #expect(tokens.refreshToken == "refresh-1")
+        let told = await timesTold(ended, onEnded)
+        #expect(told == 0)
     }
 }
 
@@ -119,6 +153,17 @@ struct DTOTests {
         #expect(dump.photos[0].visibleTags.first?.taggedUser.username == "jon")
         #expect(dump.likedBy.first?.firstName == "Theo")
         #expect(DTO.weekString(dump.weekStart) == "2026-10-19")
+    }
+
+    @Test func aSettingsSaveSendsOnlyWhatChanged() throws {
+        var wanted = AccountSettings()
+        wanted.isPublic = true
+        wanted.autoApproveUserIDs = ["u_pat"]
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.outputFormatting = .sortedKeys
+        let data = try encoder.encode(DTO.SettingsPatch(AccountSettingsPatch(from: AccountSettings(), to: wanted)))
+        #expect(String(decoding: data, as: UTF8.self) == #"{"auto_approve_user_ids":["u_pat"],"is_public":true}"#)
     }
 
     @Test func pendingPostRoundTripsThroughDisk() throws {
