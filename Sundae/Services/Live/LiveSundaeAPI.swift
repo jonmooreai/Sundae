@@ -227,15 +227,6 @@ actor LiveSundaeAPI: SundaeAPI {
         return users.map(\.model)
     }
 
-    // Contact matching is off on the friends-and-family server: the privacy page promises contacts
-    // never leave the phone, so these never touch the network, whatever the UI asks.
-    func contactsHashingKey() async throws -> ContactsHashingKey {
-        throw SundaeError.notFound
-    }
-
-    func matchContacts(hashes: [String], keyID: String) async throws -> [User] {
-        []
-    }
 
     // MARK: - Tags
 

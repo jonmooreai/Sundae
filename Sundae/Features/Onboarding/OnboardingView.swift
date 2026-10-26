@@ -27,8 +27,6 @@ struct OnboardingView: View {
     @State private var avatarItem: PhotosPickerItem?
     @State private var avatarImage: UIImage?
     @State private var avatarData: Data?
-    @State private var wantsContactsMatch = false
-    @State private var showContactsConsent = false
     @State private var error: String?
     @State private var isWorking = false
 
@@ -66,11 +64,6 @@ struct OnboardingView: View {
             .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: step)
         }
         .filmGrain()
-        .sheet(isPresented: $showContactsConsent) {
-            ContactsConsentSheet {
-                wantsContactsMatch = true
-            }
-        }
     }
 
     // MARK: Chrome
@@ -338,31 +331,6 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.pill(.secondary, fullWidth: true))
                 }
-
-                // Contact matching is demo only: on the real server contacts never leave the phone.
-                if model.isUsingMock {
-                    choice(
-                        Glyph.personAdd, "Find friends already here",
-                        wantsContactsMatch
-                            ? "Your contacts will be checked once Sundae opens. Nothing is sent to them."
-                            : "Checks your contacts for people already on Sundae. Numbers are scrambled on this phone and never stored. Nothing is sent to your contacts."
-                    ) {
-                        Button {
-                            if wantsContactsMatch {
-                                wantsContactsMatch = false
-                            } else {
-                                showContactsConsent = true
-                            }
-                        } label: {
-                            HStack(spacing: 6) {
-                                if wantsContactsMatch { Icon(Glyph.done, weight: .bold, size: 14) }
-                                Text(wantsContactsMatch ? "Will check my contacts" : "Check my contacts")
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.pill(.secondary, fullWidth: true))
-                    }
-                }
             }
 
             Button {
@@ -432,7 +400,7 @@ struct OnboardingView: View {
         avatarImage = image
     }
 
-    /// Signs in, then applies the photo and starts the contacts check if you asked for it.
+    /// Signs in, then applies the photo.
     /// Once the model flips `isSignedIn`, RootView moves on to the app.
     private func finishSignIn() async {
         guard let method = pendingMethod else { return }
@@ -445,33 +413,8 @@ struct OnboardingView: View {
             if let avatarData {
                 try? await model.updateAvatar(avatarData)
             }
-            if wantsContactsMatch {
-                let matcher = ContactsMatcher(api: model.api)
-                await matcher.match()
-            }
         } catch {
             self.error = error.localizedDescription
         }
-    }
-}
-
-/// Exactly what checking contacts does, before it does it. Plain words, two buttons.
-struct ContactsConsentSheet: View {
-    let onAgree: () -> Void
-
-    var body: some View {
-        ConsentSheet(
-            title: "Check your contacts?",
-            points: [
-                .init(glyph: Glyph.lock,
-                      text: "Phone numbers from your contacts are scrambled on this phone. The scrambled versions are compared with Sundae's and then thrown away."),
-                .init(glyph: Glyph.person,
-                      text: "You see which of your contacts already have Sundae. They are not told you looked."),
-                .init(glyph: Glyph.block,
-                      text: "Nobody is messaged, invited, or added. Your contacts are never stored."),
-            ],
-            agreeTitle: "Check my contacts",
-            onAgree: onAgree
-        )
     }
 }

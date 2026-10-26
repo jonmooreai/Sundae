@@ -455,19 +455,6 @@ actor MockSundaeAPI: SundaeAPI {
         return taggableIDs(for: me.id).compactMap { users[$0] }.sorted { $0.displayName < $1.displayName }
     }
 
-    func contactsHashingKey() async throws -> ContactsHashingKey {
-        _ = try requireSignedIn()
-        return ContactsHashingKey(keyID: "mock-key", key: Data(repeating: 0x42, count: 32), expiresAt: clock.now().addingTimeInterval(900))
-    }
-
-    func matchContacts(hashes: [String], keyID: String) async throws -> [User] {
-        let me = try requireSignedIn()
-        try await latency()
-        guard !hashes.isEmpty else { return [] }
-        // The mock cannot know real numbers; pretend two people from the address book are here.
-        return ["u_riley", "u_dev"].compactMap { users[$0] }.filter { $0.id != me.id && !blocked.contains($0.id) }.map { withContext($0, viewer: me.id) }
-    }
-
     // MARK: - Tags (every day)
 
     func pendingTagRequests() async throws -> [TagRequest] {

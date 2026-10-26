@@ -40,7 +40,7 @@ Sundae/
   Core/                  Theme, Icon, Haptics, Keychain
   Models/                User, Dump, Photo, Tag, Follow, Comment, Profile, DumpDraft, settings
   Services/              SundaeAPI protocol, MockSundaeAPI, PhotoProcessor, PhotoLibrary, notifications,
-                         NetworkMonitor, PendingPostStore (offline compose queue), ContactsMatcher
+                         NetworkMonitor, PendingPostStore (offline compose queue)
   Services/Live/         HTTPClient (bearer auth, single-flight refresh), TokenStore (Keychain),
                          DTOs, LiveSundaeAPI, BackgroundUploader (background URLSession to pre-signed URLs)
   Components/            PhotoView, AvatarView, PhotoCarousel, LikesLabel, UserRow, buttons
@@ -94,7 +94,7 @@ Built, against the mock:
 - Light and dark mode, Dynamic Type, VoiceOver labels on photos, Reduce Motion on the carousel, light haptics on post, approve, decline
 
 - Live HTTP client with Keychain token storage, rotating refresh tokens, background upload to pre-signed URLs, and an offline compose queue
-- Contacts matching, opt in: numbers normalized and HMAC-hashed on device under a per-session key, only hashes sent
+- No contacts access: friends find each other by username, and the app never asks for the address book
 - App Intents: "Show today's suggestion" and "Mark today's suggestion done" for Siri and Shortcuts
 - iPad: drag photos into compose from Photos or Files, pointer hover on photos, Cmd-N to post, arrow keys through a carousel, Space for full screen
 

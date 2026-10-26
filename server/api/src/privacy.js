@@ -35,7 +35,7 @@ export const PRIVACY_HTML = `<!doctype html>
 <ul>
   <li>Your location. Ideas near you are found on your phone with Apple Maps, and the weather comes from Open-Meteo for an area about a kilometer across. Neither lookup carries your account, and nothing about where you are reaches Sundae.</li>
   <li>Where your photos were taken. Location and camera details are removed on your phone before a photo is sent, and again when it arrives.</li>
-  <li>Your contacts. This version does not upload them.</li>
+  <li>Your contacts. Sundae never asks for them.</li>
   <li>Anything for ads or tracking. There are no ads, no analytics and no third-party trackers.</li>
 </ul>
 

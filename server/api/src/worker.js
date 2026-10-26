@@ -158,8 +158,6 @@ async function route(ctx, method, parts) {
     case 'DELETE dumps/:': return deleteDump(ctx, b);
     case 'POST users/:/block': return block(ctx, b);
     case 'POST reports': return report(ctx);
-    case 'GET contacts/key': return contactsKey(ctx);
-    case 'POST contacts/match': await body(ctx.request); return json([]);
   }
 
   requireSunday(ctx);
@@ -189,7 +187,7 @@ async function route(ctx, method, parts) {
 function isParam(parts, i) {
   const before = parts[i - 1];
   if (i === 0) return false;
-  if (['me', 'auth', 'contacts', 'ideas'].includes(before) && i === 1) return false;
+  if (['me', 'auth', 'ideas'].includes(before) && i === 1) return false;
   if (before === 'users' && ['search', 'suggested'].includes(parts[i])) return false;
   if (before === 'suggestions' && parts[i] === 'done') return false;
   return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'suggestions'].includes(before);
@@ -532,13 +530,6 @@ async function suggested(ctx) {
                    WHERE f1.follower_id = ?1 AND f1.status = 'accepted' AND f2.status = 'accepted')
     ORDER BY u.username LIMIT 20`).bind(ctx.me.id).all();
   return json(await usersJSON(ctx, results));
-}
-
-function contactsKey(ctx) {
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  let s = '';
-  for (const byte of key) s += String.fromCharCode(byte);
-  return json({ key_id: newId('ck'), key: btoa(s), expires_at: new Date(ctx.now.getTime() + 15 * 60_000).toISOString() });
 }
 
 // MARK: - Uploads and photos

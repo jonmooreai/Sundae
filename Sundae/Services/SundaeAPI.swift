@@ -42,10 +42,6 @@ protocol SundaeAPI: Sendable {
     func respondToFollowRequest(from userID: ID, accept: Bool) async throws
     /// People the user follows or who follow them. The only people they can tag.
     func taggableUsers() async throws -> [User]
-    /// Contacts matching: fetch the session key, then send HMAC-SHA256 hashes of normalized
-    /// phone numbers. The server matches in memory and discards the hashes.
-    func contactsHashingKey() async throws -> ContactsHashingKey
-    func matchContacts(hashes: [String], keyID: String) async throws -> [User]
 
     // MARK: Weekdays only, anonymous
     /// Ideas for a neighborhood-sized geohash cell on a given day. Sent without a bearer token on
