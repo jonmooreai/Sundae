@@ -149,6 +149,59 @@ test('one person can upload 150 photos a day, each up to 10 MB', async () => {
   assert.equal((await ticket()).status, 200, 'the count covers the last 24 hours');
 });
 
+test('tickets asked for all at once still stop at 150 a day', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ask = ['POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 1000, width: 1, height: 1 } }];
+  const answers = await s.together(Array.from({ length: 300 }, () => ask));
+  assert.equal(answers.filter((r) => r.status === 200).length, 150);
+  assert.ok(answers.filter((r) => r.status !== 200).every((r) => r.status === 429 && r.body.error.code === 'too_many_uploads'));
+  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM uploads').get().n, 150);
+});
+
+test('saves of one week sent all at once leave it with at most 15 photos', async () => {
+  const photos = r2();
+  const s = await server({ photos });
+  const { jon, maya } = await friends(s);
+  const first = await uploadPhoto(s, jon);
+  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: first }] } });
+  const saves = [];
+  for (let n = 0; n < 4; n++) {
+    const uploads = [];
+    for (let i = 0; i < 15; i++) uploads.push(await uploadPhoto(s, jon));
+    saves.push(['PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: `Save ${n}`, photos: uploads.map((u) => ({ upload_id: u })) } }]);
+  }
+  const answers = await s.together(saves);
+  assert.deepEqual(answers.map((r) => r.status), [200, 200, 200, 200]);
+  const posted = s.env.DB.sqlite.prepare('SELECT object_key FROM photos').all().map((r) => r.object_key);
+  assert.equal(posted.length, 15);
+  assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body[0].photos.length, 15);
+
+  // Files of the photos one save dropped from another go with the daily cleanup.
+  await cleanUp(s.env, new Date(SUNDAY.getTime() + 3 * DAY));
+  assert.deepEqual([...photos.objects.keys()].sort(), posted.sort());
+});
+
+test('thirty comments a person on each week, even sent all at once', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const dump = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: await uploadPhoto(s, jon) }] } })).body;
+  const say = (who, words) => ['POST', `v1/dumps/${dump.id}/comments`, { token: who.token, json: { body: words } }];
+  const answers = await s.together(Array.from({ length: 50 }, (_, i) => say(maya, `Comment ${i}`)));
+  assert.equal(answers.filter((r) => r.status === 200).length, 30);
+  const refused = answers.find((r) => r.status !== 200);
+  assert.equal(refused.status, 429);
+  assert.equal(refused.body.error.code, 'too_many_comments');
+
+  // The week's author too, one at a time; deleting one makes room for another.
+  for (let i = 0; i < 30; i++) assert.equal((await s.call(...say(jon, `Reply ${i}`))).status, 200);
+  const over = await s.call(...say(jon, 'One more'));
+  assert.equal(over.body.error.code, 'too_many_comments');
+  await s.call('DELETE', `v1/comments/${answers.find((r) => r.status === 200).body.id}`, { token: maya.token });
+  assert.equal((await s.call(...say(maya, 'Changed my mind'))).status, 200);
+  assert.equal((await s.call('GET', `v1/dumps/${dump.id}/comments`, { token: jon.token })).body.length, 60);
+});
+
 test('turning R2 on later keeps photos already in the database; new ones go to R2', async () => {
   const s = await server();
   const { jon } = await friends(s);

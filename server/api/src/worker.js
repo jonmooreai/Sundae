@@ -23,6 +23,14 @@ const MAX_PHOTOS = 15;
 const MAX_TAGS = 10;
 const MAX_CAPTION = 300;
 const MAX_COMMENT = 1000;
+// Per person on each week, so nobody can bury a friend's week under comments.
+const MAX_COMMENTS = 30;
+// User ids are made by newId: 'u_' and twelve of its letters and digits.
+const isUserId = (id) => typeof id === 'string' && /^u_[0-9a-hjkmnp-tv-z]{12}$/.test(id);
+
+// A photo's width and height only lay it out before it loads: whole numbers of pixels, or 0 for
+// none given. A fraction or a huge number would stop the app reading a whole feed.
+const pixels = (value) => (Number.isInteger(value) && value > 0 && value <= 20_000 ? value : 0);
 
 const DEFAULT_SETTINGS = {
   is_public: false, auto_approve_user_ids: [], comments_enabled: true, hide_challenges: false,
@@ -416,7 +424,8 @@ async function updateSettings(ctx) {
   const next = { ...settingsOf(ctx.me) };
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     if (!(k in input)) continue;
-    if (Array.isArray(v)) next[k] = Array.isArray(input[k]) ? input[k].map(String).slice(0, 500) : v;
+    // The one list, auto_approve_user_ids, keeps only user ids, each once, so it stays small.
+    if (Array.isArray(v)) next[k] = Array.isArray(input[k]) ? [...new Set(input[k].filter(isUserId))].slice(0, 500) : v;
     else next[k] = Boolean(input[k]);
   }
   await ctx.db.prepare('UPDATE users SET settings = ?, is_public = ? WHERE id = ?')
@@ -535,7 +544,8 @@ async function unfollow(ctx, userId) {
 async function block(ctx, userId) {
   if (userId === ctx.me.id) fail(400, 'bad_request', 'That is you.');
   await ctx.db.batch([
-    ctx.db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').bind(ctx.me.id, userId),
+    // Only someone who exists, so made-up ids never fill the database.
+    ctx.db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) SELECT ?, id FROM users WHERE id = ?').bind(ctx.me.id, userId),
     ctx.db.prepare('DELETE FROM follows WHERE (follower_id = ? AND followee_id = ?) OR (follower_id = ? AND followee_id = ?)')
       .bind(ctx.me.id, userId, userId, ctx.me.id),
   ]);
@@ -582,13 +592,14 @@ async function createUpload(ctx) {
   const size = Number(input.byte_size);
   if (!Number.isInteger(size) || size <= 0 || size > MAX_UPLOAD_BYTES) fail(400, 'invalid_photo', 'That photo is too large.');
   const exp = Math.floor(ctx.now.getTime() / 1000) + UPLOAD_SECONDS;
-  // Every ticket expires UPLOAD_SECONDS after it is made, so this counts the last 24 hours.
-  const today = await ctx.db.prepare('SELECT COUNT(*) AS n FROM uploads WHERE user_id = ? AND expires_at > ?')
-    .bind(ctx.me.id, exp - 24 * 3600).first('n');
-  if (today >= MAX_UPLOADS_PER_DAY) fail(429, 'too_many_uploads', 'That is a lot of photos for one day. Try again tomorrow.');
   const id = newId('up');
-  await ctx.db.prepare('INSERT INTO uploads (id, user_id, object_key, byte_size, width, height, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, ctx.me.id, `${id}.jpg`, size, Number(input.width) || 0, Number(input.height) || 0, exp).run();
+  // Counted and written in one statement, so requests sent together cannot all see room for one
+  // more. Every ticket expires UPLOAD_SECONDS after it is made, so this counts the last 24 hours.
+  const inserted = await ctx.db.prepare(`
+    INSERT INTO uploads (id, user_id, object_key, byte_size, width, height, expires_at)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7 WHERE (SELECT COUNT(*) FROM uploads WHERE user_id = ?2 AND expires_at > ?8) < ?9`)
+    .bind(id, ctx.me.id, `${id}.jpg`, size, pixels(input.width), pixels(input.height), exp, exp - 24 * 3600, MAX_UPLOADS_PER_DAY).run();
+  if (!inserted.meta?.changes) fail(429, 'too_many_uploads', 'That is a lot of photos for one day. Try again tomorrow.');
   const url = `${ctx.origin}/v1/uploads/${id}?e=${exp}&s=${await hmac(ctx.secret, `u|${id}|${exp}`)}`;
   return json({ upload_id: id, url, headers: {}, expires_at: new Date(exp * 1000).toISOString() });
 }
@@ -603,9 +614,17 @@ async function receiveUpload(ctx, id) {
   const bytes = new Uint8Array(await ctx.request.arrayBuffer());
   if (!bytes.length || bytes.length > Math.min(MAX_UPLOAD_BYTES, upload.byte_size + 1024)) fail(400, 'invalid_photo', 'Unexpected size.');
   const clean = stripJpegMetadata(bytes);
-  if (!clean) fail(400, 'invalid_photo', 'Not a JPEG.');
-  await storage(ctx.env).put(upload.object_key, clean);
-  await ctx.db.prepare('UPDATE uploads SET uploaded = 1 WHERE id = ?').bind(id).run();
+  if (!clean) fail(400, 'invalid_photo', 'Not a JPEG, or over 4096 pixels a side.');
+  // Claimed before anything is written, so a second PUT on the same ticket, however long its
+  // body took, or one still arriving after the account was deleted, writes nothing.
+  const claim = await ctx.db.prepare('UPDATE uploads SET uploaded = 1 WHERE id = ? AND uploaded = 0').bind(id).run();
+  if (!claim.meta?.changes) return empty();
+  try {
+    await storage(ctx.env).put(upload.object_key, clean);
+  } catch (error) {
+    await ctx.db.prepare('UPDATE uploads SET uploaded = 0 WHERE id = ?').bind(id).run();
+    throw error;
+  }
   return empty();
 }
 
@@ -648,7 +667,7 @@ async function photosJSON(ctx, photos) {
     }
     out.set(photo.id, {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
-      width: photo.width, height: photo.height, alt_text: photo.alt_text || null, tags: photoTags,
+      width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null, tags: photoTags,
     });
   }
   return out;
@@ -755,14 +774,10 @@ async function saveDump(ctx, week) {
   const allowed = new Map(people.map((u) => [u.id, u]));
 
   const writes = [];
-  if (!found) {
-    writes.push(db.prepare('INSERT INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso));
-  }
   const kept = [];
   for (const [index, photo] of inputs.entries()) {
-    const width = Number(photo.width) || 0;
-    const height = Number(photo.height) || 0;
+    const width = pixels(photo.width);
+    const height = pixels(photo.height);
     const alt = photo.alt_text ? clean(photo.alt_text, 500) : null;
     let row = (photo.id && existing.find((p) => p.id === photo.id)) || null;
     if (!row && photo.upload_id) {
@@ -772,7 +787,7 @@ async function saveDump(ctx, week) {
         const upload = uploads.find((u) => u.id === uploadId);
         if (!upload) fail(400, 'invalid_photo', 'That photo did not finish uploading.');
         if (claimed.some((c) => c.upload_id === uploadId && c.dump_id !== dumpId)) fail(400, 'invalid_photo', 'That photo is already in another week.');
-        row = { id: newId('p'), object_key: upload.object_key, width: upload.width || 1, height: upload.height || 1, upload_id: uploadId, isNew: true };
+        row = { id: newId('p'), object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
         writes.push(db.prepare('INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
           .bind(row.id, dumpId, index, row.object_key, width || row.width, height || row.height, alt, uploadId));
         existing.push(row);
@@ -788,17 +803,19 @@ async function saveDump(ctx, week) {
   }
   if (!kept.length) fail(400, 'bad_request', 'None of those photos finished uploading.');
 
+  // Whatever in the week this save does not keep goes before any photo is added, chosen by what
+  // is kept rather than by what was read: saves sent together cannot each add fifteen, as the
+  // last to land leaves only its own. Files of photos it never read go with the daily cleanup.
+  const keptIds = JSON.stringify(kept);
   const removed = existing.filter((p) => !kept.includes(p.id) && !p.isNew);
-  if (removed.length) {
-    const ids = JSON.stringify(removed.map((p) => p.id));
-    writes.push(
-      db.prepare('DELETE FROM tags WHERE photo_id IN (SELECT value FROM json_each(?))').bind(ids),
-      db.prepare('DELETE FROM photos WHERE id IN (SELECT value FROM json_each(?))').bind(ids),
-    );
-  }
-  writes.push(db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE id = ?')
-    .bind(caption, commentsEnabled, nowIso, dumpId));
-  await db.batch(writes);
+  await db.batch([
+    ...(found ? [] : [db.prepare('INSERT INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso)]),
+    db.prepare('DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ?1 AND id NOT IN (SELECT value FROM json_each(?2)))').bind(dumpId, keptIds),
+    db.prepare('DELETE FROM photos WHERE dump_id = ?1 AND id NOT IN (SELECT value FROM json_each(?2))').bind(dumpId, keptIds),
+    ...writes,
+    db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE id = ?').bind(caption, commentsEnabled, nowIso, dumpId),
+  ]);
   await storage(ctx.env).deleteMany(removed.map((p) => p.object_key));
   return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE id = ?').bind(dumpId).first()));
 }
@@ -892,8 +909,12 @@ async function addComment(ctx, dumpId) {
   if (!text) fail(400, 'bad_request', 'Say something first.');
   if (text.length > MAX_COMMENT) fail(400, 'bad_request', 'That comment is too long.');
   const id = newId('c');
-  await ctx.db.prepare('INSERT INTO comments (id, dump_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString()).run();
+  // Counted and written in one statement, so comments sent together cannot pass the limit.
+  const inserted = await ctx.db.prepare(`
+    INSERT INTO comments (id, dump_id, author_id, body, created_at)
+      SELECT ?1, ?2, ?3, ?4, ?5 WHERE (SELECT COUNT(*) FROM comments WHERE dump_id = ?2 AND author_id = ?3) < ?6`)
+    .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString(), MAX_COMMENTS).run();
+  if (!inserted.meta?.changes) fail(429, 'too_many_comments', 'That is a lot of comments for one week. Up to 30 each.');
   const row = await ctx.db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
   return json((await commentsJSON(ctx, [row]))[0]);
 }

@@ -51,6 +51,26 @@ function d1() {
   };
 }
 
+const roundTrip = () => new Promise((resolve) => setTimeout(resolve, 1 + Math.random() * 4));
+
+/** The same database as a Worker sees D1, across a network: every query waits a few milliseconds
+ * on the way there and back, so requests sent together overlap the way they do on Cloudflare.
+ * SQLite still runs one statement at a time, as D1 does. */
+function overNetwork(db) {
+  const statement = (s) => ({
+    ...s,
+    bind: (...values) => statement(s.bind(...values)),
+    first: async (column) => { await roundTrip(); const row = await s.first(column); await roundTrip(); return row; },
+    all: async () => { await roundTrip(); const rows = await s.all(); await roundTrip(); return rows; },
+    run: async () => { await roundTrip(); const result = await s.run(); await roundTrip(); return result; },
+  });
+  return {
+    ...db,
+    prepare: (sql) => statement(db.prepare(sql)),
+    batch: async (statements) => { await roundTrip(); const out = await db.batch(statements); await roundTrip(); return out; },
+  };
+}
+
 /** R2, faked: the handful of bucket calls storage.js makes. */
 export function r2() {
   const objects = new Map();
@@ -95,21 +115,45 @@ export async function server({ photos } = {}) {
   let busiest = { queries: 0, path: '' };
   const origin = 'https://sundae-api.test';
 
-  async function call(method, path, { token, json, bytes, raw } = {}) {
+  function request(method, path, { token, json, bytes } = {}) {
     const headers = {};
     if (token) headers.authorization = `Bearer ${token}`;
     let body;
     if (json !== undefined) { headers['content-type'] = 'application/json'; body = JSON.stringify(json); }
     if (bytes) { headers['content-type'] = 'image/jpeg'; body = bytes; }
-    const url = path.startsWith('http') ? path : `${origin}/${path}`;
-    env.DB.counter.queries = 0;
-    const response = await handle(new Request(url, { method, headers, body }), env);
-    const queries = env.DB.counter.queries;
-    if (queries > busiest.queries) busiest = { queries, path: `${method} ${new URL(url).pathname}` };
-    if (queries > QUERY_LIMIT) throw new Error(`${method} ${path} made ${queries} D1 queries; the free plan allows ${QUERY_LIMIT}`);
-    if (raw) return response;
+    return new Request(path.startsWith('http') ? path : `${origin}/${path}`, { method, headers, body });
+  }
+
+  async function read(response) {
     const text = await response.text();
     return { status: response.status, body: text ? JSON.parse(text) : null };
+  }
+
+  async function call(method, path, options = {}) {
+    const req = request(method, path, options);
+    env.DB.counter.queries = 0;
+    const response = await handle(req, env);
+    const queries = env.DB.counter.queries;
+    if (queries > busiest.queries) busiest = { queries, path: `${method} ${new URL(req.url).pathname}` };
+    if (queries > QUERY_LIMIT) throw new Error(`${method} ${path} made ${queries} D1 queries; the free plan allows ${QUERY_LIMIT}`);
+    return options.raw ? response : read(response);
+  }
+
+  /** Requests sent all at once, as a script could, each [method, path, options]. They share one
+   * query counter, so the per-request limit is left to call(). */
+  async function together(requests) {
+    const network = { ...env, DB: overNetwork(env.DB) };
+    return Promise.all(requests.map(([method, path, options]) => handle(request(method, path, options), network).then(read)));
+  }
+
+  /** A PUT whose body is still on its way, as over a slow connection, until finish() sends it. */
+  async function slowPut(path) {
+    let stream;
+    const body = new ReadableStream({ start: (controller) => { stream = controller; } });
+    const response = handle(new Request(path, { method: 'PUT', headers: { 'content-type': 'image/jpeg' }, body, duplex: 'half' }), env).then(read);
+    // Long enough for the server to have read the ticket and to be waiting on the body.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { response, finish: (bytes) => { stream.enqueue(bytes); stream.close(); } };
   }
 
   async function signUp(sub, username, name = username) {
@@ -121,7 +165,7 @@ export async function server({ photos } = {}) {
     return { token: r.body.access_token, refresh: r.body.refresh_token, user: r.body.user };
   }
 
-  return { env, apple, call, signUp, setNow: (date) => { now = date; }, now: () => now, busiest: () => busiest };
+  return { env, apple, call, together, slowPut, signUp, setNow: (date) => { now = date; }, now: () => now, busiest: () => busiest };
 }
 
 const segment = (marker, text) => {
@@ -129,15 +173,22 @@ const segment = (marker, text) => {
   return [0xff, marker, (data.length + 2) >> 8, (data.length + 2) & 0xff, ...data];
 };
 
+/** A start-of-frame header: 8-bit samples, the size, three components. */
+export const frame = (width, height, marker = 0xc0) => [
+  0xff, marker, 0x00, 0x11, 8, height >> 8, height & 0xff, width >> 8, width & 0xff, 3, 1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1,
+];
+
 /** A JPEG laid out like a real one: JFIF, EXIF carrying a GPS position, a comment, a color
- * profile, then the scan. The scan is filler, which is all the server's checks look at. */
-export function jpeg(size = 2000) {
+ * profile, the frame's size, then the scan. The scan is filler with no FF in it, which is all the
+ * server's checks look at. `marker` picks the kind of frame: C0 is baseline, C2 progressive. */
+export function jpeg(size = 2000, { width = 2048, height = 1536, frames = 1, marker = 0xc0 } = {}) {
   const head = [
     0xff, 0xd8,
     ...segment(0xe0, 'JFIF\0'),
     ...segment(0xe1, 'Exif\0\0GPS 40.7128 N 74.0060 W'),
     ...segment(0xfe, 'shot at home'),
     ...segment(0xe2, 'ICC_PROFILE\0sRGB'),
+    ...Array.from({ length: frames }, () => frame(width, height, marker)).flat(),
     0xff, 0xda, 0x00, 0x08, 1, 1, 0, 0, 0x3f, 0,
   ];
   const bytes = new Uint8Array(Math.max(size, head.length + 2));

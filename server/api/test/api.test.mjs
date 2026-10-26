@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { server, jpeg, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
+import { server, r2, jpeg, frame, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
 
 /** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
 async function appleSignIn(s, sub, { nonce = `nonce-${Math.random()}-${Date.now()}`, sent = nonce, timezone = 'UTC', ...claims } = {}) {
@@ -204,6 +204,150 @@ test('a week can only be saved on its own Sunday', async () => {
   assert.equal(tooMany.body.error.code, 'too_many_photos');
   const long = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: 'x'.repeat(301), photos: [{ upload_id: up }] } });
   assert.equal(long.body.error.code, 'caption_too_long');
+});
+
+test('photo sizes go out as whole pixels, whatever a client sent', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  // Sizes a script could send, on the ticket and on the photo. The app's own decoder refuses a
+  // whole feed for one of them.
+  const odd = [1.5, 1e300, '1e308', -7, 'Infinity', 0, null];
+  const uploads = [];
+  for (const [i, width] of odd.entries()) {
+    const ticket = await s.call('POST', 'v1/uploads', {
+      token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width, height: odd[(i + 1) % odd.length] },
+    });
+    assert.equal(ticket.status, 200, JSON.stringify(ticket.body));
+    assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 204);
+    uploads.push(ticket.body.upload_id);
+  }
+  const honest = await uploadPhoto(s, jon);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    ...uploads.map((upload_id, i) => ({ upload_id, width: odd[(i + 2) % odd.length], height: odd[(i + 3) % odd.length], tagged_user_ids: [maya.user.id] })),
+    { upload_id: honest, width: 1536, height: 2048, tagged_user_ids: [maya.user.id] },
+  ] } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.deepEqual([saved.body.photos.at(-1).width, saved.body.photos.at(-1).height], [1536, 2048], 'real sizes are kept');
+  const stored = s.env.DB.sqlite.prepare(`SELECT COUNT(*) AS n FROM photos WHERE typeof(width) != 'integer' OR typeof(height) != 'integer' OR width < 1 OR height < 1`).get();
+  assert.equal(stored.n, 0, 'nothing odd is stored');
+
+  // Editing a photo with odd sizes keeps the ones it had.
+  const edited = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: saved.body.photos.map((p) => (
+    { id: p.id, width: 2.5, height: '9e99', tagged_user_ids: [maya.user.id] })) } });
+  assert.deepEqual([edited.body.photos.at(-1).width, edited.body.photos.at(-1).height], [1536, 2048]);
+
+  // A row stored before this check still goes out whole.
+  s.env.DB.sqlite.prepare('UPDATE photos SET width = 2.5, height = 1e300 WHERE id = ?').run(saved.body.photos[0].id);
+  const wholePixels = (photos, where) => {
+    assert.equal(photos.length, odd.length + 1, where);
+    for (const p of photos) assert.ok([p.width, p.height].every((n) => Number.isInteger(n) && n >= 1 && n <= 20_000), `${where}: ${p.width} x ${p.height}`);
+  };
+  wholePixels((await s.call('GET', 'v1/feed', { token: maya.token })).body[0].photos, 'feed');
+  wholePixels((await s.call('GET', `v1/dumps/${saved.body.id}`, { token: maya.token })).body.photos, 'week');
+  wholePixels((await s.call('GET', `v1/users/${jon.user.id}/profile`, { token: maya.token })).body.weeks[0].dump.photos, 'profile');
+  wholePixels((await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body.map((r) => r.photo), 'tag requests');
+});
+
+test('a photo bigger than the app sends, or without exactly one frame, is refused', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  /** The scan of jpeg(3000) with these bytes added before its end. */
+  const scanWith = (bytes) => {
+    const base = jpeg(3000);
+    const out = new Uint8Array(base.length + bytes.length);
+    out.set(base.subarray(0, base.length - 2));
+    out.set([...bytes, 0xff, 0xd9], base.length - 2);
+    return out;
+  };
+  const refused = {
+    'wider than 4096 px': jpeg(3000, { width: 4097, height: 16 }),
+    'taller than 4096 px': jpeg(3000, { width: 16, height: 4097 }),
+    'a tiny file that says 60000 px square': jpeg(3000, { width: 60000, height: 60000 }),
+    'a progressive one 20000 px across': jpeg(3000, { width: 20000, height: 20000, marker: 0xc2 }),
+    'no width': jpeg(3000, { width: 0 }),
+    'a height left for after the scan': jpeg(3000, { height: 0 }),
+    'no frame': jpeg(3000, { frames: 0 }),
+    'two frames': jpeg(3000, { frames: 2 }),
+    'a second frame after the scan': scanWith(frame(60000, 60000)),
+    'a height given after the scan': scanWith([0xff, 0xdc, 0x00, 0x04, 0xea, 0x60]),
+  };
+  for (const [what, bytes] of Object.entries(refused)) {
+    const put = await s.call('PUT', ticket.body.url, { bytes });
+    assert.equal(put.status, 400, what);
+    assert.equal(put.body.error.code, 'invalid_photo', what);
+  }
+  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM blob_chunks').get().n, 0, 'none of them was stored');
+  // The ticket is still good for a real photo, as big as the server takes.
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000, { width: 4096, height: 4096, marker: 0xc2 }) })).status, 204);
+});
+
+test('auto-approve keeps only real ids, and blocking an id with no account stores nothing', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const settings = (await s.call('GET', 'v1/me/settings', { token: jon.token })).body;
+  const unknown = 'u_abcdefghjkmn';
+  const put = await s.call('PUT', 'v1/me/settings', { token: jon.token, json: {
+    ...settings, auto_approve_user_ids: [maya.user.id, maya.user.id, 'x'.repeat(4000), `${maya.user.id}x`, { id: maya.user.id }, 42, unknown],
+  } });
+  assert.equal(put.status, 204);
+  const after = (await s.call('GET', 'v1/me/settings', { token: jon.token })).body;
+  assert.deepEqual(after.auto_approve_user_ids, [maya.user.id, unknown]);
+
+  const blocks = () => s.env.DB.sqlite.prepare('SELECT blocked_id FROM blocks').all().map((r) => r.blocked_id);
+  for (const id of [unknown, `u_${'z'.repeat(15000)}`]) {
+    assert.equal((await s.call('POST', `v1/users/${id}/block`, { token: jon.token })).status, 204);
+  }
+  assert.deepEqual(blocks(), [], 'made-up ids leave no rows');
+  assert.equal((await s.call('POST', `v1/users/${maya.user.id}/block`, { token: jon.token })).status, 204);
+  assert.deepEqual(blocks(), [maya.user.id]);
+  assert.equal((await s.call('GET', 'v1/me/taggable', { token: jon.token })).body.length, 0, 'a real block still works');
+});
+
+test('a second PUT on a ticket, still arriving after the photo was posted, changes nothing', async () => {
+  const photos = r2();
+  const s = await server({ photos });
+  const { jon, maya } = await friends(s);
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  const held = await s.slowPut(ticket.body.url);
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 204);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: {
+    caption: '', photos: [{ upload_id: ticket.body.upload_id, tagged_user_ids: [maya.user.id] }],
+  } });
+  const [request] = (await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body;
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: maya.token, json: { approve: true } });
+  const before = Buffer.from(await (await s.call('GET', saved.body.photos[0].url, { raw: true })).arrayBuffer());
+
+  // Different bytes, a little bigger, as a swapped photo would be.
+  held.finish(jpeg(3500, { width: 1000, height: 1000 }));
+  assert.equal((await held.response).status, 204);
+  const after = Buffer.from(await (await s.call('GET', saved.body.photos[0].url, { raw: true })).arrayBuffer());
+  assert.ok(after.equals(before), 'the posted photo is the one Maya approved');
+
+  // A PUT still arriving after the account is deleted leaves nothing behind.
+  const late = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  const stillSending = await s.slowPut(late.body.url);
+  assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
+  stillSending.finish(jpeg(3000));
+  await stillSending.response;
+  assert.deepEqual([...photos.objects.keys()], [], 'no photo of Jon\'s is left in storage');
+});
+
+test('an upload that fails to store can be sent again', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const photos = r2();
+  const put = photos.put;
+  photos.put = async () => { photos.put = put; throw new Error('storage is down'); };
+  const s = await server({ photos });
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 600, height: 600 } });
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 500);
+  const early = await s.call('PATCH', 'v1/me', { token: jon.token, json: { avatar_upload_id: ticket.body.upload_id } });
+  assert.equal(early.body.error.code, 'invalid_photo', 'not uploaded yet');
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 204);
+  assert.equal(photos.objects.size, 1);
+  const avatar = await s.call('PATCH', 'v1/me', { token: jon.token, json: { avatar_upload_id: ticket.body.upload_id } });
+  assert.ok(avatar.body.avatar_url);
 });
 
 test('strangers cannot see a private week; tags only go to people you follow', async () => {

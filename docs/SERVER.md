@@ -28,8 +28,9 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
   hashes, change on every use, and a used one coming back more than a minute later signs that
   session out everywhere.
 - **Photos.** Location, camera details and comments are removed on the phone and again on the
-  server. The R2 bucket is private; photos are only reachable through signed links that expire
-  within seven hours.
+  server. The server also refuses any photo over 4096 pixels a side, twice what the app sends,
+  so nobody's phone is handed one too big to open. The R2 bucket is private; photos are only
+  reachable through signed links that expire within seven hours.
 - **The web.** Every response forbids MIME sniffing, framing, scripts and referrers, and
   insists on HTTPS. There are no CORS headers, so no website can read the API from a browser.
 - **Nothing extra kept.** No request logs (observability is off), no analytics, no location.
@@ -55,9 +56,9 @@ Nothing, for a group this size.
 Past a free allowance, the Worker and D1 stop answering until the next day rather than bill.
 R2 is the only piece that can bill, and only for storage. Every photo is read through the
 Worker, whose 100,000 requests a day keep reads under R2's free 10 million a month, and there
-are no download fees. Only posted photos are kept: uploads never posted are deleted daily, and
-each person can upload at most 150 a day. 10 GB is roughly ten thousand photos; past that,
-storage is $0.015 per GB a month.
+are no download fees. Only posted photos are kept: uploads never posted are deleted daily,
+each person can upload at most 150 a day, and a week holds at most 15. 10 GB is roughly ten
+thousand photos; past that, storage is $0.015 per GB a month.
 
 ## 1. Switch on R2 (done)
 
