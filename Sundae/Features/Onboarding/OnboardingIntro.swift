@@ -3,9 +3,10 @@ import Combine
 import SwiftUI
 import UIKit
 
-/// The first thing anyone sees: the felt sundae building itself, bowl to cherry, in ten seconds.
-/// It plays once and rests on the finished sundae, then Begin appears; a tap skips to the end.
-/// With Reduce Motion or VoiceOver on, the finished sundae shows as a still and Begin is ready.
+/// The first thing anyone sees: the felt sundae building itself, bowl to cherry, in ten seconds,
+/// filling the screen. When it ends, the finished sundae rises and settles between the title and
+/// Begin, and the felt comes up at the foot of the screen so the words read clearly. A tap skips
+/// to the end. With Reduce Motion or VoiceOver on, the finished sundae shows as a still, in place.
 /// The sound follows the ring switch and never plays over something already playing.
 struct OnboardingIntro: View {
     let onBegin: () -> Void
@@ -14,15 +15,20 @@ struct OnboardingIntro: View {
     @State private var player: AVPlayer?
     @State private var skipped = false
     @State private var finished = false
-    @State private var appeared = false
 
     /// The felt at the top and the foot of the film, so the space around it carries on.
     static let feltTop = Color(red: 229 / 255, green: 221 / 255, blue: 205 / 255)
     static let feltBottom = Color(red: 210 / 255, green: 199 / 255, blue: 182 / 255)
-    /// Room under the film for the line and the button, home indicator included.
-    private static let bottomRoom: CGFloat = 136
+    /// Where the sundae sits in the film, as fractions of its height: the cherry's stem to the
+    /// bowl's foot.
+    private static let sundaeTop: CGFloat = 0.18
+    private static let sundaeBottom: CGFloat = 0.92
+    /// Room inside the safe area for the title above the sundae, and the line and Begin below it.
+    private static let titleRoom: CGFloat = 70
+    private static let buttonsRoom: CGFloat = 124
 
     private var showsStill: Bool { reduceMotion || voiceOver || skipped }
+    private var settle: Animation? { reduceMotion ? nil : .easeInOut(duration: 0.9) }
 
     var body: some View {
         ZStack {
@@ -31,7 +37,6 @@ struct OnboardingIntro: View {
                 Text("Sundae")
                     .font(Theme.display(44))
                     .padding(.top, 6)
-                    .opacity(appeared ? 1 : 0)
                 Spacer(minLength: 0)
                 VStack(spacing: 14) {
                     Text("Six days to live it. One day to share it.")
@@ -43,10 +48,12 @@ struct OnboardingIntro: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 12)
-                .opacity(finished ? 1 : 0)
-                .allowsHitTesting(finished)
-                .accessibilityHidden(!finished)
             }
+            // The words come in once the sundae has started to settle.
+            .opacity(finished ? 1 : 0)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.6).delay(0.35), value: finished)
+            .allowsHitTesting(finished)
+            .accessibilityHidden(!finished)
         }
         // Felt is cream in any light; the words on it stay dark.
         .preferredColorScheme(.light)
@@ -59,28 +66,71 @@ struct OnboardingIntro: View {
         }
     }
 
-    /// The film full width from the top of the screen, fading into the felt below it. Where the
-    /// screen is too wide or too short for that, it narrows and fades into the felt at its sides.
+    /// While it plays, the film is as tall as the screen: edge to edge on a phone, and in the middle
+    /// with its sides fading into the felt on anything wider. Once it ends it rises, smaller only if
+    /// it has to be, so the whole sundae sits between the title and Begin.
     private var filmLayer: some View {
         GeometryReader { geo in
-            let width = min(geo.size.width, max(0, geo.size.height - Self.bottomRoom) * 9 / 16)
-            let bottomFade: [Gradient.Stop] = [.init(color: .black, location: 0), .init(color: .black, location: 0.92),
-                                               .init(color: .clear, location: 1)]
-            let sideFade: [Gradient.Stop] = width < geo.size.width - 1
-                ? [.init(color: .clear, location: 0), .init(color: .black, location: 0.1),
-                   .init(color: .black, location: 0.9), .init(color: .clear, location: 1)]
-                : [.init(color: .black, location: 0), .init(color: .black, location: 1)]
-            ZStack(alignment: .top) {
+            let size = geo.size
+            let width = size.height * 9 / 16
+            let top = geo.safeAreaInsets.top + Self.titleRoom
+            let bottom = size.height - geo.safeAreaInsets.bottom - Self.buttonsRoom
+            let span: CGFloat = (Self.sundaeBottom - Self.sundaeTop) * size.height
+            let fitsHeight: CGFloat = (bottom - top) / span
+            let fitsWidth: CGFloat = size.width * 0.96 / (0.8 * width)
+            let shrink: CGFloat = min(1, max(0.3, fitsHeight), fitsWidth)
+            // Moves the sundae's middle to the middle of the space between the title and Begin.
+            let sundaeMiddle: CGFloat = ((Self.sundaeTop + Self.sundaeBottom) / 2 - 0.5) * size.height * shrink
+            let rise: CGFloat = (top + bottom) / 2 - size.height / 2 - sundaeMiddle
+            // Sides that fall inside the screen fade into the felt: while playing on a wide screen,
+            // and once settled wherever the smaller film no longer reaches the edges.
+            let faded: [Gradient.Stop] = [.init(color: .clear, location: 0), .init(color: .black, location: 0.1),
+                                          .init(color: .black, location: 0.9), .init(color: .clear, location: 1)]
+            let solid: [Gradient.Stop] = [.init(color: .black, location: 0), .init(color: .black, location: 1)]
+            let playingSides = width < size.width - 1 ? faded : solid
+            let settledSides = width * shrink < size.width - 1 ? faded : solid
+            ZStack {
                 LinearGradient(colors: [Self.feltTop, Self.feltBottom], startPoint: .top, endPoint: .bottom)
                 film
-                    .frame(width: width, height: width * 16 / 9)
+                    .frame(width: width, height: size.height)
                     .clipped()
-                    .mask { LinearGradient(stops: bottomFade, startPoint: .top, endPoint: .bottom) }
-                    .mask { LinearGradient(stops: sideFade, startPoint: .leading, endPoint: .trailing) }
+                    // Once it is smaller than the screen, its top and foot melt into the felt.
+                    .overlay {
+                        VStack(spacing: 0) {
+                            LinearGradient(colors: [Self.feltTop, Self.feltTop.opacity(0)], startPoint: .top, endPoint: .bottom)
+                                .frame(height: size.height * 0.06)
+                            Spacer(minLength: 0)
+                            LinearGradient(colors: [Self.feltBottom.opacity(0), Self.feltBottom], startPoint: .top, endPoint: .bottom)
+                                .frame(height: size.height * 0.08)
+                        }
+                        .opacity(finished ? 1 : 0)
+                    }
+                    .mask {
+                        ZStack {
+                            LinearGradient(stops: playingSides, startPoint: .leading, endPoint: .trailing)
+                                .opacity(finished ? 0 : 1)
+                            LinearGradient(stops: settledSides, startPoint: .leading, endPoint: .trailing)
+                                .opacity(finished ? 1 : 0)
+                        }
+                    }
+                    .scaleEffect(finished ? shrink : 1)
+                    .offset(y: finished ? rise : 0)
+                    .animation(settle, value: finished)
                     .accessibilityElement()
                     .accessibilityLabel("A felt ice cream sundae, built scoop by scoop, with a cherry on top")
+                // The felt rising at the foot of the screen, under the line and Begin.
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    LinearGradient(colors: [Self.feltBottom.opacity(0), Self.feltBottom], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 72)
+                    Self.feltBottom
+                        .frame(height: max(0, size.height - bottom - 48))
+                }
+                .opacity(finished ? 1 : 0)
+                .animation(settle, value: finished)
+                .allowsHitTesting(false)
             }
-            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+            .frame(width: size.width, height: size.height)
             .contentShape(Rectangle())
             .onTapGesture { if !finished { skip() } }
         }
@@ -99,7 +149,6 @@ struct OnboardingIntro: View {
     }
 
     private func start() {
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.8)) { appeared = true }
         guard !showsStill, player == nil,
               let url = Bundle.main.url(forResource: "IntroFilm", withExtension: "mp4") else {
             finish()
@@ -128,7 +177,7 @@ struct OnboardingIntro: View {
     }
 
     private func finish() {
-        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.5)) { finished = true }
+        finished = true
     }
 }
 
