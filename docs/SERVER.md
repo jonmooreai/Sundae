@@ -9,8 +9,9 @@ It is built for a dozen friends and family on Cloudflare's free plan, and deploy
 HeartCubby is: Workers Builds watches this repository and deploys every push that changes the
 server. No Cloudflare token is stored in GitHub.
 
-Already done from the command line: the D1 database `sundae` (North America East) exists with
-its tables, and its id is in `server/api/wrangler.jsonc`.
+Already done from the command line: the D1 database `sundae` exists with its tables, and the
+private R2 bucket `sundae-photos` is made, both in North America East and both bound in
+`server/api/wrangler.jsonc`.
 
 ## Privacy and security
 
@@ -50,19 +51,14 @@ are no download fees. Only posted photos are kept: uploads never posted are dele
 each person can upload at most 150 a day. 10 GB is roughly ten thousand photos; past that,
 storage is $0.015 per GB a month.
 
-## 1. Switch on R2
+## 1. Switch on R2 (done)
 
-Cloudflare only lets the account owner do this, in the dashboard, about two minutes. Do it
-first, so photos never sit in the database (where D1's recovery history would keep a deleted
-photo for 7 days).
+Cloudflare only lets the account owner do this, in the dashboard: **R2 Object Storage**, get
+started, add a payment method (Sundae stays inside the free tier). The bucket was then made
+from the command line. Leave its public access off; nothing needs it.
 
-1. Open **R2 Object Storage** and choose to get started. Cloudflare asks for a payment method
-   even for the free tier; Sundae stays inside it (the table above).
-2. Don't create a bucket or turn on public access. The private `sundae-photos` bucket is made
-   from the command line, and the binding in `server/api/wrangler.jsonc` switched on with it.
-
-Until then photos go in the database, which holds a few hundred, and turning R2 on later loses
-none of them.
+Without the `PHOTOS` binding the server keeps photos in the database instead, which holds a
+few hundred; if that ever happened, turning R2 back on would lose none of them.
 
 ## 2. Connect the Worker
 

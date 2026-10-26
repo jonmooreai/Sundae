@@ -1,5 +1,5 @@
-// Sundae's server: one Worker and one D1 database on Cloudflare's free plan, photos in R2 once
-// it is switched on. No build step. Deployed by Workers Builds from this folder (docs/SERVER.md).
+// Sundae's server: one Worker, one D1 database and one R2 bucket, on Cloudflare's free tiers.
+// No build step. Deployed by Workers Builds from this folder (docs/SERVER.md).
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "sundae-api",
@@ -8,10 +8,9 @@
   "workers_dev": true,
   // Created in North America East. Its id is not a secret: only this Cloudflare account can use it.
   "d1_databases": [{ "binding": "DB", "database_name": "sundae", "database_id": "50fc0dc9-3ba0-4405-a135-9429d6c59571" }],
-  // Until R2 is switched on, photos are kept in the database, which holds a few hundred. Once
-  // the account owner turns R2 on and the private bucket is made, the line below is switched on.
-  // Photos already in the database stay readable.
-  // "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "sundae-photos" }],
+  // Photos. Private, as every new bucket is: nothing reaches it except this Worker, which only
+  // serves a photo through a signed link. North America East, Standard storage (the free tier).
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "sundae-photos" }],
   "vars": {
     "APPLE_BUNDLE_ID": "com.jonmooreai.sundae",
     // "true" opens the Sunday-only parts every day, for trying things out midweek.
