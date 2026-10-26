@@ -240,7 +240,7 @@ struct OnboardingView: View {
                 }
             }
 
-            // Readable before there is an account: what Sundae keeps and never collects.
+            // Readable before there is an account: what Sundae uses and never collects.
             Button("How Sundae handles your data") { showPrivacy = true }
                 .buttonStyle(.pill(.quiet, fullWidth: true))
 

@@ -27,7 +27,7 @@ struct PrivacyPolicy: Decodable {
     }
 }
 
-/// Everything Sundae keeps, never collects, and who sees what. In the app, so it can be read any
+/// What Sundae uses, what it never collects, and who sees what. In the app, so it can be read any
 /// time without a browser or a website.
 struct PrivacyView: View {
     private let policy = PrivacyPolicy.bundled()
