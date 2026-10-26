@@ -84,6 +84,20 @@ jobs:
             2>&1 | tee build.log | grep -E "error:|warning: .*(never|unused)|BUILD (SUCCEEDED|FAILED)|Compiling|Linking" || true
           grep -q "BUILD SUCCEEDED" build.log
 
+      - name: Unit tests, including the idea guard
+        if: env.FULL != 'true'
+        run: |
+          set -o pipefail
+          xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$IPHONE_UDID" -b || true
+          xcodebuild test-without-building \
+            -project Sundae.xcodeproj -scheme Sundae \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath build \
+            -only-testing:SundaeTests \
+            2>&1 | tee test-unit.log | grep -E "error:|failed|passed|recorded an issue|TEST .*(SUCCEEDED|FAILED)" || true
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-unit.log
+
       - name: Unit and UI tests on iPhone
         if: env.FULL == 'true'
         run: |
