@@ -2,6 +2,7 @@
 // the same inputs give the same ideas on every edge, with nothing stored.
 
 import { center, distanceMeters } from './geohash.js';
+import { isSafeIdea, isSafePlace } from './guard.js';
 
 /** A walk, in meters: the cell plus a fifteen-minute walk. */
 export const WALK_METERS = 1200;
@@ -18,69 +19,71 @@ const WALK_PACE = 80;
 export const THEMES = {
   cafe: {
     morning: [
-      { text: 'Have the first coffee of the day at {name}.', reason: 'Sit by the window. Photograph the cup, then whatever is outside the glass.' },
-      { text: 'Finally go into {name}.', reason: 'You walk past it every day. Order what the person ahead of you ordered.' },
+      { text: 'Have the first coffee of the day at {name}.', reason: 'Sit by the window. Photograph the cup, then the view outside.' },
+      { text: 'Finally go into {name}.', reason: 'You walk past it all the time. Order something you never get.' },
     ],
     afternoon: [
-      { text: 'Take your afternoon slump to {name}.', reason: 'One table, one hour, no laptop. Shoot the light on the table at the end.' },
+      { text: 'Take your afternoon break at {name}.', reason: 'One table, one hour, no laptop. Photograph the light on the table.' },
     ],
     evening: [
-      { text: 'Get a decaf and a slice at {name} before it closes.', reason: 'Closing-time cafés are the quietest rooms in town. Photograph the chairs going up.' },
+      { text: 'Get a decaf and a slice at {name} before it closes.', reason: 'Closing time is the quietest hour. Photograph the empty chairs.' },
     ],
   },
   bakery: {
     morning: [
-      { text: 'Be first in line at {name}.', reason: 'The bread comes out around now. Shoot the steam, the paper bags, the person ahead of you.' },
-      { text: 'Buy something still warm at {name}.', reason: 'Eat it on the step outside. The photo is the crumbs.' },
+      { text: 'Be first in line at {name}.', reason: 'The bread comes out around now. Photograph the steam and the paper bags.' },
+      { text: 'Buy something still warm at {name}.', reason: 'Eat it on a bench outside. Photograph the crumbs.' },
     ],
     afternoon: [
-      { text: 'Pick up tomorrow’s breakfast at {name}.', reason: 'Get the thing you never get. Photograph it before anyone else sees it.' },
+      { text: "Pick up tomorrow's breakfast at {name}.", reason: 'Get the thing you never get. Photograph it before the first bite.' },
     ],
     evening: [],
   },
   park: {
     morning: [
-      { text: 'Walk {name} before the dog people leave.', reason: 'Low sun, long shadows, a bench to drink coffee on. Take the wide shot and one detail.' },
+      { text: 'Walk {name} early.', reason: 'Low sun, long shadows, a bench for your coffee. Photograph the wide view and one detail.' },
     ],
     afternoon: [
-      { text: 'Lie on the grass at {name} for twenty minutes.', reason: 'Phone face down, then one photo straight up. That is the whole assignment.' },
-      { text: 'Read a chapter at {name}.', reason: 'Bring the book you keep not finishing. Shoot the page and the view past it.' },
+      { text: 'Lie on the grass at {name} for twenty minutes.', reason: 'Phone face down, then one photo straight up at the sky.' },
+      { text: 'Read a chapter at {name}.', reason: 'Bring the book you keep not finishing. Photograph the page and the view past it.' },
     ],
     evening: [
-      { text: 'Catch the last light at {name}.', reason: 'Ten minutes of color. Bring someone, or shoot the people who did.' },
+      { text: 'Catch the last light at {name}.', reason: 'Ten minutes of color. Bring a friend and photograph the sky.' },
     ],
   },
   viewpoint: {
     morning: [
-      { text: 'See the city wake up from {name}.', reason: 'Get there early enough to watch the lights go off. One frame, then put the phone away.' },
+      { text: 'See the city wake up from {name}.', reason: 'Get there in time to watch the lights go off. One photo, then just look.' },
     ],
     afternoon: [
-      { text: 'Walk up to {name} and look at where you live.', reason: 'Find your street from up there. Photograph the direction of home.' },
+      { text: 'Go to {name} and look at where you live.', reason: 'Find your street from there. Photograph the direction of home.' },
     ],
     evening: [
-      { text: 'Catch the sunset from {name}.', reason: 'Fifteen minutes uphill, ten minutes of color. Bring someone.' },
+      { text: 'Catch the sunset from {name}.', reason: 'Ten minutes of color. Bring a friend.' },
     ],
   },
   library: {
     morning: [],
     afternoon: [
-      { text: 'Spend an hour at {name}.', reason: 'Find the oldest book on the shelf nearest the window. Photograph the spine, not the cover.' },
-      { text: 'Get a library card at {name}, or use the one you have.', reason: 'Borrow something on a whim. Shoot the stamp or the due date.' },
+      { text: 'Spend an hour at {name}.', reason: 'Find the oldest book on the shelf nearest the window. Photograph the spine.' },
+      { text: 'Get a library card at {name}, or use the one you have.', reason: 'Borrow something on a whim. Photograph the due date slip.' },
     ],
     evening: [],
   },
   bookstore: {
-    morning: [],
+    morning: [
+      { text: 'Be the first one into {name}.', reason: 'Quiet aisles, coffee in hand. Buy the book with the best first sentence.' },
+    ],
     afternoon: [
-      { text: 'Buy a book you have never heard of at {name}.', reason: 'Pick by the first sentence. Photograph it in your hands, outside the shop.' },
+      { text: "Buy a book you've never heard of at {name}.", reason: 'Pick it by the first sentence. Photograph it in your hands outside.' },
     ],
     evening: [
-      { text: 'Browse {name} until they turn the lights down.', reason: 'The staff picks shelf is the review. Shoot the handwritten cards.' },
+      { text: 'Browse {name} before it closes.', reason: 'Start with the staff picks shelf. Photograph the handwritten cards.' },
     ],
   },
   market: {
     morning: [
-      { text: 'Buy one thing you cannot name at {name}.', reason: 'Ask what it is. Shoot it at home before you cook it.' },
+      { text: "Buy one thing you can't name at {name}.", reason: 'Ask what it is. Photograph it at home before you cook it.' },
     ],
     afternoon: [
       { text: 'Make dinner only from what you find at {name}.', reason: 'Three ingredients, no list. Photograph the haul on the counter.' },
@@ -90,19 +93,19 @@ export const THEMES = {
   museum: {
     morning: [],
     afternoon: [
-      { text: 'Go see one room at {name}.', reason: 'One room, not the whole place. Photograph the thing you looked at longest.' },
+      { text: 'Go see one room at {name}.', reason: 'One room, not the whole place. Photograph the piece you looked at longest.' },
     ],
     evening: [
-      { text: 'See if {name} is open late tonight.', reason: 'Empty galleries after dark are a different museum. Shoot a guard, politely.' },
+      { text: 'See whether {name} has a late opening this week.', reason: 'Quiet galleries feel like a different museum. Photograph your favorite room.' },
     ],
   },
   gallery: {
     morning: [],
     afternoon: [
-      { text: 'Walk into {name} like you meant to.', reason: 'It is free and nobody will ask you anything. Photograph the floor and one wall.' },
+      { text: 'Walk into {name} like you meant to.', reason: "It's free and quiet. Photograph the floor and one wall." },
     ],
     evening: [
-      { text: 'Check whether {name} has an opening tonight.', reason: 'Free wine, strangers, art. Shoot the crowd, not the work.' },
+      { text: 'See whether {name} has an opening this week.', reason: "New work, a good room. Photograph the piece you'd take home." },
     ],
   },
   garden: {
@@ -110,7 +113,7 @@ export const THEMES = {
       { text: 'Walk through {name} while it is still wet.', reason: 'Everything looks better before ten. Photograph one plant you cannot name.' },
     ],
     afternoon: [
-      { text: 'Find a bench at {name} and stay put.', reason: 'Half an hour, one spot. Shoot what changes.' },
+      { text: 'Find a bench at {name} and stay put.', reason: 'Half an hour, one spot. Photograph what changes.' },
     ],
     evening: [],
   },
@@ -119,13 +122,13 @@ export const THEMES = {
       { text: 'Do the first mile of {name} before work.', reason: 'Out and back, no summit. Photograph the turnaround point.' },
     ],
     afternoon: [
-      { text: 'Walk {name} until the phone has no signal.', reason: 'Then one photo and turn around. The photo is the proof.' },
+      { text: 'Walk {name} for an hour, then turn around.', reason: 'Stay on the marked trail. Photograph the best view on the way back.' },
     ],
     evening: [],
   },
   waterfront: {
     morning: [
-      { text: 'Walk the water at {name} before anyone is out.', reason: 'Flat light, gulls, somebody fishing. Shoot the horizon low in the frame.' },
+      { text: 'Walk along the water at {name}.', reason: 'Flat light and gulls. Keep the horizon low in the photo.' },
     ],
     afternoon: [],
     evening: [
@@ -134,29 +137,29 @@ export const THEMES = {
   },
   diner: {
     morning: [
-      { text: 'Have breakfast at the counter at {name}.', reason: 'Order eggs however the person next to you did. Photograph the mug, not the plate.' },
+      { text: 'Have breakfast at the counter at {name}.', reason: "Order whatever they're known for. Photograph the mug, not the plate." },
     ],
     afternoon: [],
     evening: [
-      { text: 'Eat at {name}, at the counter, alone or not.', reason: 'The line is the review. Shoot the counter, the specials board, the faces.' },
+      { text: 'Have dinner at the counter at {name}.', reason: 'Order the special. Photograph the menu board and your plate.' },
     ],
   },
   record_store: {
     morning: [],
     afternoon: [
-      { text: 'Flip through the dollar bin at {name}.', reason: 'Pick the cover that makes you laugh. Shoot it in your hands, out on the sidewalk.' },
+      { text: 'Flip through the dollar bin at {name}.', reason: 'Pick the cover that makes you laugh. Photograph it in your hands.' },
     ],
     evening: [
-      { text: 'Ask the person at {name} what they are playing.', reason: 'Buy it if you can. Photograph the sleeve under the shop lights.' },
+      { text: "Ask what's playing at {name}.", reason: 'Buy it if you can. Photograph the sleeve under the shop lights.' },
     ],
   },
   ice_cream: {
     morning: [],
     afternoon: [
-      { text: 'Get the flavor you would never get at {name}.', reason: 'Eat it walking. Photograph the last bite, the cone, the sidewalk.' },
+      { text: "Get a flavor you'd never pick at {name}.", reason: 'Eat it walking. Photograph the cone against the sky.' },
     ],
     evening: [
-      { text: 'Walk to {name} after dinner.', reason: 'The after-dinner walk is the point; the cone is the excuse. Shoot the queue.' },
+      { text: 'Walk to {name} after dinner.', reason: 'The walk is the point and the cone is the excuse. Photograph the sign.' },
     ],
   },
 };
@@ -194,7 +197,7 @@ export function generate(cell, day, places) {
   const rng = seeded(`${cell}:${day}`);
   const origin = center(cell);
   const nearby = places
-    .filter((p) => p && p.name && THEMES[p.category])
+    .filter((p) => p && p.name && THEMES[p.category] && isSafePlace(p.name))
     .map((p) => ({ ...p, meters: distanceMeters(origin, p) }))
     .filter((p) => p.meters <= RADIUS_METERS)
     .sort((a, b) => a.meters - b.meters);
@@ -230,5 +233,6 @@ export function generate(cell, day, places) {
       },
     });
   });
-  return ideas;
+  // Last word: anything that fails the guard is dropped, never shown.
+  return ideas.filter(isSafeIdea);
 }

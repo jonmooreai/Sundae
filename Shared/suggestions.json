@@ -11,7 +11,7 @@
   {
     "id": "s002",
     "text": "Watch the sunset from somewhere high.",
-    "reason": "A parking garage roof counts.",
+    "reason": "A hill or a top-floor café counts.",
     "categories": [
       "outdoors"
     ],
@@ -38,8 +38,8 @@
   },
   {
     "id": "s005",
-    "text": "Go for a swim, anywhere that will let you.",
-    "reason": "Cold water is a good story later.",
+    "text": "Go for a swim somewhere with a lifeguard.",
+    "reason": "A public pool counts. Cold water is a good story later.",
     "categories": [
       "outdoors"
     ],
@@ -102,7 +102,7 @@
   },
   {
     "id": "s012",
-    "text": "Climb something. A hill, a tower, a lot of stairs.",
+    "text": "Get up high: a hill, a tower, a long staircase.",
     "reason": "The view is the reward and the photo.",
     "categories": [
       "outdoors"
@@ -148,7 +148,7 @@
   },
   {
     "id": "s017",
-    "text": "Watch the planes come in from the end of the runway.",
+    "text": "Watch the planes come in from a public viewing spot.",
     "reason": "Bring someone who'll be impressed.",
     "categories": [
       "outdoors",
@@ -253,8 +253,8 @@
   },
   {
     "id": "s028",
-    "text": "Have a bonfire, or find one.",
-    "reason": "Marshmallows are not optional.",
+    "text": "Make s'mores with friends.",
+    "reason": "A backyard fire pit or a camp stove. Marshmallows are not optional.",
     "categories": [
       "outdoors",
       "people"
@@ -312,8 +312,8 @@
   },
   {
     "id": "s034",
-    "text": "Watch a storm from a porch.",
-    "reason": "From a safe distance it's the best show in town.",
+    "text": "Watch a storm from inside, by a big window.",
+    "reason": "From indoors it's the best show in town.",
     "categories": [
       "outdoors"
     ],
@@ -331,7 +331,7 @@
   {
     "id": "s036",
     "text": "Find a view of your city you've never seen.",
-    "reason": "Every hill, roof, and bridge is a candidate.",
+    "reason": "Every hill, bridge and top-floor window is a candidate.",
     "categories": [
       "outdoors",
       "local"
@@ -497,7 +497,7 @@
   },
   {
     "id": "s053",
-    "text": "Make a drink with something from a garden.",
+    "text": "Make lemonade or iced tea with something from a garden.",
     "reason": "Mint, basil, a lemon off a tree. Yours or a friend's.",
     "categories": [
       "food",
@@ -642,7 +642,7 @@
   },
   {
     "id": "s068",
-    "text": "Have a photo shoot with your friends, on purpose.",
+    "text": "Plan a photo day with your friends, on purpose.",
     "reason": "Dress up or don't.",
     "categories": [
       "people",
@@ -906,7 +906,7 @@
   },
   {
     "id": "s096",
-    "text": "Write your name in the air with a sparkler or a flashlight.",
+    "text": "Write your name in the air with a flashlight.",
     "reason": "Long exposure, steady hands, a friend to press the button.",
     "categories": [
       "creative",
@@ -1087,8 +1087,8 @@
   },
   {
     "id": "s115",
-    "text": "Go to the top of the tallest public building you can get into.",
-    "reason": "Hotels and hospitals often have a view nobody uses.",
+    "text": "Find the best public view in town.",
+    "reason": "Observation decks, top-floor cafés and library windows count.",
     "categories": [
       "local",
       "outdoors"
@@ -1126,7 +1126,7 @@
   },
   {
     "id": "s119",
-    "text": "Find the best hidden courtyard or alley.",
+    "text": "Find the best hidden courtyard.",
     "reason": "Cities keep their best spots off the main street.",
     "categories": [
       "local",
@@ -1136,8 +1136,8 @@
   },
   {
     "id": "s120",
-    "text": "Walk through a cemetery and read the oldest names.",
-    "reason": "Quietly. It's the most peaceful park in town.",
+    "text": "Walk a historic street and read every plaque.",
+    "reason": "Old doors usually have a date somewhere.",
     "categories": [
       "local",
       "outdoors"

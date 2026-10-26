@@ -118,9 +118,9 @@ final class LocalIdeasStore {
         guard !Task.isCancelled, isEnabled, !clock.isSunday() else { return }
         status = .loading
         do {
-            let fresh = onDevice
+            let fresh = IdeaGuard.filter(onDevice
                 ? try await NearbyIdeas.ideas(cell: cell, day: clock.now(), calendar: clock.calendar)
-                : try await api.localIdeas(cell: cell, day: clock.now())
+                : try await api.localIdeas(cell: cell, day: clock.now()))
             guard !Task.isCancelled, isEnabled else { return }
             ideas = fresh
             shared.setLocalIdeas(fresh, at: clock.now())

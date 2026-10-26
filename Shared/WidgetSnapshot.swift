@@ -72,7 +72,8 @@ public enum WidgetSnapshotBuilder {
     static func idea(on date: Date, calendar: Calendar, catalog: SuggestionCatalog, shared: SharedDefaults) -> Suggestion? {
         let local = shared.localIdeas(on: date, calendar: calendar) ?? []
         if let id = shared.currentSuggestionID(on: date, calendar: calendar),
-           let current = local.first(where: { $0.id == id }) ?? catalog.suggestion(id: id) {
+           let current = local.first(where: { $0.id == id }) ?? catalog.suggestion(id: id),
+           IdeaGuard.isSafe(current) {
             return current
         }
         let slot = Suggestion.TimeOfDay.current(for: date, calendar: calendar)
