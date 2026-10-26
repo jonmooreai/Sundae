@@ -261,43 +261,39 @@ struct EditProfileSheet: View {
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    VStack(spacing: 10) {
-                        AvatarView(user: model.currentUser ?? user, size: 96)
-                            .overlay {
-                                if isUploadingAvatar {
-                                    ZStack {
-                                        Color.black.opacity(0.35)
-                                        ProgressView().tint(.white)
-                                    }
-                                    .clipShape(Circle())
+            SettingsScreen(title: "Edit profile") {
+                VStack(spacing: 12) {
+                    AvatarView(user: model.currentUser ?? user, size: 96)
+                        .overlay {
+                            if isUploadingAvatar {
+                                ZStack {
+                                    Color.black.opacity(0.35)
+                                    ProgressView().tint(.white)
                                 }
+                                .clipShape(Circle())
                             }
-                        PhotosPicker(selection: $avatarItem, matching: .images) {
-                            Text("Change photo")
                         }
-                        .buttonStyle(.pill(.secondary, size: .small))
-                        .disabled(isUploadingAvatar)
+                    PhotosPicker(selection: $avatarItem, matching: .images) {
+                        Text("Change photo")
                     }
-                    .frame(maxWidth: .infinity)
-                    .listRowBackground(Color.clear)
+                    .buttonStyle(.pill(.secondary, size: .small))
+                    .disabled(isUploadingAvatar)
                 }
-                Section {
-                    TextField("Name", text: $name)
-                    TextField("Username", text: $username)
+                .frame(maxWidth: .infinity)
+                .padding(.top, 8)
+
+                SettingsGroup(footer: error) {
+                    SettingsFieldRow(label: "Name", text: $name, prompt: "Your name")
+                    SettingsFieldRow(label: "Username", text: $username, prompt: "username")
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
-                    TextField("Bio", text: $bio, axis: .vertical).lineLimit(2...4)
-                    if let error { Text(error).foregroundStyle(.secondary) }
+                    SettingsFieldRow(label: "Bio", text: $bio, prompt: "A line about you", multiline: true)
                 }
             }
             .onChange(of: avatarItem) { _, item in
                 guard let item else { return }
                 Task { await changeAvatar(item) }
             }
-            .navigationTitle("Edit profile")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.textButtonTint() }
                 ToolbarItem(placement: .confirmationAction) {

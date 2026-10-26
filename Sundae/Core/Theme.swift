@@ -50,6 +50,13 @@ enum Appearance: String, CaseIterable, Identifiable {
         case .dark: "Dark"
         }
     }
+    var shortLabel: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
     var colorScheme: ColorScheme? {
         switch self {
         case .system: nil
