@@ -31,29 +31,13 @@ struct OnboardingIntro: View {
     private var settle: Animation? { reduceMotion ? nil : .easeInOut(duration: 0.9) }
 
     var body: some View {
-        ZStack {
-            filmLayer
-            VStack(spacing: 0) {
-                Text("Sundae")
-                    .font(Theme.display(44))
-                    .padding(.top, 6)
-                Spacer(minLength: 0)
-                VStack(spacing: 14) {
-                    Text("Six days to live it. One day to share it.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    PrimaryButton(title: "Begin", action: onBegin)
-                        .frame(maxWidth: 320)
-                }
-                .padding(.horizontal, 32)
-                .padding(.bottom, 12)
+        // Read here, where the safe area still applies: inside the full-screen film layer it reads
+        // as zero, which would let the settled sundae run under the title.
+        GeometryReader { outer in
+            ZStack {
+                filmLayer(safeArea: outer.safeAreaInsets)
+                words
             }
-            // The words come in once the sundae has started to settle.
-            .opacity(finished ? 1 : 0)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.6).delay(0.35), value: finished)
-            .allowsHitTesting(finished)
-            .accessibilityHidden(!finished)
         }
         // Felt is cream in any light; the words on it stay dark.
         .preferredColorScheme(.light)
@@ -66,15 +50,40 @@ struct OnboardingIntro: View {
         }
     }
 
+    /// The title, the line and Begin, inside the safe area.
+    private var words: some View {
+        VStack(spacing: 0) {
+            Text("Sundae")
+                .font(Theme.display(44))
+                .padding(.top, 6)
+            Spacer(minLength: 0)
+            VStack(spacing: 14) {
+                Text("Six days to live it. One day to share it.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                PrimaryButton(title: "Begin", action: onBegin)
+                    .frame(maxWidth: 320)
+            }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 12)
+        }
+        // The words come in once the sundae has started to settle.
+        .opacity(finished ? 1 : 0)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.6).delay(0.35), value: finished)
+        .allowsHitTesting(finished)
+        .accessibilityHidden(!finished)
+    }
+
     /// While it plays, the film is as tall as the screen: edge to edge on a phone, and in the middle
     /// with its sides fading into the felt on anything wider. Once it ends it rises, smaller only if
     /// it has to be, so the whole sundae sits between the title and Begin.
-    private var filmLayer: some View {
+    private func filmLayer(safeArea: EdgeInsets) -> some View {
         GeometryReader { geo in
             let size = geo.size
             let width = size.height * 9 / 16
-            let top = geo.safeAreaInsets.top + Self.titleRoom
-            let bottom = size.height - geo.safeAreaInsets.bottom - Self.buttonsRoom
+            let top = safeArea.top + Self.titleRoom
+            let bottom = size.height - safeArea.bottom - Self.buttonsRoom
             let span: CGFloat = (Self.sundaeBottom - Self.sundaeTop) * size.height
             let fitsHeight: CGFloat = (bottom - top) / span
             let fitsWidth: CGFloat = size.width * 0.96 / (0.8 * width)
