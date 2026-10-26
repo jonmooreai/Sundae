@@ -102,8 +102,9 @@ actor LiveSundaeAPI: SundaeAPI {
         if let olderThan {
             query.append(URLQueryItem(name: "before", value: Date.ISO8601FormatStyle(includingFractionalSeconds: true).format(olderThan)))
         }
-        let dumps: [DTO.Dump] = try await client.get("v1/feed", query: query)
-        return dumps.map(\.model)
+        // One dump that can't be read is left out rather than failing the whole page.
+        let dumps: DTO.LossyList<DTO.Dump> = try await client.get("v1/feed", query: query)
+        return dumps.elements.map(\.model)
     }
 
     func dump(id: ID) async throws -> Dump {
@@ -236,8 +237,8 @@ actor LiveSundaeAPI: SundaeAPI {
     // MARK: - Tags
 
     func pendingTagRequests() async throws -> [TagRequest] {
-        let requests: [DTO.TagRequest] = try await client.get("v1/me/tag-requests")
-        return requests.map(\.model)
+        let requests: DTO.LossyList<DTO.TagRequest> = try await client.get("v1/me/tag-requests")
+        return requests.elements.map(\.model)
     }
 
     func respondToTag(id: ID, approve: Bool) async throws {

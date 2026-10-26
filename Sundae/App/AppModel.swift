@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WidgetKit
 import Observation
 
@@ -131,6 +132,8 @@ final class AppModel {
     // MARK: - Lifecycle
 
     func start() async {
+        // Before the Keychain is read and before any await, so a second window can't race it.
+        clearSessionLeftByAnEarlierInstall()
         refreshPhase()
         watchForEndedSession()
         network.onChange = { [weak self] online in
@@ -171,6 +174,16 @@ final class AppModel {
             }
         }
         isRestoringSession = false
+    }
+
+    /// The Keychain outlives a deleted app. On a fresh install, tokens found there belong to
+    /// whoever used this phone before, so they are cleared and never sent, not even to sign out.
+    private func clearSessionLeftByAnEarlierInstall() {
+        // Before first unlock UserDefaults can read as empty; check on a later launch instead.
+        guard UIApplication.shared.isProtectedDataAvailable else { return }
+        guard FreshInstall.check(.standard, evidence: [Keys.cachedUser, Keys.appearance]) else { return }
+        TokenStore().clear()
+        Keychain.delete(Keys.session)
     }
 
     /// When the network returns on Sunday, post anything compose queued while offline.

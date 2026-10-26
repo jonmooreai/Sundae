@@ -155,6 +155,91 @@ struct DTOTests {
         #expect(DTO.weekString(dump.weekStart) == "2026-10-19")
     }
 
+    private static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+
+    private static func photo(width: String, height: String, id: String = "p_1") -> String {
+        """
+        {"id": "\(id)", "dump_id": "d_1", "order": 0, "url": "https://cdn.sundae.test/\(id)?sig=x",
+         "width": \(width), "height": \(height), "alt_text": null, "tags": []}
+        """
+    }
+
+    private static func dump(id: String, photos: [String]) -> String {
+        """
+        {"id": "\(id)", "week_start": "2026-10-19", "caption": null, "created_at": "2026-10-25T13:05:00Z",
+         "locked_at": null, "comments_enabled": true, "liked_by_me": false, "comment_count": 0, "liked_by": [],
+         "author": {"id": "u_pat", "username": "pat", "name": "Pat Doe", "is_public": false},
+         "photos": [\(photos.joined(separator: ","))]}
+        """
+    }
+
+    /// Odd sizes from the server only shape a frame, so they never fail the response.
+    @Test(arguments: [("1.5", "1e300"), ("null", "-7"), ("\"1e308\"", "0"), ("2048.4", "\"Infinity\"")])
+    func oddPhotoSizesBecomePositiveWholeNumbers(width: String, height: String) throws {
+        let photo = try Self.decoder().decode(DTO.Photo.self, from: Data(Self.photo(width: width, height: height).utf8))
+        #expect(photo.width >= 1 && photo.width <= DTO.Photo.maxDimension)
+        #expect(photo.height >= 1 && photo.height <= DTO.Photo.maxDimension)
+    }
+
+    @Test func photoSizesAreClampedAndRounded() {
+        #expect(DTO.Photo.dimension(2048) == 2048)
+        #expect(DTO.Photo.dimension(1535.6) == 1536)
+        #expect(DTO.Photo.dimension(1e300) == DTO.Photo.maxDimension)
+        #expect(DTO.Photo.dimension(.infinity) == 1)
+        #expect(DTO.Photo.dimension(.nan) == 1)
+        #expect(DTO.Photo.dimension(-7) == 1)
+        #expect(DTO.Photo.dimension(0.5) == 1)
+        #expect(DTO.Photo.dimension(nil) == 1)
+    }
+
+    /// One dump that can't be read is left out; the rest of the feed still shows.
+    @Test func aBadDumpIsSkippedNotTheWholeFeed() throws {
+        let good = Self.dump(id: "d_good", photos: [Self.photo(width: "1.5", height: "1e300")])
+        let broken = #"{"id": "d_broken", "author": null}"#
+        let json = "[\(broken), \(good), 42, null]"
+        let page = try Self.decoder().decode(DTO.LossyList<DTO.Dump>.self, from: Data(json.utf8))
+        #expect(page.elements.map(\.id) == ["d_good"])
+        #expect(page.elements[0].model.photos[0].height == DTO.Photo.maxDimension)
+    }
+
+    @Test func aBadTagRequestIsSkipped() throws {
+        let good = """
+        {"tag": {"id": "t_1", "photo_id": "p_1", "tagger_id": "u_pat", "status": "pending",
+                 "tagged_user": {"id": "u_me", "username": "sam", "is_public": false}},
+         "photo": \(Self.photo(width: "1600", height: "1200")),
+         "tagger": {"id": "u_pat", "username": "pat", "is_public": false}, "week_start": "2026-10-19"}
+        """
+        let json = #"[{"tag": "nope"}, "# + good + "]"
+        let requests = try Self.decoder().decode(DTO.LossyList<DTO.TagRequest>.self, from: Data(json.utf8))
+        #expect(requests.elements.map(\.tag.id) == ["t_1"])
+    }
+
+    @Test func aBadWeekOrTaggedPhotoIsSkippedOnAProfile() throws {
+        let tagged = """
+        {"photo": \(Self.photo(width: "1200", height: "1600", id: "p_9")),
+         "from": {"id": "u_pat", "username": "pat", "is_public": false},
+         "tag": {"id": "t_9", "photo_id": "p_9", "tagger_id": "u_pat", "status": "approved",
+                 "tagged_user": {"id": "u_me", "username": "sam", "is_public": false}}}
+        """
+        let json = """
+        {"user": {"id": "u_me", "username": "sam", "is_public": false}, "relationship": "me",
+         "weeks": [
+           {"week_start": "2026-10-19", "dump": \(Self.dump(id: "d_1", photos: [Self.photo(width: "1e300", height: "1.5")])),
+            "tagged": [{"photo": null}, \(tagged)]},
+           {"week_start": 7}
+         ]}
+        """
+        let profile = try Self.decoder().decode(DTO.Profile.self, from: Data(json.utf8)).model
+        #expect(profile.weeks.count == 1)
+        #expect(profile.weeks[0].dump?.id == "d_1")
+        #expect(profile.weeks[0].tagged.map(\.photo.id) == ["p_9"])
+    }
+
     @Test func aSettingsSaveSendsOnlyWhatChanged() throws {
         var wanted = AccountSettings()
         wanted.isPublic = true
