@@ -71,10 +71,10 @@ struct SettingsGroup<Content: View>: View {
 /// Row padding and the soft press every row shares.
 private struct SettingsRowStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        Body(configuration: configuration)
+        RowLabel(configuration: configuration)
     }
 
-    private struct Body: View {
+    private struct RowLabel: View {
         let configuration: Configuration
         @Environment(\.isEnabled) private var isEnabled
 
