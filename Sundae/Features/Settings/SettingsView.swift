@@ -52,6 +52,16 @@ struct SettingsView: View {
 
             Section {
                 NavigationLink {
+                    WidgetGalleryView()
+                } label: {
+                    Text("Home Screen widgets")
+                }
+            } footer: {
+                Text("See exactly what the small and wide widgets show on this phone, and how to add one.")
+            }
+
+            Section {
+                NavigationLink {
                     AutoApproveList(settings: $settings, people: taggable)
                 } label: {
                     HStack {

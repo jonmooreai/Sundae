@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 import Observation
 
 enum DayPhase: Equatable {
@@ -163,7 +164,9 @@ final class AppModel {
 
     /// Recomputes Sunday vs weekday and arms a wake-up at the next midnight boundary.
     func refreshPhase() {
-        phase = clock.isSunday() ? .sunday : .weekday(daysUntilSunday: clock.daysUntilSunday())
+        let next: DayPhase = clock.isSunday() ? .sunday : .weekday(daysUntilSunday: clock.daysUntilSunday())
+        if next != phase { WidgetCenter.shared.reloadAllTimelines() }
+        phase = next
         boundaryTask?.cancel()
         let interval = max(1, clock.nextBoundary().timeIntervalSince(clock.now()))
         boundaryTask = Task { [weak self] in
