@@ -37,7 +37,8 @@ struct SearchView: View {
                     Section {
                         ForEach(requests) { user in
                             HStack(spacing: 8) {
-                                UserRow(user: user, subtitle: user.name)
+                                // The name and the username together: a name can be copied, a username can't.
+                                UserRow(user: user, title: user.displayName, subtitle: user.handle)
                                 if confirmed.contains(user.id) {
                                     HStack(spacing: 5) {
                                         Icon(Glyph.done, weight: .bold, size: 14)

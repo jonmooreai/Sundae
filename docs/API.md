@@ -8,8 +8,8 @@ authority for every rule in the PRD; the client only decides what to draw.
 - Base URL from `SUNDAE_API_BASE_URL`; all paths below are relative and start with `v1/`.
 - JSON, snake_case keys. Timestamps are ISO 8601 with fractional seconds, UTC.
 - `week_start` is a plain `YYYY-MM-DD` date (the Monday) in the user's stored time zone.
-- Errors: `{"error": {"code": "sunday_closed", "message": "..."}}` with the HTTP status. Codes the client maps: `sunday_closed`, `dump_locked`, `too_many_photos`, `too_many_tags`, `caption_too_long`, `invalid_code`, `not_found`, `forbidden`. Anything else (`too_many_uploads`, 429, among them) falls back on the status.
-- Auth: `Authorization: Bearer <access_token>`. Access tokens last 15 minutes; refresh tokens 30 days, rotated on every use, family revoked on reuse more than a minute later (a retry within the minute, after a lost reply, gets a fresh pair). The client refreshes once on expiry or 401 and signs out locally if the refresh is rejected.
+- Errors: `{"error": {"code": "sunday_closed", "message": "..."}}` with the HTTP status. Codes the client maps: `sunday_closed`, `dump_locked`, `too_many_photos`, `too_many_tags`, `caption_too_long`, `invalid_code`, `not_found`, `forbidden`, `username_taken`, `invalid_username`, `signups_closed`, `account_exists`. Anything else (`too_many_uploads` and `too_many_comments`, both 429, among them) falls back on the status.
+- Auth: `Authorization: Bearer <access_token>`. Access tokens last 15 minutes; refresh tokens 30 days, rotated on every use, family revoked on reuse more than a minute later (a retry within the minute, after a lost reply, gets a fresh pair). The client refreshes once on expiry or 401 and signs out locally if the refresh answers 401. A server error or a rate limit on the refresh keeps the session for a later try.
 - Photo URLs in responses are signed, bound to the requesting account, and expire in 10 minutes.
 - Every write is checked against the user's stored time zone and server time. Tag approvals and settings are exempt from the Sunday gate; everything under "Sunday only" returns `sunday_closed` (HTTP 423) off-Sunday.
 
@@ -35,17 +35,23 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `me` | user, plus `is_admin: true` for an admin only (never on anyone else's user) |
-| PATCH | `me` | any of `name`, `username`, `bio`, or `avatar_upload_id` from an upload ticket (a square JPEG, 600 px) |
+| PATCH | `me` | any of `name`, `username`, `bio`, or `avatar_upload_id` from an upload ticket (a square JPEG, 600 px). A name is kept on one line, without invisible formatting characters (the zero width joiner in emoji stays) |
 | GET / PUT | `me/settings` | settings object below |
 | DELETE | `me` | starts the 30-day deletion |
 | GET | `me/taggable` | users the caller follows or who follow them |
 | GET | `me/follow-requests` | users waiting on the caller |
 | POST | `me/follow-requests/{user_id}` | `{accept: bool}` |
+| GET | `me/followers` | users who follow the caller, accepted, by username, never anyone blocked either way |
+| DELETE | `me/followers/{user_id}` | removes that person's follow of the caller, or their request; 204, and 204 again if there is nothing to remove. Following again is a new request while the caller is private. Photos they already loaded, and photo addresses already sent (up to seven hours), are not taken back |
 | GET | `me/tag-requests` | pending tag requests, every day |
 | GET | `me/suggestions/done?week_start=` | `[{suggestion_id, done_on}]` |
 | PUT | `me/suggestions/{id}/done` | `{done_on}` |
 
-Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challenges`, `notify_sunday_reminder`, `notify_last_call`, `notify_tags`, `notify_follow_requests`, `notify_likes_and_comments`, `notify_tag_approved`.
+Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challenges`, `notify_sunday_reminder`, `notify_last_call`, `notify_tags`, `notify_follow_requests`, `notify_likes_and_comments`, `notify_tag_approved`. `auto_approve_user_ids` keeps only user ids, each once; anything else in the list is dropped.
+
+`PUT me/settings` changes only the fields it is sent and keeps the rest. The client loads them fresh whenever Settings opens, sends only the fields that changed, one save at a time, keeps a change only once the server has taken it, and puts the switch back when a save fails. `auto_approve_user_ids` is replaced whole, so two devices editing that list at the same moment keep whichever saved last.
+
+The client signs out after `DELETE me` only on a 2xx, or when the server says the session is gone (401 or 403), which then means an earlier try deleted the account and its reply was lost. Otherwise it stays signed in and asks the person to try again.
 
 ## Sunday only
 
@@ -57,13 +63,13 @@ Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challe
 | PUT | `me/dumps/{week_start}` | create or update; see below |
 | DELETE | `dumps/{id}` | allowed any day |
 | PUT | `dumps/{id}/like` | `{liked: bool}`, returns the dump |
-| GET / POST | `dumps/{id}/comments` | POST body `{body}` |
+| GET / POST | `dumps/{id}/comments` | POST body `{body}`; up to 30 comments a person on each week, then 429 `too_many_comments` |
 | PATCH | `comments/{id}` | `{body}`; author only; sets `edited_at` |
-| DELETE | `comments/{id}` | author, or the dump's author |
+| DELETE | `comments/{id}` | author, even on a week they can no longer open, or the dump's author |
 | PUT / DELETE | `comments/{id}/like` | returns the comment with `like_count` and `liked_by_me` |
 | GET | `users/{id}/profile` | profile object below |
 | GET | `users/search?q=` | name or username only |
-| GET | `users/suggested` | friends of people the caller follows |
+| GET | `users/suggested` | public accounts the caller has not followed or asked to follow, newest first, up to 20; never built from who anyone follows |
 | POST / DELETE | `users/{id}/follow` | POST returns `{relationship}`: `following` or `requested` |
 
 ### Saving a dump
@@ -81,11 +87,11 @@ Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challe
 }
 ```
 
-Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
+Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. `width` and `height` are whole pixels from 1 to 20000; anything else is ignored, and every photo in a response has whole, positive sizes. A save leaves the week with exactly the photos it lists, so saves sent together never add up to more than 15. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
 
 ### Uploads
 
-`POST uploads` with `{content_type, byte_size, width, height}` returns `{upload_id, url, headers?, expires_at}`: a single-use pre-signed PUT for one object of that size and type. The client has already re-encoded to a 2048 px JPEG with metadata stripped; the server strips EXIF, XMP, IPTC and comments again. Up to 10 MB a photo and 150 tickets a person a day. The friends-and-family server (`server/api`, docs/SERVER.md) stops there; a public launch adds hash matching and the nudity model before a photo becomes visible.
+`POST uploads` with `{content_type, byte_size, width, height}` returns `{upload_id, url, headers?, expires_at}`: a single-use pre-signed PUT for one object of that size and type. Once one PUT has stored a photo, any other on that ticket, even one sent earlier and still arriving, writes nothing. The client has already re-encoded to a 2048 px JPEG with metadata stripped; the server strips EXIF, XMP, IPTC and comments again, and refuses with 400 `invalid_photo` anything that is not a JPEG of one frame up to 4096 px a side. Up to 10 MB a photo and 150 tickets a person in any 24 hours, however many are asked for at once. The friends-and-family server (`server/api`, docs/SERVER.md) stops there; a public launch adds hash matching and the nudity model before a photo becomes visible.
 
 ## Ideas near you (opt in, weekdays only, anonymous)
 
@@ -106,7 +112,7 @@ Server rules: `week_start` must be the caller's current week and today must be S
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| POST | `users/{id}/block` | removes follows and tags both ways |
+| POST | `users/{id}/block` | removes follows and tags both ways, and each one's comments and likes on the other's weeks and comments |
 | POST | `reports` | `{target_type: photo|dump|comment|profile, target_id, reason, note?}` |
 
 ## Shapes
@@ -114,6 +120,7 @@ Server rules: `week_start` must be the caller's current week and today must be S
 ```
 user:     {id, username, name?, bio?, avatar_url?, is_public, timezone?,
            birthday?: "MM-DD" (friends only, never a year), invited_by_me?}
+                                                   timezone only on the caller's own account (me, sign-in), null for anyone else
 tag:      {id, photo_id, tagger_id, tagged_user: user, status: pending|approved|declined|removed, responded_at?}
 photo:    {id, dump_id, order, url, width, height, alt_text?, tags: [tag]}
 dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photos: [photo],
@@ -128,4 +135,4 @@ local_idea: {id, text, reason, time_of_day: morning|afternoon|evening|any,
                                                    the place's position, never the caller's; walk_minutes only within a walk
 ```
 
-`liked_by` carries names for the "Liked by Maya and Theo" line; the client switches to a count past 10.
+`liked_by` carries names for the "Liked by Maya and Theo" line; the client switches to a count past 10. `liked_by`, photo tags, `comment_count` and comment lists leave out anyone blocked either way with the caller.

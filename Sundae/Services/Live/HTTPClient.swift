@@ -27,14 +27,18 @@ actor HTTPClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
     private var refreshTask: Task<Void, Error>?
+    /// Told once when the server refuses a refresh, so the app can sign out (AppModel).
+    private let onSessionExpired: AsyncStream<Void>.Continuation?
 
     private static let isoFractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
     private static let isoPlain = Date.ISO8601FormatStyle()
 
-    init(baseURL: URL, tokens: TokenStore = TokenStore(), session: URLSession = .shared) {
+    init(baseURL: URL, tokens: TokenStore = TokenStore(), session: URLSession = .shared,
+         onSessionExpired: AsyncStream<Void>.Continuation? = nil) {
         self.baseURL = baseURL
         self.tokens = tokens
         self.session = session
+        self.onSessionExpired = onSessionExpired
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -208,10 +212,15 @@ actor HTTPClient {
         struct Body: Encodable { let refreshToken: String }
         let request = try makeRequest("POST", "v1/auth/refresh", query: [], body: Optional(Body(refreshToken: refreshToken)))
         let (data, response) = try await perform(request)
-        guard (200..<300).contains(response.statusCode) else {
-            // A rejected refresh means the family was revoked or expired. The session is over.
+        if response.statusCode == 401 {
+            // The server refused it: the family was revoked or expired. The session is over.
             tokens.clear()
-            throw SundaeError.notAuthorized
+            onSessionExpired?.yield(())
+            throw SundaeError.sessionExpired
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            // A server error or a rate limit says nothing about the session. Keep it for a later try.
+            throw mapError(status: response.statusCode, data: data)
         }
         storeTokens(try decoder.decode(TokenResponse.self, from: data))
     }

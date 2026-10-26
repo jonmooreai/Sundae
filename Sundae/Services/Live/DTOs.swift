@@ -62,9 +62,45 @@ enum DTO {
         let altText: String?
         let tags: [Tag]
 
+        private enum CodingKeys: String, CodingKey {
+            case id, dumpId, order, url, width, height, altText, tags
+        }
+
         var model: Sundae.Photo {
             Sundae.Photo(id: id, dumpID: dumpId, order: order, source: .remote(url), width: width, height: height,
                          altText: altText, tags: tags.map(\.model))
+        }
+
+        /// Width and height only shape the frame, so an odd value (a fraction, a huge number,
+        /// null) becomes a sane one instead of failing the whole response.
+        static func dimension(_ value: Double?) -> Int {
+            guard let value, value.isFinite, value >= 1 else { return 1 }
+            return Int(min(value, Double(maxDimension)).rounded())
+        }
+
+        static let maxDimension = 20_000
+    }
+
+    /// A list that skips any element it cannot read, so one bad record never empties a screen.
+    struct LossyList<Element: Decodable>: Decodable {
+        let elements: [Element]
+
+        /// Always decodes, so a skipped element still moves the list along.
+        private struct Skip: Decodable {
+            init(from decoder: any Decoder) {}
+        }
+
+        init(from decoder: any Decoder) throws {
+            var container = try decoder.unkeyedContainer()
+            var elements: [Element] = []
+            while !container.isAtEnd {
+                if let element = try? container.decode(Element.self) {
+                    elements.append(element)
+                } else {
+                    _ = try container.decode(Skip.self)
+                }
+            }
+            self.elements = elements
         }
     }
 
@@ -119,22 +155,22 @@ enum DTO {
     struct ProfileWeek: Decodable {
         let weekStart: String
         let dump: Dump?
-        let tagged: [TaggedPhoto]
+        let tagged: LossyList<TaggedPhoto>
 
         var model: Sundae.ProfileWeek {
-            Sundae.ProfileWeek(weekStart: DTO.weekDate(weekStart), dump: dump?.model, tagged: tagged.map(\.model))
+            Sundae.ProfileWeek(weekStart: DTO.weekDate(weekStart), dump: dump?.model, tagged: tagged.elements.map(\.model))
         }
     }
 
     struct Profile: Decodable {
         let user: User
         let relationship: String
-        let weeks: [ProfileWeek]
+        let weeks: LossyList<ProfileWeek>
         let followerCount: Int?
         let followingCount: Int?
 
         var model: Sundae.Profile {
-            Sundae.Profile(user: user.model, relationship: DTO.relationship(relationship), weeks: weeks.map(\.model),
+            Sundae.Profile(user: user.model, relationship: DTO.relationship(relationship), weeks: weeks.elements.map(\.model),
                            followerCount: followerCount, followingCount: followingCount)
         }
     }
@@ -199,7 +235,8 @@ enum DTO {
         }
     }
 
-    struct Settings: Codable {
+    /// The whole settings object, as `GET me/settings` sends it. Saving sends `SettingsPatch`.
+    struct Settings: Decodable {
         var isPublic: Bool
         var autoApproveUserIds: [String]
         var commentsEnabled: Bool
@@ -210,19 +247,6 @@ enum DTO {
         var notifyFollowRequests: Bool
         var notifyLikesAndComments: Bool
         var notifyTagApproved: Bool
-
-        init(_ s: AccountSettings) {
-            isPublic = s.isPublic
-            autoApproveUserIds = s.autoApproveUserIDs
-            commentsEnabled = s.commentsEnabled
-            hideChallenges = s.hideChallenges
-            notifySundayReminder = s.notifySundayReminder
-            notifyLastCall = s.notifyLastCall
-            notifyTags = s.notifyTags
-            notifyFollowRequests = s.notifyFollowRequests
-            notifyLikesAndComments = s.notifyLikesAndComments
-            notifyTagApproved = s.notifyTagApproved
-        }
 
         var model: AccountSettings {
             AccountSettings(isPublic: isPublic, autoApproveUserIDs: autoApproveUserIds, commentsEnabled: commentsEnabled,
@@ -244,6 +268,34 @@ enum DTO {
     }
 
     // MARK: Requests
+
+    /// Only the settings that changed. A nil field is left out of the JSON, and the server
+    /// keeps what it has for it.
+    struct SettingsPatch: Encodable {
+        var isPublic: Bool?
+        var autoApproveUserIds: [String]?
+        var commentsEnabled: Bool?
+        var hideChallenges: Bool?
+        var notifySundayReminder: Bool?
+        var notifyLastCall: Bool?
+        var notifyTags: Bool?
+        var notifyFollowRequests: Bool?
+        var notifyLikesAndComments: Bool?
+        var notifyTagApproved: Bool?
+
+        init(_ p: AccountSettingsPatch) {
+            isPublic = p.isPublic
+            autoApproveUserIds = p.autoApproveUserIDs
+            commentsEnabled = p.commentsEnabled
+            hideChallenges = p.hideChallenges
+            notifySundayReminder = p.notifySundayReminder
+            notifyLastCall = p.notifyLastCall
+            notifyTags = p.notifyTags
+            notifyFollowRequests = p.notifyFollowRequests
+            notifyLikesAndComments = p.notifyLikesAndComments
+            notifyTagApproved = p.notifyTagApproved
+        }
+    }
 
     struct SignOut: Encodable {
         let everywhere: Bool
@@ -348,3 +400,20 @@ enum DTO {
         let note: String?
     }
 }
+
+extension DTO.Photo {
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        dumpId = try container.decode(String.self, forKey: .dumpId)
+        order = try container.decode(Int.self, forKey: .order)
+        url = try container.decode(URL.self, forKey: .url)
+        width = Self.dimension(try? container.decodeIfPresent(Double.self, forKey: .width))
+        height = Self.dimension(try? container.decodeIfPresent(Double.self, forKey: .height))
+        altText = try container.decodeIfPresent(String.self, forKey: .altText)
+        tags = try container.decode([DTO.Tag].self, forKey: .tags)
+    }
+}
+
+/// Generic structs are not Sendable by inference; the list is plain data whenever its elements are.
+extension DTO.LossyList: Sendable where Element: Sendable {}

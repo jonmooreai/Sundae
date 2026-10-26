@@ -20,6 +20,7 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
 - **Who can get in.** Only people with the app: Apple issues Sign in with Apple tokens for
   this app to this app alone, and the app goes only to people invited by email in TestFlight
   (docs/TESTFLIGHT.md). Once everyone has joined, `SIGNUPS` closes the door to new accounts.
+  Closing it also stops a blocked person rejoining with a new account.
 - **Sign-in.** Apple only, so there are no passwords to leak and no SMS codes to intercept.
   Each identity token is checked against Apple's keys, this app's bundle id, its expiry, and a
   nonce the phone made for that attempt, and each nonce works once, so a copied token cannot
@@ -29,14 +30,19 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
   that one account once.
 - **Sessions.** Access tokens last 15 minutes. Refresh tokens are stored only as SHA-256
   hashes, change on every use, and a used one coming back more than a minute later signs that
-  session out everywhere.
+  session out everywhere. A new one is only written while the old one is still live, so a
+  refresh under way when someone signs out cannot outlast it.
 - **Photos.** Location, camera details and comments are removed on the phone and again on the
-  server. The R2 bucket is private; photos are only reachable through signed links that expire
-  within seven hours.
+  server. The server also refuses any photo over 4096 pixels a side, twice what the app sends,
+  so nobody's phone is handed one too big to open. The R2 bucket is private; photos are only
+  reachable through signed links that expire within seven hours.
 - **The web.** Every response forbids MIME sniffing, framing, scripts and referrers, and
   insists on HTTPS. There are no CORS headers, so no website can read the API from a browser.
 - **Nothing extra kept.** No request logs (observability is off), no analytics, no location.
-  Deleting an account removes it at once; D1's own recovery history rolls past it in 7 days.
+  Deleting an account removes it at once, with reports they sent and reports about them; D1's
+  own recovery history rolls past it in 7 days. Their upload records stay, with no owner, until
+  the next daily cleanup, which deletes any photo that could not be deleted at that moment or
+  was still arriving. The records hold only a file name, size and pixel dimensions.
 
 ## The privacy text
 
@@ -52,15 +58,15 @@ Nothing, for a group this size.
 |---|---|---|
 | Worker requests | 100,000 a day | a few thousand on a Sunday |
 | D1 database | 500 MB, 5 million rows read a day | a few MB a year |
-| D1 queries | 50 per request | the busiest request makes 17 (the tests fail past 50) |
+| D1 queries | 50 per request | the busiest request makes 18 (the tests fail past 50) |
 | R2 photos | 10 GB, a million uploads a month | about 1 MB a photo |
 
 Past a free allowance, the Worker and D1 stop answering until the next day rather than bill.
 R2 is the only piece that can bill, and only for storage. Every photo is read through the
 Worker, whose 100,000 requests a day keep reads under R2's free 10 million a month, and there
-are no download fees. Only posted photos are kept: uploads never posted are deleted daily, and
-each person can upload at most 150 a day. 10 GB is roughly ten thousand photos; past that,
-storage is $0.015 per GB a month.
+are no download fees. Only posted photos are kept: uploads never posted are deleted daily,
+each person can upload at most 150 a day, and a week holds at most 15. 10 GB is roughly ten
+thousand photos; past that, storage is $0.015 per GB a month.
 
 ## 1. Switch on R2 (done)
 
@@ -120,6 +126,31 @@ INSERT INTO admins (user_id) SELECT id FROM users WHERE username = 'their-userna
 ```
 
 Delete the row to take it away; their phone drops back to the real day on its next launch.
+
+## After deploying
+
+Blocking now also removes tags between the two people and each one's comments and likes on
+the other's weeks and comments. Blocks made before that left those rows behind. Once the new
+Worker is live, clear them once from the D1 console:
+
+```sql
+DELETE FROM tags WHERE EXISTS (SELECT 1 FROM blocks b WHERE
+  (b.blocker_id = tags.tagger_id AND b.blocked_id = tags.tagged_user_id) OR
+  (b.blocker_id = tags.tagged_user_id AND b.blocked_id = tags.tagger_id));
+DELETE FROM comment_likes WHERE EXISTS (SELECT 1 FROM comments c JOIN dumps d ON d.id = c.dump_id JOIN blocks b ON
+  (b.blocker_id = c.author_id AND b.blocked_id IN (d.author_id, comment_likes.user_id)) OR
+  (b.blocked_id = c.author_id AND b.blocker_id IN (d.author_id, comment_likes.user_id))
+  WHERE c.id = comment_likes.comment_id);
+DELETE FROM comments WHERE EXISTS (SELECT 1 FROM dumps d JOIN blocks b ON
+  (b.blocker_id = comments.author_id AND b.blocked_id = d.author_id) OR (b.blocker_id = d.author_id AND b.blocked_id = comments.author_id)
+  WHERE d.id = comments.dump_id);
+DELETE FROM likes WHERE EXISTS (SELECT 1 FROM dumps d JOIN blocks b ON
+  (b.blocker_id = likes.user_id AND b.blocked_id = d.author_id) OR (b.blocker_id = d.author_id AND b.blocked_id = likes.user_id)
+  WHERE d.id = likes.dump_id);
+```
+
+Until then nobody blocked either way sees the other in likes, tags or comment counts, but
+someone else could still see those old rows.
 
 ## Settings
 

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { server, jpeg, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
+import { server, r2, jpeg, frame, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
+import { cleanUp } from '../src/worker.js';
 
 /** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
 async function appleSignIn(s, sub, { nonce = `nonce-${Math.random()}-${Date.now()}`, sent = nonce, timezone = 'UTC', ...claims } = {}) {
@@ -206,6 +207,150 @@ test('a week can only be saved on its own Sunday', async () => {
   assert.equal(long.body.error.code, 'caption_too_long');
 });
 
+test('photo sizes go out as whole pixels, whatever a client sent', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  // Sizes a script could send, on the ticket and on the photo. The app's own decoder refuses a
+  // whole feed for one of them.
+  const odd = [1.5, 1e300, '1e308', -7, 'Infinity', 0, null];
+  const uploads = [];
+  for (const [i, width] of odd.entries()) {
+    const ticket = await s.call('POST', 'v1/uploads', {
+      token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width, height: odd[(i + 1) % odd.length] },
+    });
+    assert.equal(ticket.status, 200, JSON.stringify(ticket.body));
+    assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 204);
+    uploads.push(ticket.body.upload_id);
+  }
+  const honest = await uploadPhoto(s, jon);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    ...uploads.map((upload_id, i) => ({ upload_id, width: odd[(i + 2) % odd.length], height: odd[(i + 3) % odd.length], tagged_user_ids: [maya.user.id] })),
+    { upload_id: honest, width: 1536, height: 2048, tagged_user_ids: [maya.user.id] },
+  ] } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.deepEqual([saved.body.photos.at(-1).width, saved.body.photos.at(-1).height], [1536, 2048], 'real sizes are kept');
+  const stored = s.env.DB.sqlite.prepare(`SELECT COUNT(*) AS n FROM photos WHERE typeof(width) != 'integer' OR typeof(height) != 'integer' OR width < 1 OR height < 1`).get();
+  assert.equal(stored.n, 0, 'nothing odd is stored');
+
+  // Editing a photo with odd sizes keeps the ones it had.
+  const edited = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: saved.body.photos.map((p) => (
+    { id: p.id, width: 2.5, height: '9e99', tagged_user_ids: [maya.user.id] })) } });
+  assert.deepEqual([edited.body.photos.at(-1).width, edited.body.photos.at(-1).height], [1536, 2048]);
+
+  // A row stored before this check still goes out whole.
+  s.env.DB.sqlite.prepare('UPDATE photos SET width = 2.5, height = 1e300 WHERE id = ?').run(saved.body.photos[0].id);
+  const wholePixels = (photos, where) => {
+    assert.equal(photos.length, odd.length + 1, where);
+    for (const p of photos) assert.ok([p.width, p.height].every((n) => Number.isInteger(n) && n >= 1 && n <= 20_000), `${where}: ${p.width} x ${p.height}`);
+  };
+  wholePixels((await s.call('GET', 'v1/feed', { token: maya.token })).body[0].photos, 'feed');
+  wholePixels((await s.call('GET', `v1/dumps/${saved.body.id}`, { token: maya.token })).body.photos, 'week');
+  wholePixels((await s.call('GET', `v1/users/${jon.user.id}/profile`, { token: maya.token })).body.weeks[0].dump.photos, 'profile');
+  wholePixels((await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body.map((r) => r.photo), 'tag requests');
+});
+
+test('a photo bigger than the app sends, or without exactly one frame, is refused', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  /** The scan of jpeg(3000) with these bytes added before its end. */
+  const scanWith = (bytes) => {
+    const base = jpeg(3000);
+    const out = new Uint8Array(base.length + bytes.length);
+    out.set(base.subarray(0, base.length - 2));
+    out.set([...bytes, 0xff, 0xd9], base.length - 2);
+    return out;
+  };
+  const refused = {
+    'wider than 4096 px': jpeg(3000, { width: 4097, height: 16 }),
+    'taller than 4096 px': jpeg(3000, { width: 16, height: 4097 }),
+    'a tiny file that says 60000 px square': jpeg(3000, { width: 60000, height: 60000 }),
+    'a progressive one 20000 px across': jpeg(3000, { width: 20000, height: 20000, marker: 0xc2 }),
+    'no width': jpeg(3000, { width: 0 }),
+    'a height left for after the scan': jpeg(3000, { height: 0 }),
+    'no frame': jpeg(3000, { frames: 0 }),
+    'two frames': jpeg(3000, { frames: 2 }),
+    'a second frame after the scan': scanWith(frame(60000, 60000)),
+    'a height given after the scan': scanWith([0xff, 0xdc, 0x00, 0x04, 0xea, 0x60]),
+  };
+  for (const [what, bytes] of Object.entries(refused)) {
+    const put = await s.call('PUT', ticket.body.url, { bytes });
+    assert.equal(put.status, 400, what);
+    assert.equal(put.body.error.code, 'invalid_photo', what);
+  }
+  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM blob_chunks').get().n, 0, 'none of them was stored');
+  // The ticket is still good for a real photo, as big as the server takes.
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000, { width: 4096, height: 4096, marker: 0xc2 }) })).status, 204);
+});
+
+test('auto-approve keeps only real ids, and blocking an id with no account stores nothing', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const settings = (await s.call('GET', 'v1/me/settings', { token: jon.token })).body;
+  const unknown = 'u_abcdefghjkmn';
+  const put = await s.call('PUT', 'v1/me/settings', { token: jon.token, json: {
+    ...settings, auto_approve_user_ids: [maya.user.id, maya.user.id, 'x'.repeat(4000), `${maya.user.id}x`, { id: maya.user.id }, 42, unknown],
+  } });
+  assert.equal(put.status, 204);
+  const after = (await s.call('GET', 'v1/me/settings', { token: jon.token })).body;
+  assert.deepEqual(after.auto_approve_user_ids, [maya.user.id, unknown]);
+
+  const blocks = () => s.env.DB.sqlite.prepare('SELECT blocked_id FROM blocks').all().map((r) => r.blocked_id);
+  for (const id of [unknown, `u_${'z'.repeat(15000)}`]) {
+    assert.equal((await s.call('POST', `v1/users/${id}/block`, { token: jon.token })).status, 204);
+  }
+  assert.deepEqual(blocks(), [], 'made-up ids leave no rows');
+  assert.equal((await s.call('POST', `v1/users/${maya.user.id}/block`, { token: jon.token })).status, 204);
+  assert.deepEqual(blocks(), [maya.user.id]);
+  assert.equal((await s.call('GET', 'v1/me/taggable', { token: jon.token })).body.length, 0, 'a real block still works');
+});
+
+test('a second PUT on a ticket, still arriving after the photo was posted, changes nothing', async () => {
+  const photos = r2();
+  const s = await server({ photos });
+  const { jon, maya } = await friends(s);
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  const held = await s.slowPut(ticket.body.url);
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 204);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: {
+    caption: '', photos: [{ upload_id: ticket.body.upload_id, tagged_user_ids: [maya.user.id] }],
+  } });
+  const [request] = (await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body;
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: maya.token, json: { approve: true } });
+  const before = Buffer.from(await (await s.call('GET', saved.body.photos[0].url, { raw: true })).arrayBuffer());
+
+  // Different bytes, a little bigger, as a swapped photo would be.
+  held.finish(jpeg(3500, { width: 1000, height: 1000 }));
+  assert.equal((await held.response).status, 204);
+  const after = Buffer.from(await (await s.call('GET', saved.body.photos[0].url, { raw: true })).arrayBuffer());
+  assert.ok(after.equals(before), 'the posted photo is the one Maya approved');
+
+  // A PUT still arriving after the account is deleted leaves nothing behind.
+  const late = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  const stillSending = await s.slowPut(late.body.url);
+  assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
+  stillSending.finish(jpeg(3000));
+  await stillSending.response;
+  assert.deepEqual([...photos.objects.keys()], [], 'no photo of Jon\'s is left in storage');
+});
+
+test('an upload that fails to store can be sent again', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const photos = r2();
+  const put = photos.put;
+  photos.put = async () => { photos.put = put; throw new Error('storage is down'); };
+  const s = await server({ photos });
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 600, height: 600 } });
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 500);
+  const early = await s.call('PATCH', 'v1/me', { token: jon.token, json: { avatar_upload_id: ticket.body.upload_id } });
+  assert.equal(early.body.error.code, 'invalid_photo', 'not uploaded yet');
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 204);
+  assert.equal(photos.objects.size, 1);
+  const avatar = await s.call('PATCH', 'v1/me', { token: jon.token, json: { avatar_upload_id: ticket.body.upload_id } });
+  assert.ok(avatar.body.avatar_url);
+});
+
 test('strangers cannot see a private week; tags only go to people you follow', async () => {
   const s = await server();
   const { jon, maya } = await friends(s);
@@ -288,8 +433,17 @@ test('follow requests, search, suggestions and blocking', async () => {
   const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
   await s.call('POST', `v1/users/${theo.user.id}/follow`, { token: maya.token });
   await s.call('POST', `v1/me/follow-requests/${maya.user.id}`, { token: theo.token, json: { accept: true } });
-  const suggested = await s.call('GET', 'v1/users/suggested', { token: jon.token });
-  assert.deepEqual(suggested.body.map((u) => u.username), ['theo']);
+  // Suggestions are public accounts, newest first, never who a friend follows: Maya's private
+  // Theo stays out.
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
+  s.setNow(new Date(SUNDAY.getTime() + 60_000));
+  const sam = await s.signUp('apple-sam', 'sam', 'Sam Doe');
+  for (const who of [pat, sam]) await s.call('PUT', 'v1/me/settings', { token: who.token, json: { is_public: true } });
+  const suggested = async () => (await s.call('GET', 'v1/users/suggested', { token: jon.token })).body.map((u) => u.username);
+  assert.deepEqual(await suggested(), ['sam', 'pat']);
+  await s.call('POST', `v1/users/${pat.user.id}/follow`, { token: jon.token });
+  await s.call('POST', `v1/users/${jon.user.id}/block`, { token: sam.token });
+  assert.deepEqual(await suggested(), [], 'not someone followed, nor someone blocked either way');
   const found = await s.call('GET', 'v1/users/search?q=park', { token: jon.token });
   assert.deepEqual(found.body.map((u) => u.username), ['theo']);
   const requested = await s.call('POST', `v1/users/${theo.user.id}/follow`, { token: jon.token });
@@ -300,17 +454,309 @@ test('follow requests, search, suggestions and blocking', async () => {
   assert.equal((await s.call('GET', 'v1/users/search?q=theo', { token: jon.token })).body.length, 0);
 });
 
+test('anyone who follows you can be removed, even someone who followed while you were public', async () => {
+  const s = await server();
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
+  const sam = await s.signUp('apple-sam', 'sam', 'Sam Doe');
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
+  // Pat is public for a moment: Sam and Theo follow with no approval.
+  await s.call('PUT', 'v1/me/settings', { token: pat.token, json: { is_public: true } });
+  for (const who of [sam, theo]) {
+    assert.equal((await s.call('POST', `v1/users/${pat.user.id}/follow`, { token: who.token })).body.relationship, 'following');
+  }
+  await s.call('PUT', 'v1/me/settings', { token: pat.token, json: { is_public: false } });
+  const week = await postWeek(s, pat);
+  assert.equal((await s.call('GET', `v1/dumps/${week.id}`, { token: sam.token })).status, 200, 'going private keeps followers');
+
+  // Every day, and never anyone blocked either way.
+  s.setNow(WEDNESDAY);
+  s.env.DB.sqlite.prepare('INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(theo.user.id, pat.user.id);
+  const listed = await s.call('GET', 'v1/me/followers', { token: pat.token });
+  assert.equal(listed.status, 200);
+  assert.deepEqual(listed.body.map((u) => [u.username, u.name]), [['sam', 'Sam Doe']]);
+  assert.equal(listed.body[0].timezone, null);
+  assert.equal((await s.call('DELETE', `v1/me/followers/${sam.user.id}`, { token: pat.token })).status, 204);
+  assert.equal((await s.call('DELETE', `v1/me/followers/${sam.user.id}`, { token: pat.token })).status, 204, 'removing again is fine');
+  assert.deepEqual((await s.call('GET', 'v1/me/followers', { token: pat.token })).body, []);
+
+  // Sam sees nothing of Pat's now, and neither can tag the other.
+  s.setNow(SUNDAY);
+  assert.equal((await s.call('GET', `v1/dumps/${week.id}`, { token: sam.token })).status, 404);
+  assert.equal((await s.call('GET', `v1/dumps/${week.id}/comments`, { token: sam.token })).status, 404);
+  assert.equal((await s.call('PUT', `v1/dumps/${week.id}/like`, { token: sam.token, json: { liked: true } })).status, 404);
+  assert.equal((await s.call('GET', 'v1/feed', { token: sam.token })).body.length, 0);
+  const profile = await s.call('GET', `v1/users/${pat.user.id}/profile`, { token: sam.token });
+  assert.equal(profile.body.relationship, 'none');
+  assert.deepEqual(profile.body.weeks, []);
+  assert.deepEqual((await s.call('GET', 'v1/me/taggable', { token: sam.token })).body, []);
+  assert.deepEqual((await s.call('GET', 'v1/me/taggable', { token: pat.token })).body, []);
+
+  // Following again is a request Pat can turn down, and removing a request turns it down.
+  assert.equal((await s.call('POST', `v1/users/${pat.user.id}/follow`, { token: sam.token })).body.relationship, 'requested');
+  assert.deepEqual((await s.call('GET', 'v1/me/follow-requests', { token: pat.token })).body.map((u) => u.username), ['sam']);
+  assert.deepEqual((await s.call('GET', 'v1/me/followers', { token: pat.token })).body, []);
+  await s.call('DELETE', `v1/me/followers/${sam.user.id}`, { token: pat.token });
+  assert.deepEqual((await s.call('GET', 'v1/me/follow-requests', { token: pat.token })).body, []);
+});
+
+test('names lose invisible characters that make look-alikes, and keep emoji', async () => {
+  const s = await server();
+  const sam = await s.signUp('apple-sam', 'sam', 'S\u200bam\u2028 Doe');
+  assert.equal(sam.user.name, 'Sam Doe');
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat');
+  const named = async (name) => (await s.call('PATCH', 'v1/me', { token: pat.token, json: { name } })).body.name;
+  assert.equal(await named('S\u200bam \u202eDoe\u2066\u2069\u2029\u00ad\ufeff'), 'Sam Doe');
+  assert.equal(await named('Sam\nDoe\u0085\u007f'), 'Sam Doe');
+  assert.equal(await named('Pat \u{1f469}\u200d\u{1f467}'), 'Pat \u{1f469}\u200d\u{1f467}', 'the joiner in a family emoji stays');
+  const england = '\u{1f3f4}\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}';
+  assert.equal(await named(`Pat ${england}`), `Pat ${england}`, 'the tags in a flag emoji stay');
+  assert.equal(await named('Pat\u{e0067}\u{e007f} Doe'), 'Pat Doe', 'tags on their own go');
+  await s.call('PATCH', 'v1/me', { token: pat.token, json: { name: 'S\u200bam Doe', bio: 'Line one\nLine two' } });
+  assert.equal((await s.call('GET', 'v1/me', { token: pat.token })).body.bio, 'Line one\nLine two', 'a bio keeps its line breaks');
+  const found = await s.call('GET', 'v1/users/search?q=sam%20doe', { token: sam.token });
+  assert.deepEqual(found.body.map((u) => u.username), ['pat'], 'a look-alike shows up when searching the name it copies');
+});
+
+/** Each follows the other, both accepted. */
+async function mutual(s, a, b) {
+  for (const [from, to] of [[a, b], [b, a]]) {
+    await s.call('POST', `v1/users/${to.user.id}/follow`, { token: from.token });
+    await s.call('POST', `v1/me/follow-requests/${from.user.id}`, { token: to.token, json: { accept: true } });
+  }
+}
+
+async function postWeek(s, who, tagged = []) {
+  const up = await uploadPhoto(s, who);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: who.token, json: { caption: '', photos: [{ upload_id: up, tagged_user_ids: tagged.map((u) => u.user.id) }] } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  return saved.body;
+}
+
+test('blocking takes away comments, likes and tags between the two, for everyone', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
+  await mutual(s, jon, theo);
+  await mutual(s, maya, theo);
+  const jons = await postWeek(s, jon, [maya]);
+  const mayas = await postWeek(s, maya, [jon]);
+  const theos = await postWeek(s, theo, [jon, maya]);
+  const request = (await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body.find((r) => r.tagger.id === jon.user.id);
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: maya.token, json: { approve: true } });
+  const comment = async (who, dump, text) => (await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: who.token, json: { body: text } })).body;
+  const like = (who, dump) => s.call('PUT', `v1/dumps/${dump.id}/like`, { token: who.token, json: { liked: true } });
+  await comment(maya, jons, 'Something unkind');
+  await comment(theo, jons, 'Lovely');
+  await comment(jon, mayas, 'Nice bread');
+  const jonOnTheos = await comment(jon, theos, 'Great hike');
+  await comment(maya, theos, 'So green');
+  await s.call('PUT', `v1/comments/${jonOnTheos.id}/like`, { token: maya.token });
+  for (const [who, dump] of [[maya, jons], [jon, mayas], [jon, theos], [maya, theos]]) await like(who, dump);
+
+  assert.equal((await s.call('POST', `v1/users/${maya.user.id}/block`, { token: jon.token })).status, 204);
+
+  // Theo, who still follows both, sees nothing of either on the other's week.
+  const week = async (who, dump) => (await s.call('GET', `v1/dumps/${dump.id}`, { token: who.token })).body;
+  const comments = async (who, dump) => (await s.call('GET', `v1/dumps/${dump.id}/comments`, { token: who.token })).body;
+  const tagged = (dump) => dump.photos[0].tags.map((t) => t.tagged_user.username);
+  const onJons = await week(theo, jons);
+  assert.deepEqual((await comments(theo, jons)).map((c) => c.body), ['Lovely']);
+  assert.equal(onJons.comment_count, 1);
+  assert.deepEqual(onJons.liked_by, []);
+  assert.deepEqual(tagged(onJons), []);
+  const onMayas = await week(theo, mayas);
+  assert.deepEqual(await comments(theo, mayas), []);
+  assert.equal(onMayas.comment_count, 0);
+  assert.deepEqual(onMayas.liked_by, []);
+  assert.deepEqual(tagged(onMayas), []);
+  const mayasProfile = (await s.call('GET', `v1/users/${maya.user.id}/profile`, { token: theo.token })).body;
+  assert.ok(mayasProfile.weeks.every((w) => !w.tagged.length), 'Jon\'s photo is gone from Maya\'s profile');
+
+  // On Theo's week, which both can still read, each sees nothing of the other.
+  for (const [me, them, mine] of [[jon, maya, 'Great hike'], [maya, jon, 'So green']]) {
+    const seen = await week(me, theos);
+    assert.deepEqual(seen.liked_by.map((u) => u.id), [me.user.id]);
+    assert.deepEqual(tagged(seen), [me.user.username]);
+    assert.equal(seen.comment_count, 1);
+    const list = await comments(me, theos);
+    assert.deepEqual(list.map((c) => c.body), [mine]);
+    assert.ok(!JSON.stringify(seen).includes(them.user.id));
+  }
+  assert.equal((await comments(theo, theos)).find((c) => c.id === jonOnTheos.id).like_count, 0, 'Maya\'s like on Jon\'s comment is gone');
+  assert.deepEqual(tagged(await week(theo, theos)).sort(), ['jon', 'maya'], 'tags by someone else stay');
+
+  const left = s.env.DB.sqlite.prepare(`SELECT
+    (SELECT COUNT(*) FROM tags WHERE tagged_user_id IN (?1, ?2) AND tagger_id IN (?1, ?2)) AS tags,
+    (SELECT COUNT(*) FROM comments WHERE author_id = ?2 AND dump_id = ?3) AS comments,
+    (SELECT COUNT(*) FROM likes WHERE user_id = ?1 AND dump_id = ?4) AS likes`).get(jon.user.id, maya.user.id, jons.id, mayas.id);
+  assert.deepEqual({ ...left }, { tags: 0, comments: 0, likes: 0 });
+});
+
+test('a block made before this kept old likes, tags and comments, and they still show nobody', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
+  await mutual(s, jon, theo);
+  await mutual(s, maya, theo);
+  const theos = await postWeek(s, theo, [maya]);
+  await s.call('PUT', `v1/dumps/${theos.id}/like`, { token: maya.token, json: { liked: true } });
+  await s.call('POST', `v1/dumps/${theos.id}/comments`, { token: maya.token, json: { body: 'So green' } });
+  // The block row alone, as an earlier server wrote it, with nothing cleared.
+  s.env.DB.sqlite.prepare('INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(maya.user.id, jon.user.id);
+  const seen = (await s.call('GET', `v1/dumps/${theos.id}`, { token: jon.token })).body;
+  assert.deepEqual(seen.liked_by, []);
+  assert.deepEqual(seen.photos[0].tags, []);
+  assert.equal(seen.comment_count, 0);
+  assert.ok(!JSON.stringify(seen).includes(maya.user.id));
+  assert.equal((await s.call('GET', `v1/dumps/${theos.id}`, { token: theo.token })).body.photos[0].tags.length, 1, 'Theo still sees his tag');
+});
+
+test('your own profile shows tags of you on weeks you cannot open, never from someone blocked', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
+  // Private Theo follows Maya, so he can tag her, but she does not follow him.
+  await s.call('POST', `v1/users/${maya.user.id}/follow`, { token: theo.token });
+  await s.call('POST', `v1/me/follow-requests/${theo.user.id}`, { token: maya.token, json: { accept: true } });
+  await postWeek(s, theo, [maya]);
+  const request = (await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body[0];
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: maya.token, json: { approve: true } });
+  const taggedOn = async (who) => (await s.call('GET', `v1/users/${maya.user.id}/profile`, { token: who.token })).body.weeks.flatMap((w) => w.tagged);
+  const own = await taggedOn(maya);
+  assert.deepEqual(own.map((t) => t.tag.id), [request.tag.id], 'Maya can find it, and so remove it');
+  assert.deepEqual(await taggedOn(jon), [], 'Jon cannot read Theo, so it is not shown to him');
+  s.env.DB.sqlite.prepare('INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(theo.user.id, maya.user.id);
+  assert.deepEqual(await taggedOn(maya), [], 'never from someone blocked either way');
+});
+
+test('a comment\'s author can always delete it; an unlike never shows a week to someone who cannot read it', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Park');
+  await mutual(s, jon, theo);
+  const dump = await postWeek(s, jon);
+  const mayas = (await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: maya.token, json: { body: 'Pat says hi' } })).body;
+  await s.call('PUT', `v1/dumps/${dump.id}/like`, { token: maya.token, json: { liked: true } });
+  assert.equal((await s.call('DELETE', `v1/comments/${mayas.id}`, { token: theo.token })).status, 403, 'not Theo\'s to delete');
+  await s.call('DELETE', `v1/users/${jon.user.id}/follow`, { token: maya.token });
+  assert.equal((await s.call('GET', `v1/dumps/${dump.id}`, { token: maya.token })).status, 404, 'Jon is private and Maya no longer follows him');
+
+  const unlike = await s.call('PUT', `v1/dumps/${dump.id}/like`, { token: maya.token, json: { liked: false } });
+  assert.equal(unlike.status, 404);
+  assert.deepEqual(Object.keys(unlike.body), ['error'], 'no photos, caption or likers');
+  assert.equal((await s.call('DELETE', `v1/comments/${mayas.id}`, { token: maya.token })).status, 204);
+  assert.deepEqual((await s.call('GET', `v1/dumps/${dump.id}/comments`, { token: theo.token })).body, []);
+});
+
+test('nobody\'s time zone goes to anyone else; their own account still has it', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const dump = await postWeek(s, maya, [jon]);
+  await s.call('PUT', `v1/dumps/${dump.id}/like`, { token: jon.token, json: { liked: true } });
+  await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: maya.token, json: { body: 'Hi' } });
+  assert.equal((await s.call('GET', 'v1/me', { token: maya.token })).body.timezone, 'America/New_York');
+  const seen = [
+    ...(await s.call('GET', 'v1/users/search?q=maya', { token: jon.token })).body,
+    (await s.call('GET', `v1/users/${maya.user.id}/profile`, { token: jon.token })).body.user,
+    (await s.call('GET', `v1/dumps/${dump.id}`, { token: jon.token })).body.author,
+    ...(await s.call('GET', `v1/dumps/${dump.id}/comments`, { token: jon.token })).body.map((c) => c.author),
+    ...(await s.call('GET', 'v1/me/taggable', { token: jon.token })).body,
+  ];
+  assert.equal(seen.length, 5);
+  for (const user of seen) assert.equal(user.timezone, null);
+});
+
 test('deleting an account removes everything of theirs', async () => {
   const s = await server();
   const { jon, maya } = await friends(s);
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
   const up = await uploadPhoto(s, jon);
   const dump = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: up, tagged_user_ids: [maya.user.id] }] } })).body;
   await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: maya.token, json: { body: 'hi' } });
+  const his = await s.call('POST', `v1/dumps/${dump.id}/comments`, { token: jon.token, json: { body: 'thanks' } });
+  // Reports he sent, reports about him and everything of his, and one about someone else.
+  const report = (who, target_type, target_id, note) => s.call('POST', 'v1/reports', { token: who.token, json: { target_type, target_id, reason: 'other', note } });
+  await report(jon, 'profile', pat.user.id, 'Pat Doe posted something unkind');
+  for (const [type, id] of [['profile', jon.user.id], ['dump', dump.id], ['photo', dump.photos[0].id], ['comment', his.body.id]]) {
+    assert.equal((await report(maya, type, id)).status, 204);
+  }
+  await report(maya, 'profile', pat.user.id);
   assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
   assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).status, 401);
   assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body.length, 0);
   const left = s.env.DB.sqlite.prepare('SELECT (SELECT COUNT(*) FROM photos) AS photos, (SELECT COUNT(*) FROM blob_chunks) AS blobs, (SELECT COUNT(*) FROM tags) AS tags, (SELECT COUNT(*) FROM comments) AS comments').get();
   assert.deepEqual({ ...left }, { photos: 0, blobs: 0, tags: 0, comments: 0 });
+  const reports = s.env.DB.sqlite.prepare('SELECT reporter_id, target_id FROM reports').all().map((r) => ({ ...r }));
+  assert.deepEqual(reports, [{ reporter_id: maya.user.id, target_id: pat.user.id }], 'only Maya\'s report about Pat is left');
+});
+
+test('a photo stored while its account is deleted goes with the account', async () => {
+  const photos = r2();
+  const s = await server({ photos });
+  const jon = await s.signUp('apple-jon', 'jon');
+  const ticket = await s.call('POST', 'v1/uploads', { token: jon.token, json: { content_type: 'image/jpeg', byte_size: 3000, width: 2048, height: 1536 } });
+  // The account is deleted after the PUT has claimed its ticket, before R2 has the photo.
+  const put = photos.put;
+  photos.put = async (key, bytes) => {
+    photos.put = put;
+    assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
+    return put(key, bytes);
+  };
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 404);
+  assert.equal(photos.objects.size, 0, 'nothing of Jon\'s is left in storage');
+  assert.equal((await s.call('PUT', ticket.body.url, { bytes: jpeg(3000) })).status, 404, 'the ticket is no good now');
+  assert.equal(photos.objects.size, 0);
+});
+
+test('when photos cannot be deleted with the account, the account still goes and the daily cleanup takes them', async (t) => {
+  t.mock.method(console, 'error', () => {});
+  const photos = r2();
+  const s = await server({ photos });
+  const { jon, maya } = await friends(s);
+  const posted = await uploadPhoto(s, jon);
+  const avatar = await uploadPhoto(s, jon);
+  await uploadPhoto(s, jon);
+  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: posted }] } });
+  await s.call('PATCH', 'v1/me', { token: jon.token, json: { avatar_upload_id: avatar } });
+  const mayas = await uploadPhoto(s, maya);
+  assert.equal(photos.objects.size, 4);
+
+  const remove = photos.delete;
+  photos.delete = async () => { photos.delete = remove; throw new Error('storage is down'); };
+  assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204, 'the account is gone, so say so');
+  assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).status, 401);
+  assert.equal(photos.objects.size, 4, 'R2 still has them for now');
+
+  await cleanUp(s.env, new Date(SUNDAY.getTime() + 60_000));
+  assert.deepEqual([...photos.objects.keys()], [`${mayas}.jpg`], 'the next cleanup deletes all of Jon\'s');
+  assert.equal(s.env.DB.sqlite.prepare("SELECT COUNT(*) AS n FROM uploads WHERE user_id = ''").get().n, 0);
+});
+
+test('a refresh under way when someone signs out everywhere is refused', async () => {
+  for (const everywhere of [true, false]) {
+    const s = await server();
+    const phone = await s.signUp('apple-jon', 'jon');
+    const thief = { ...phone };
+    // Sign out lands after the refresh has checked its token, before it writes the next one.
+    const prepare = s.env.DB.prepare;
+    let armed = true;
+    s.env.DB.prepare = (sql) => {
+      const statement = prepare(sql);
+      if (!armed || !sql.includes('INSERT INTO refresh_tokens')) return statement;
+      return { ...statement, bind: (...values) => {
+        const bound = statement.bind(...values);
+        return { ...bound, run: async () => {
+          armed = false;
+          assert.equal((await s.call('POST', 'v1/auth/signout', { token: phone.token, json: { everywhere } })).status, 204);
+          return bound.run();
+        } };
+      } };
+    };
+    assert.equal((await s.call('POST', 'v1/auth/refresh', { json: { refresh_token: thief.refresh } })).status, 401);
+    s.env.DB.prepare = prepare;
+    const live = s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM refresh_tokens WHERE revoked = 0').get().n;
+    assert.equal(live, 0, 'no refresh token is left that still works');
+  }
 });
 
 test('profile, settings, the privacy page, and a bigger photo across chunks', async () => {

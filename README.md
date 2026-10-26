@@ -39,7 +39,7 @@ Sundae/
   App/                   SundaeApp, AppModel (session, phase, clock), RootView and the tab shell, App Intents
   Core/                  Theme, Icon, Haptics, Keychain
   Models/                User, Dump, Photo, Tag, Follow, Comment, Profile, DumpDraft, settings
-  Services/              SundaeAPI protocol, MockSundaeAPI, PhotoProcessor, PhotoLibrary, notifications,
+  Services/              SundaeAPI protocol, MockSundaeAPI, PhotoProcessor, ImageDownsampler, PhotoLibrary, notifications,
                          NetworkMonitor, PendingPostStore (offline compose queue)
   Services/Live/         HTTPClient (bearer auth, single-flight refresh), TokenStore (Keychain),
                          DTOs, LiveSundaeAPI, BackgroundUploader (background URLSession to pre-signed URLs)
@@ -52,7 +52,7 @@ Sundae/
     Profile/             Profile, week rows, collapsed empty weeks, edit profile
     Search/              People search, follow requests, suggested people, invite link
     Detail/              Dump detail with comments, report sheet
-    Settings/            Settings, auto-approve list
+    Settings/            Settings, auto-approve list, followers
     Onboarding/          Welcome, sign in, profile, invite your group
 SundaeWidget/            Home Screen and Lock Screen widget: today's idea, days until Sunday
 SundaeTests/             Swift Testing: week math, suggestion catalog, mock gate rules
@@ -67,9 +67,9 @@ docs/API.md              The REST contract the live client expects
 
 **Size classes, not device checks.** `TabView` with `.sidebarAdaptable` gives a bottom bar in compact width and a sidebar in regular width. The feed is a `NavigationSplitView` in regular width (feed left, open dump or profile right) and a `NavigationStack` in compact. Compose puts the caption beside the grid in regular width.
 
-**Photos.** `PhotosPicker` needs no permission. `PhotoProcessor` re-encodes every picked photo on device to a 2048 px JPEG through a fresh bitmap, which drops EXIF and GPS before upload. Full library access is only requested for the "this week" filter and the "add Thursday's photos" prompt, with an explanation, and the picker keeps working if declined.
+**Photos.** `PhotosPicker` needs no permission. `PhotoProcessor` re-encodes every picked photo on device to a 2048 px JPEG through a fresh bitmap, which drops EXIF and GPS before upload. On the way back, `ImageDownsampler` decodes photos and avatars from the server at the size they are drawn, never in full, and refuses anything far larger than the app makes. Full library access is only requested for the "this week" filter and the "add Thursday's photos" prompt, with an explanation, and the picker keeps working if declined.
 
-**Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's dump with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals is the one social screen open on weekdays.
+**Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's dump with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals, and the followers list in Settings, are the social screens open on weekdays.
 
 **Offline compose.** Saving a dump while offline writes the draft to Application Support and shows "will post when you're back online". `NetworkMonitor` watches the path; when it returns on the same Sunday the queued post goes up and lands at the top of the feed. If Sunday ended first the queue is dropped, because a missed week stays empty by design.
 
@@ -87,13 +87,13 @@ Built, against the mock:
 - Profiles with week rows, own then tagged photos with "from Maya" chips, collapsed empty weeks, owner-only counts
 - Search by name or username, follow and follow requests, suggested people, invite link
 - Dump detail with comments, report and block everywhere
-- Settings: appearance, public account, auto-approve list, comments, notification preferences, sign out everywhere, delete with fresh Face ID
+- Settings: appearance, public account, followers you can remove, auto-approve list, comments, notification preferences, sign out everywhere, delete with fresh Face ID
 - Onboarding: Sign in with Apple, phone fallback (labeled as weakest), 16+ check, invite your group
 - Local Sunday 9 am reminder and 8 pm last call (cancelled on post)
 - Widget (small, medium, Lock Screen rectangular and inline)
 - Light and dark mode, Dynamic Type, VoiceOver labels on photos, Reduce Motion on the carousel, light haptics on post, approve, decline
 
-- Live HTTP client with Keychain token storage, rotating refresh tokens, background upload to pre-signed URLs, and an offline compose queue
+- Live HTTP client with Keychain token storage (cleared on a fresh install, since the Keychain outlives a deleted app), rotating refresh tokens, background upload to pre-signed URLs, and an offline compose queue
 - No contacts access: friends find each other by username, and the app never asks for the address book
 - App Intents: "Show today's suggestion" and "Mark today's suggestion done" for Siri and Shortcuts
 - iPad: drag photos into compose from Photos or Files, pointer hover on photos, Cmd-N to post, arrow keys through a carousel, Space for full screen

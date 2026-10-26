@@ -9,17 +9,37 @@ struct DecodedImage: @unchecked Sendable {
 
 @MainActor
 enum ImageCache {
-    private static let cache: NSCache<NSNumber, UIImage> = {
-        let c = NSCache<NSNumber, UIImage>()
+    private static let cache: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
         c.countLimit = 200
         return c
     }()
 
-    static func image(for data: Data) async -> UIImage? {
-        let key = NSNumber(value: data.hashValue)
+    /// A photo or avatar, from the server or the phone, decoded no larger than `size`
+    /// (ImageDownsampler). Never a full-size decode.
+    static func image(for source: PhotoSource, size: PixelSize) async -> UIImage? {
+        let name: String
+        switch source {
+        case .remote(let url): name = url.absoluteString
+        case .data(let data): name = "data:\(data.hashValue)"
+        case .placeholder: return nil
+        }
+        let key = "\(name) \(size.width)x\(size.height)" as NSString
         if let hit = cache.object(forKey: key) { return hit }
+
+        let data: Data
+        switch source {
+        case .remote(let url):
+            guard let result = try? await URLSession.shared.data(from: url),
+                  (result.1 as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+            data = result.0
+        case .data(let local):
+            data = local
+        case .placeholder:
+            return nil
+        }
         let decoded = await Task.detached(priority: .userInitiated) { () -> DecodedImage? in
-            guard let image = UIImage(data: data)?.preparingForDisplay() else { return nil }
+            guard let image = ImageDownsampler.decode(data, filling: size) else { return nil }
             return DecodedImage(uiImage: image)
         }.value
         if let decoded { cache.setObject(decoded.uiImage, forKey: key) }
@@ -41,35 +61,45 @@ struct PhotoView: View {
     @ViewBuilder
     private var content: some View {
         switch source {
-        case .remote(let url):
-            AsyncImage(url: url) { phase in
-                if let image = phase.image {
-                    image.resizable().scaledToFill()
-                } else {
-                    Theme.surface
-                }
-            }
-        case .data(let data):
-            DataImage(data: data)
+        case .remote, .data:
+            DownsampledImage(source: source)
         case .placeholder(let seed):
             PlaceholderPhoto(seed: seed)
         }
     }
 }
 
-private struct DataImage: View {
-    let data: Data
+/// Loads at the size it is drawn, and again only if that size grows past the next step.
+private struct DownsampledImage: View {
+    let source: PhotoSource
+    @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
+    @State private var shown: PhotoSource?
+
+    private struct Request: Equatable {
+        let source: PhotoSource
+        let size: PixelSize
+    }
 
     var body: some View {
-        ZStack {
-            Theme.surface
-            if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+        GeometryReader { geo in
+            let request = Request(source: source, size: PixelSize(geo.size, scale: displayScale))
+            ZStack {
+                Theme.surface
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                }
             }
-        }
-        .task(id: data) {
-            image = await ImageCache.image(for: data)
+            .frame(width: geo.size.width, height: geo.size.height)
+            .task(id: request) {
+                // A different photo never shows the last one while it loads.
+                if shown != request.source { image = nil }
+                guard !request.size.isEmpty else { return }
+                let loaded = await ImageCache.image(for: request.source, size: request.size)
+                guard !Task.isCancelled, let loaded else { return }
+                image = loaded
+                shown = request.source
+            }
         }
     }
 }
