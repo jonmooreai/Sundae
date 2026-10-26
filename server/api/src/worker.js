@@ -73,7 +73,7 @@ export default {
   async fetch(request, env) {
     return handle(request, env);
   },
-  // Daily, from the cron in wrangler.jsonc.
+  // Daily, from the cron in the repository's wrangler.jsonc.
   async scheduled(_event, env, context) {
     context.waitUntil(cleanUp(env));
   },

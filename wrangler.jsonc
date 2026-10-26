@@ -1,9 +1,10 @@
 // Sundae's server: one Worker, one D1 database and one R2 bucket, on Cloudflare's free tiers.
-// No build step. Deployed by Workers Builds from this folder (docs/SERVER.md).
+// The code is in server/api. This file sits at the top of the repository so Workers Builds can
+// run `npx wrangler deploy` from the root, with no build step (docs/SERVER.md).
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "sundae-api",
-  "main": "src/worker.js",
+  "main": "server/api/src/worker.js",
   "compatibility_date": "2026-10-20",
   "workers_dev": true,
   // Created in North America East. Its id is not a secret: only this Cloudflare account can use it.

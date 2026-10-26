@@ -11,7 +11,7 @@ server. No Cloudflare token is stored in GitHub.
 
 Already done from the command line: the D1 database `sundae` exists with its tables, and the
 private R2 bucket `sundae-photos` is made, both in North America East and both bound in
-`server/api/wrangler.jsonc`.
+`wrangler.jsonc` at the top of the repository.
 
 ## Privacy and security
 
@@ -69,15 +69,16 @@ Signed in to Cloudflare, about five minutes:
    which repositories, add `jonmooreai/Sundae` alongside `jonmooreai/heartcubby`. It gets
    read access to those two only.
 3. Choose `jonmooreai/Sundae`, then set:
-   - **Project name:** `sundae-api` (it must match the `name` in `server/api/wrangler.jsonc`)
+   - **Project name:** `sundae-api` (it must match the `name` in `wrangler.jsonc`)
    - **Build command:** leave it empty
    - **Deploy command:** `npx wrangler deploy`
-   - **Root directory:** `server/api`
+   - **Root directory:** leave it as `/` (the config is at the top of the repository)
    - **Production branch:** `claude/ios-app-scaffold` (change it to `main` once the pull
      request merges)
 4. Under the advanced settings, if they are offered:
    - **Builds for non-production branches:** off. A preview would share the real database.
-   - **Build watch paths:** `server/api/*`, so app-only pushes don't rebuild it.
+   - **Build watch paths:** `server/api/*` and `wrangler.jsonc`, so app-only pushes don't
+     rebuild it.
 5. **Deploy.**
 
 ## 3. Check it
@@ -95,7 +96,7 @@ makes new provisioning profiles, so there is nothing to tick in the developer po
 
 ## Settings
 
-In `server/api/wrangler.jsonc`, under `vars`:
+In `wrangler.jsonc` at the top of the repository, under `vars`:
 
 - `SIGNUPS`: `"closed"` once everyone invited has an account. Nobody new can sign up, even
   with the app; everyone else signs in as usual. Keep it `"open"` while a build is in Beta App
