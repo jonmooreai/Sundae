@@ -25,6 +25,8 @@ struct User: Identifiable, Hashable, Codable, Sendable {
     var birthday: String? = nil
     /// True when this user joined from the viewer's invite link.
     var invitedByMe: Bool? = nil
+    /// Only ever set on your own account, and only for admins (docs/SERVER.md).
+    var isAdmin: Bool? = nil
 
     var displayName: String { name.isEmpty ? username : name }
     /// "Bob Ewing • Followed by parker + 2", one line.
@@ -239,14 +241,6 @@ struct AccountSettings: Hashable, Codable, Sendable {
     var notifyFollowRequests = true
     var notifyLikesAndComments = true
     var notifyTagApproved = false
-}
-
-/// Per-session HMAC key for contacts matching. Hashes made with one key cannot be replayed
-/// against another session.
-struct ContactsHashingKey: Hashable, Sendable {
-    var keyID: String
-    var key: Data
-    var expiresAt: Date
 }
 
 struct Session: Hashable, Codable, Sendable {

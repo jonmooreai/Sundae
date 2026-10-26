@@ -22,7 +22,6 @@ struct SearchView: View {
     @State private var requests: [User] = []
     @State private var relationships: [ID: Relationship] = [:]
     @State private var isSearching = false
-    @State private var contacts: ContactsMatcher?
     /// Requests just confirmed, showing their moment before the row leaves.
     @State private var confirmed: Set<ID> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -67,7 +66,6 @@ struct SearchView: View {
                 }
 
                 if query.isEmpty {
-                    contactsSection
                     if !suggested.isEmpty {
                         Section {
                             ForEach(suggested) { user in row(user) }
@@ -76,9 +74,7 @@ struct SearchView: View {
                         }
                     }
                     Section {
-                        ShareLink(item: URL(string: "https://sundae.app/join")!,
-                                  subject: Text("Join me on Sundae"),
-                                  message: Text("Sundays only. Come post your week with us.")) {
+                        ShareLink(item: Invite.note, subject: Text(Invite.subject)) {
                             actionRow(Glyph.share, "Invite your group", "Sundae works when the whole group is here.")
                         }
                         .foregroundStyle(.primary)
@@ -103,9 +99,7 @@ struct SearchView: View {
         }
         .background(Theme.background)
         .task {
-            if contacts == nil { contacts = ContactsMatcher(api: model.api) }
             await loadInitial()
-            if let contacts, contacts.isOptedIn, contacts.matches.isEmpty { await contacts.match() }
         }
         .task(id: query) {
             guard !query.isEmpty else {
@@ -142,43 +136,6 @@ struct SearchView: View {
                 Text(subtitle).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 0)
-        }
-    }
-
-    @ViewBuilder
-    private var contactsSection: some View {
-        if let contacts {
-            Section {
-                if !contacts.matches.isEmpty {
-                    ForEach(contacts.matches) { user in row(user) }
-                } else if contacts.isMatching {
-                    HStack { ProgressView(); Text("Checking your contacts").foregroundStyle(.secondary) }
-                        .listRowInsets(rowInsets)
-                        .listRowSeparator(.hidden)
-                } else if contacts.isOptedIn {
-                    Text("Nobody from your contacts is here yet.")
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .listRowInsets(rowInsets)
-                        .listRowSeparator(.hidden)
-                } else {
-                    Button {
-                        Task { await contacts.match() }
-                    } label: {
-                        actionRow(Glyph.personAdd, "Find friends from your contacts", "Numbers are hashed on your phone, never stored.")
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!contacts.canUse)
-                    .listRowInsets(rowInsets)
-                    .listRowSeparator(.hidden)
-                }
-                if let message = contacts.errorMessage {
-                    Text(message).font(.footnote).foregroundStyle(.secondary)
-                        .listRowSeparator(.hidden)
-                }
-            } header: {
-                header("From your contacts")
-            }
         }
     }
 

@@ -141,7 +141,7 @@ async function route(ctx, method, parts) {
   await auth(ctx);
   switch (key) {
     // Every day
-    case 'GET me': return json(await userJSON(ctx, ctx.me));
+    case 'GET me': return json(await meJSON(ctx, ctx.me));
     case 'PATCH me': return updateMe(ctx);
     case 'DELETE me': return deleteMe(ctx);
     case 'GET me/settings': return json(settingsOf(ctx.me));
@@ -158,8 +158,6 @@ async function route(ctx, method, parts) {
     case 'DELETE dumps/:': return deleteDump(ctx, b);
     case 'POST users/:/block': return block(ctx, b);
     case 'POST reports': return report(ctx);
-    case 'GET contacts/key': return contactsKey(ctx);
-    case 'POST contacts/match': await body(ctx.request); return json([]);
   }
 
   requireSunday(ctx);
@@ -189,7 +187,7 @@ async function route(ctx, method, parts) {
 function isParam(parts, i) {
   const before = parts[i - 1];
   if (i === 0) return false;
-  if (['me', 'auth', 'contacts', 'ideas'].includes(before) && i === 1) return false;
+  if (['me', 'auth', 'ideas'].includes(before) && i === 1) return false;
   if (before === 'users' && ['search', 'suggested'].includes(parts[i])) return false;
   if (before === 'suggestions' && parts[i] === 'done') return false;
   return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'suggestions'].includes(before);
@@ -197,19 +195,23 @@ function isParam(parts, i) {
 
 // MARK: - Auth
 
+// The user row, plus whether they are in the admins table, in one query.
+const USER_WITH_ADMIN = 'SELECT users.*, EXISTS (SELECT 1 FROM admins WHERE admins.user_id = users.id) AS is_admin FROM users';
+
 async function auth(ctx) {
   const header = ctx.request.headers.get('authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
   const payload = token && (await verifyToken(token, ctx.secret, ctx.now.getTime()));
   if (!payload || payload.typ !== 'a') fail(401, 'unauthorized', 'Sign in again.');
-  const me = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(payload.sub).first();
+  const me = await ctx.db.prepare(`${USER_WITH_ADMIN} WHERE users.id = ?`).bind(payload.sub).first();
   if (!me) fail(401, 'unauthorized', 'Sign in again.');
   ctx.me = me;
   ctx.family = payload.fam;
 }
 
 function requireSunday(ctx) {
-  if (ctx.env.SUNDAY_EVERY_DAY === 'true') return;
+  // Admins can try the Sunday screens any day; nobody else sees a week before its Sunday.
+  if (ctx.env.SUNDAY_EVERY_DAY === 'true' || ctx.me.is_admin) return;
   if (!isSunday(ctx.now, ctx.me.timezone)) fail(423, 'sunday_closed', 'Come back Sunday.');
 }
 
@@ -235,7 +237,7 @@ async function signInWithApple(ctx) {
     .bind(await sha256Hex(String(input.nonce)), Math.floor(ctx.now.getTime() / 1000) + 24 * 3600).run();
   if (!fresh.meta?.changes) fail(401, 'unauthorized', 'Sign in with Apple did not go through. Try again.');
   const timezone = safeZone(String(input.timezone || 'UTC'));
-  let user = await ctx.db.prepare('SELECT * FROM users WHERE apple_sub = ?').bind(sub).first();
+  let user = await ctx.db.prepare(`${USER_WITH_ADMIN} WHERE users.apple_sub = ?`).bind(sub).first();
   if (user) {
     await ctx.db.prepare('UPDATE users SET timezone = ? WHERE id = ?').bind(timezone, user.id).run();
     user.timezone = timezone;
@@ -250,7 +252,7 @@ async function signInWithApple(ctx) {
       .bind(id, sub, username, name, timezone, ctx.now.toISOString()).run();
     user = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(id).first();
   }
-  return json({ ...(await issueSession(ctx, user.id)), user: await userJSON(ctx, user) });
+  return json({ ...(await issueSession(ctx, user.id)), user: await meJSON(ctx, user) });
 }
 
 /** Rotates the refresh token. A token used again after the grace period means it leaked: the
@@ -269,8 +271,15 @@ async function refresh(ctx) {
   return json(await issueSession(ctx, row.user_id, row.family));
 }
 
+/** This device, or with {"everywhere": true} every device. Access tokens elsewhere run out within
+ * 15 minutes, since nothing can renew them. */
 async function signOut(ctx) {
-  await ctx.db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE family = ?').bind(ctx.family || '').run();
+  const input = await ctx.request.json().catch(() => ({}));
+  if (input?.everywhere === true) {
+    await ctx.db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?').bind(ctx.me.id).run();
+  } else {
+    await ctx.db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE family = ?').bind(ctx.family || '').run();
+  }
   return empty();
 }
 
@@ -314,6 +323,11 @@ async function userJSON(ctx, row) {
   };
 }
 
+/** Someone's own account. Only an admin's says so; nobody else's mentions it. */
+async function meJSON(ctx, row) {
+  return { ...(await userJSON(ctx, row)), ...(row.is_admin ? { is_admin: true } : {}) };
+}
+
 async function usersJSON(ctx, rows) {
   return Promise.all(rows.map((row) => userJSON(ctx, row)));
 }
@@ -352,7 +366,7 @@ async function updateMe(ctx) {
     await ctx.db.prepare('UPDATE users SET username = ?, name = ?, bio = ? WHERE id = ?').bind(username, name, bio, me.id).run();
   }
   const fresh = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(me.id).first();
-  return json(await userJSON(ctx, fresh));
+  return json(await meJSON(ctx, { ...fresh, is_admin: me.is_admin }));
 }
 
 async function updateSettings(ctx) {
@@ -516,13 +530,6 @@ async function suggested(ctx) {
                    WHERE f1.follower_id = ?1 AND f1.status = 'accepted' AND f2.status = 'accepted')
     ORDER BY u.username LIMIT 20`).bind(ctx.me.id).all();
   return json(await usersJSON(ctx, results));
-}
-
-function contactsKey(ctx) {
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  let s = '';
-  for (const byte of key) s += String.fromCharCode(byte);
-  return json({ key_id: newId('ck'), key: btoa(s), expires_at: new Date(ctx.now.getTime() + 15 * 60_000).toISOString() });
 }
 
 // MARK: - Uploads and photos

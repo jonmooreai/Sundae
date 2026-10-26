@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var taggable: [User] = []
     @State private var confirmDelete = false
     @State private var confirmSignOut = false
+    @State private var signOutFailed = false
     @State private var showLocationConsent = false
 
     var body: some View {
@@ -54,10 +55,14 @@ struct SettingsView: View {
             SettingsGroup(title: "Notifications", footer: "Weekdays bring one at most, at noon.") {
                 SettingsToggle(title: "Sunday reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
                 SettingsToggle(title: "Last call", detail: "8:00 pm, if you haven't posted", isOn: $settings.notifyLastCall)
-                SettingsToggle(title: "Tags", isOn: $settings.notifyTags)
-                SettingsToggle(title: "Follow requests", isOn: $settings.notifyFollowRequests)
-                SettingsToggle(title: "Likes and comments", detail: "Sundays only", isOn: $settings.notifyLikesAndComments)
-                SettingsToggle(title: "Approved tags", isOn: $settings.notifyTagApproved)
+                // These need push notifications, which the friends and family server does not send
+                // yet. Shown with demo data only, so no switch here promises something that never comes.
+                if model.isUsingMock {
+                    SettingsToggle(title: "Tags", isOn: $settings.notifyTags)
+                    SettingsToggle(title: "Follow requests", isOn: $settings.notifyFollowRequests)
+                    SettingsToggle(title: "Likes and comments", detail: "Sundays only", isOn: $settings.notifyLikesAndComments)
+                    SettingsToggle(title: "Approved tags", isOn: $settings.notifyTagApproved)
+                }
             }
 
             SettingsGroup(title: "Devices") {
@@ -65,7 +70,8 @@ struct SettingsView: View {
                 SettingsActionRow(title: "Sign out everywhere", isDestructive: true) { confirmSignOut = true }
             }
 
-            SettingsGroup(title: "Your data", footer: "Deletion completes within 30 days.") {
+            SettingsGroup(title: "Your data", footer: "Deleting removes everything right away.") {
+                SettingsLinkRow(title: "Privacy") { PrivacyView() }
                 SettingsActionRow(title: "Export my data", value: "Soon") { }
                     .disabled(true)
                 SettingsActionRow(title: "Delete account", isDestructive: true) {
@@ -73,8 +79,11 @@ struct SettingsView: View {
                 }
             }
 
-            if model.isUsingMock {
-                SettingsGroup(title: "Demo", footer: "Built-in demo data. Move the clock to see Sunday any day.") {
+            if model.canChangeDay {
+                SettingsGroup(title: model.isUsingMock ? "Demo" : "Admin",
+                              footer: model.isUsingMock
+                                ? "Built-in demo data. Move the clock to see Sunday any day."
+                                : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday.") {
                     SegmentedChoice(options: DebugDay.allCases.map { ($0, $0.shortLabel) },
                                     selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) }))
                         .padding(10)
@@ -103,12 +112,21 @@ struct SettingsView: View {
             LocationConsentSheet { model.localIdeas.enable() }
         }
         .confirmationDialog("Sign out of every device?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign out everywhere", role: .destructive) { Task { await model.signOut() } }
+            Button("Sign out everywhere", role: .destructive) {
+                Task { if !(await model.signOutEverywhere()) { signOutFailed = true } }
+            }
+        } message: {
+            Text("Other devices are signed out within 15 minutes.")
+        }
+        .alert("Couldn't reach Sundae", isPresented: $signOutFailed) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Nothing was signed out. Try again when you're online.")
         }
         .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { await model.deleteAccount() } }
         } message: {
-            Text("Your dumps and tags are removed within 30 days. Photos you were tagged in stay in the poster's dump with the tag removed.")
+            Text("Your dumps, comments and tags are removed right away. Photos you were tagged in stay in the poster's dump with the tag removed.")
         }
     }
 

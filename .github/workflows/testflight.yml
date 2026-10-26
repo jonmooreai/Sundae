@@ -1,14 +1,15 @@
 name: TestFlight
 
 # Builds a signed Release and uploads it to TestFlight. Runs when started by hand, on any push
-# to the "testflight" branch, or on a push whose commit message contains [testflight].
-# Never on an ordinary push. To ship the current branch without a new commit:
-#   git push -f origin HEAD:testflight
-# Costs about 15 minutes of macOS runner time per build (10x against the free allowance).
+# to the "testflight" branch, or on a push to the work branch whose commit message contains
+# [testflight]. Never on an ordinary push. The testflight branch only moves forward (force
+# pushes are blocked), so shipping is a commit on top of it carrying the work branch's files.
+# Costs about 15 minutes of macOS runner time per build, free only while the repository is public.
+# main is not listed: it is always fast-forwarded to the work branch, so it would build twice.
 on:
   workflow_dispatch:
   push:
-    branches: ["main", "claude/**", "testflight"]
+    branches: ["claude/**", "testflight"]
 
 # The signing certificate lives in a separate private repository (MATCH_GIT_URL), reached with
 # MATCH_GIT_TOKEN, so this repository can be public.

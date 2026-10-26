@@ -76,7 +76,7 @@ struct WeekdayView: View {
             Color.clear.frame(width: 40, height: 40)
 
             Spacer()
-            LivingSundaeMark(size: 30, clock: model.clock).wobbleOnTap()
+            CherryMark(size: 34).wobbleOnTap()
             Spacer()
 
             IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }

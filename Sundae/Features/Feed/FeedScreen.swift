@@ -38,26 +38,13 @@ struct FeedList: View {
     @Environment(AppModel.self) private var model
     let open: (Route) -> Void
     let onPost: () -> Void
-    @State private var refreshing = false
-    @State private var burst = false
 
     private var feed: FeedStore { model.feed }
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) {
-                    CherryMark(size: 36, clock: model.clock)
-                        .wobbleOnTap()
-                        .background {
-                            // Pull to refresh scatters a few sprinkles from the mark.
-                            if refreshing {
-                                Sprinkles(fired: burst)
-                                    .onAppear { burst = true }
-                                    .onDisappear { burst = false }
-                            }
-                        }
-                }
+                ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) { EmptyView() }
                 .accessibilityElement(children: .contain)
 
                 PostYourWeekRow(onPost: onPost)
@@ -102,11 +89,8 @@ struct FeedList: View {
         .goldenHour(calendar: model.clock.calendar)
         .birthdayPaper(calendar: model.clock.calendar)
         .refreshable {
-            refreshing = true
             await feed.load(refresh: true)
             await model.compose.load(weekStart: model.currentWeekStart)
-            try? await Task.sleep(for: .milliseconds(900))
-            refreshing = false
         }
         .task {
             await feed.load(refresh: false)

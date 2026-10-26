@@ -106,5 +106,18 @@ left out of this build.
 
 ## Costs
 
-Each TestFlight build uses about 15 minutes of macOS runner time, which is free while the
-repository is public. Builds are started by hand only.
+While the repository is public, GitHub Actions minutes are free. Once it is private, the free
+plan includes 2,000 minutes a month, and macOS runners cost about ten times Linux, so the
+workflows hold back on their own:
+
+- TestFlight builds (about 15 minutes on macOS) run only when started on purpose, as always.
+- The iOS build and unit tests (20 to 35 minutes on macOS) run on a push only when the commit
+  message contains `[ios]` or `[screenshots]`, or when started by hand from the Actions tab.
+  While public they still run on every push.
+- The server checks run on Linux in under a minute, on every push that touches the server.
+- Nothing runs twice: `main` is a copy of the work branch, so workflows only watch the work
+  branch and `testflight`.
+
+Leave the Actions budget at $0 under GitHub's Settings, then Billing and licensing, then
+Budgets and alerts, with "Stop usage when budget limit is reached" ticked, so running out of
+minutes pauses builds instead of billing.

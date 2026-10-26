@@ -223,7 +223,7 @@ struct SundayPromptStep: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                SundaeMark(size: 28)
+                CherryMark(size: 30)
                 Spacer()
                 Button("Not now") { notNow() }
                     .font(.subheadline.weight(.medium))

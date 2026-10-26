@@ -21,7 +21,7 @@ authority for every rule in the PRD; the client only decides what to draw.
 | POST | `auth/phone/start` | `phone` | 204 |
 | POST | `auth/phone/verify` | `phone`, `code`, `username?`, `name?`, `timezone` | session |
 | POST | `auth/refresh` | `refresh_token` | `access_token`, `refresh_token`, `expires_in` |
-| POST | `auth/signout` | | 204, revokes this device's refresh token |
+| POST | `auth/signout` | `everywhere?` | 204, revokes this device's refresh token, or with `everywhere: true` every device's (their access tokens lapse within 15 minutes) |
 
 `nonce` is the value whose SHA-256 (lowercase hex) the app set as the request's nonce, which Apple signs into the token. The server checks the pair and accepts each nonce once, so a captured token cannot be replayed.
 
@@ -31,7 +31,7 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `me` | user |
+| GET | `me` | user, plus `is_admin: true` for an admin only (never on anyone else's user) |
 | PATCH | `me` | any of `name`, `username`, `bio`, or `avatar_upload_id` from an upload ticket (a square JPEG, 600 px) |
 | GET / PUT | `me/settings` | settings object below |
 | DELETE | `me` | starts the 30-day deletion |
@@ -83,15 +83,6 @@ Server rules: `week_start` must be the caller's current week and today must be S
 ### Uploads
 
 `POST uploads` with `{content_type, byte_size, width, height}` returns `{upload_id, url, headers?, expires_at}`: a single-use pre-signed PUT for one object of that size and type. The client has already re-encoded to a 2048 px JPEG with metadata stripped; the server strips EXIF, XMP, IPTC and comments again. Up to 10 MB a photo and 150 tickets a person a day. The friends-and-family server (`server/api`, docs/SERVER.md) stops there; a public launch adds hash matching and the nudity model before a photo becomes visible.
-
-## Contacts matching (opt in)
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| GET | `contacts/key` | `{key_id, key (base64, 32 bytes), expires_at}`; one per session, 15 minutes |
-| POST | `contacts/match` | `{key_id, hashes: [hex HMAC-SHA256 of E.164 digits]}` returns `[user]` |
-
-The server computes the same HMAC over its stored normalized numbers with that key, intersects in memory, and discards the uploaded hashes immediately. Nothing from the request is written to disk. A private set intersection protocol is the better design and is on the list for v1.1.
 
 ## Ideas near you (opt in, weekdays only, anonymous)
 

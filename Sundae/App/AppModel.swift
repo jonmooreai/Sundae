@@ -43,7 +43,10 @@ final class AppModel {
     let shared = SharedDefaults()
 
     private(set) var phase: DayPhase = .weekday(daysUntilSunday: 6)
-    private(set) var currentUser: User?
+    private(set) var currentUser: User? {
+        // A saved "Pretend it's Sunday" only counts for demo data or an admin.
+        didSet { if !canChangeDay, debugDay != .real { setDebugDay(.real) } }
+    }
     private(set) var isRestoringSession = true
     private(set) var pendingApprovalCount = 0
     private(set) var accountSettings = AccountSettings()
@@ -61,6 +64,10 @@ final class AppModel {
 
     /// True when running against the in-memory mock instead of a server.
     var isUsingMock: Bool { mock != nil }
+    /// An admin on the live server (docs/SERVER.md): the server opens Sunday to them any day.
+    var isAdmin: Bool { currentUser?.isAdmin == true }
+    /// The only times the day can be moved: demo data, or an admin testing the real server.
+    var canChangeDay: Bool { isUsingMock || isAdmin }
 
     private var boundaryTask: Task<Void, Never>?
 
@@ -210,6 +217,18 @@ final class AppModel {
             await NotificationScheduler.requestAuthorizationIfNeeded()
             NotificationScheduler.scheduleSundayReminders(reminder: settings.notifySundayReminder, lastCall: settings.notifyLastCall)
         }
+    }
+
+    /// Signs every device out, this one last. False when the server could not be reached, in which
+    /// case nothing changes, so nobody believes their other devices are out when they are not.
+    func signOutEverywhere() async -> Bool {
+        do {
+            try await api.signOutEverywhere()
+        } catch {
+            return false
+        }
+        await signOut()
+        return true
     }
 
     func signOut() async {

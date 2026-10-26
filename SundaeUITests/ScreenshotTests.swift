@@ -61,6 +61,13 @@ final class ScreenshotTests: XCTestCase {
     func testOnboarding() {
         let app = launch(day: "weekday", signedIn: false)
         XCTAssertTrue(app.staticTexts["Sundae"].waitForExistence(timeout: 15))
+        snap(app, "00-onboarding-intro-film")
+        // A tap skips the film to the finished sundae, where Begin appears.
+        app.tap()
+        XCTAssertTrue(app.buttons["Begin"].waitForExistence(timeout: 15))
+        snap(app, "00-onboarding-intro")
+        app.buttons["Begin"].tap()
+        XCTAssertTrue(app.buttons["Get started"].waitForExistence(timeout: 5))
         snap(app, "00-onboarding-welcome")
         app.buttons["Get started"].tap()
         XCTAssertTrue(app.staticTexts["Sign in"].waitForExistence(timeout: 5))

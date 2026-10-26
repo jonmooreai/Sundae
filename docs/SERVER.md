@@ -35,6 +35,12 @@ private R2 bucket `sundae-photos` is made, both in North America East and both b
 - **Nothing extra kept.** No request logs (observability is off), no analytics, no location.
   Deleting an account removes it at once; D1's own recovery history rolls past it in 7 days.
 
+## The privacy text
+
+`Shared/privacy.json` is the only copy. The app shows it under Settings, then Privacy, and on
+the sign-in screen, so it can be read any time without a browser; the Worker builds
+`/privacy` from the same file for Apple's TestFlight form. A test fails if the two ever differ.
+
 ## What it costs
 
 Nothing, for a group this size.
@@ -97,6 +103,20 @@ subdomain was renamed from one that matched an email address).
 Send the address over; the app gets it in its next TestFlight build. That same build turns on
 Sign in with Apple for the App ID (the lane does it through the App Store Connect API key) and
 makes new provisioning profiles, so there is nothing to tick in the developer portal.
+
+## Admins
+
+An admin can open the Sunday screens any day, to try things on the real server, and sees an
+Admin section in Settings with "Pretend it's Sunday". Nobody else sees the section, and the
+server keeps everyone else to Sunday. Admins live in the database's `admins` table, which the
+API never writes: add one from the Cloudflare side (the D1 console, or the command line) with
+the person's user id, once they have signed in:
+
+```sql
+INSERT INTO admins (user_id) SELECT id FROM users WHERE username = 'their-username';
+```
+
+Delete the row to take it away; their phone drops back to the real day on its next launch.
 
 ## Settings
 

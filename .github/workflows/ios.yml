@@ -1,11 +1,13 @@
 name: iOS
 
-# Minutes matter: macOS runners bill at 10x against the free allowance. Pushes only compile
-# (a few minutes). The full simulator run with tests and screenshots happens when the commit
-# message contains [screenshots] or the workflow is started by hand.
+# Minutes matter: macOS runners cost about 10x Linux. Pushes build and run the unit tests; the
+# full simulator run with screenshots happens when the commit message contains [screenshots] or
+# the workflow is started by hand. Once the repository is private (minutes are free only while
+# it is public), a push runs this only when its message contains [ios] or [screenshots].
+# main is not listed: it is always fast-forwarded to the work branch, so it would run twice.
 on:
   push:
-    branches: ["main", "claude/**"]
+    branches: ["claude/**"]
     # Nothing here affects the app binary.
     paths-ignore:
       - "docs/**"
@@ -34,7 +36,8 @@ jobs:
   build-test-screenshots:
     name: Build, test, screenshots
     # A [testflight] push runs the TestFlight workflow instead; no need to build twice.
-    if: ${{ !contains(github.event.head_commit.message, '[testflight]') }}
+    # And while the repository is private, only when asked: [ios], [screenshots], or by hand.
+    if: ${{ !contains(github.event.head_commit.message, '[testflight]') && (!github.event.repository.private || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ios]') || contains(github.event.head_commit.message, '[screenshots]')) }}
     runs-on: macos-latest
     # Normal pushes build and run the unit tests; a slow runner can spend 15 minutes on the build alone.
     timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 45 || 35 }}
@@ -109,7 +112,6 @@ jobs:
           APP=$(find build/Build/Products -maxdepth 2 -name "Sundae.app" | head -1)
           [ -n "$APP" ] && xcrun simctl install "$IPHONE_UDID" "$APP" || true
           xcrun simctl privacy "$IPHONE_UDID" grant photos com.jonmooreai.sundae || true
-          xcrun simctl privacy "$IPHONE_UDID" grant contacts com.jonmooreai.sundae || true
           # A few real photos in the camera roll, dated today, so "this week" has something to pick.
           mkdir -p seed-photos
           for i in 1 2 3 4 5 6; do

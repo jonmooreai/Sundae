@@ -3,7 +3,8 @@ import PhotosUI
 import SwiftUI
 import PhosphorSwift
 
-/// Five short steps on cream paper: what Sundae is, sign in, who you are, ideas near you, bring your group.
+/// The felt sundae full screen, then five short steps on cream paper: what Sundae is, sign in, who
+/// you are, ideas near you, bring your group.
 /// Every step says plainly what happens next; nothing is sent to anyone without a tap that
 /// says so. Sign in with Apple is primary; phone is the labeled fallback, folded away.
 struct OnboardingView: View {
@@ -13,6 +14,7 @@ struct OnboardingView: View {
 
     private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, friends }
 
+    @State private var showsIntro = true
     @State private var step: Step = .welcome
     @State private var pendingMethod: SignInMethod?
     /// The nonce for the Sign in with Apple attempt in progress. Apple only ever sees its hash.
@@ -27,9 +29,8 @@ struct OnboardingView: View {
     @State private var avatarItem: PhotosPickerItem?
     @State private var avatarImage: UIImage?
     @State private var avatarData: Data?
-    @State private var wantsContactsMatch = false
-    @State private var showContactsConsent = false
     @State private var error: String?
+    @State private var showPrivacy = false
     @State private var isWorking = false
 
     private var isOldEnough: Bool {
@@ -37,6 +38,21 @@ struct OnboardingView: View {
     }
 
     var body: some View {
+        Group {
+            if showsIntro {
+                OnboardingIntro {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.45)) { showsIntro = false }
+                }
+                .transition(.opacity)
+            } else {
+                steps.transition(.opacity)
+            }
+        }
+        .filmGrain()
+        .sheet(isPresented: $showPrivacy) { PrivacySheet() }
+    }
+
+    private var steps: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             VStack(spacing: 0) {
@@ -64,12 +80,6 @@ struct OnboardingView: View {
                 .scrollDismissesKeyboard(.interactively)
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.4), value: step)
-        }
-        .filmGrain()
-        .sheet(isPresented: $showContactsConsent) {
-            ContactsConsentSheet {
-                wantsContactsMatch = true
-            }
         }
     }
 
@@ -115,7 +125,7 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 28) {
-            SundaeMark(size: 96)
+            CherryMark(size: 96)
                 .wobbleOnTap()
                 .padding(.top, 24)
             VStack(alignment: .leading, spacing: 10) {
@@ -230,6 +240,10 @@ struct OnboardingView: View {
                 }
             }
 
+            // Readable before there is an account: what Sundae keeps and never collects.
+            Button("How Sundae handles your data") { showPrivacy = true }
+                .buttonStyle(.pill(.quiet, fullWidth: true))
+
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.secondary)
             }
@@ -330,35 +344,11 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 choice(
-                    Glyph.share, "Send the link to a few friends",
-                    "Opens the share sheet. You pick who gets it. Nobody is messaged on their own."
+                    Glyph.share, "Tell a few friends",
+                    "Opens the share sheet with a short note. You pick who gets it. Sundae is invite only while it's in testing."
                 ) {
-                    ShareLink(item: URL(string: "https://sundae.app/join")!,
-                              subject: Text("Join me on Sundae"),
-                              message: Text("Sundays only. Come post your week with us.")) {
-                        Text("Choose who to invite").frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.pill(.secondary, fullWidth: true))
-                }
-
-                choice(
-                    Glyph.personAdd, "Find friends already here",
-                    wantsContactsMatch
-                        ? "Your contacts will be checked once Sundae opens. Nothing is sent to them."
-                        : "Checks your contacts for people already on Sundae. Numbers are scrambled on this phone and never stored. Nothing is sent to your contacts."
-                ) {
-                    Button {
-                        if wantsContactsMatch {
-                            wantsContactsMatch = false
-                        } else {
-                            showContactsConsent = true
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            if wantsContactsMatch { Icon(Glyph.done, weight: .bold, size: 14) }
-                            Text(wantsContactsMatch ? "Will check my contacts" : "Check my contacts")
-                        }
-                        .frame(maxWidth: .infinity)
+                    ShareLink(item: Invite.note, subject: Text(Invite.subject)) {
+                        Text("Choose who to tell").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.pill(.secondary, fullWidth: true))
                 }
@@ -431,7 +421,7 @@ struct OnboardingView: View {
         avatarImage = image
     }
 
-    /// Signs in, then applies the photo and starts the contacts check if you asked for it.
+    /// Signs in, then applies the photo.
     /// Once the model flips `isSignedIn`, RootView moves on to the app.
     private func finishSignIn() async {
         guard let method = pendingMethod else { return }
@@ -444,33 +434,8 @@ struct OnboardingView: View {
             if let avatarData {
                 try? await model.updateAvatar(avatarData)
             }
-            if wantsContactsMatch {
-                let matcher = ContactsMatcher(api: model.api)
-                await matcher.match()
-            }
         } catch {
             self.error = error.localizedDescription
         }
-    }
-}
-
-/// Exactly what checking contacts does, before it does it. Plain words, two buttons.
-struct ContactsConsentSheet: View {
-    let onAgree: () -> Void
-
-    var body: some View {
-        ConsentSheet(
-            title: "Check your contacts?",
-            points: [
-                .init(glyph: Glyph.lock,
-                      text: "Phone numbers from your contacts are scrambled on this phone. The scrambled versions are compared with Sundae's and then thrown away."),
-                .init(glyph: Glyph.person,
-                      text: "You see which of your contacts already have Sundae. They are not told you looked."),
-                .init(glyph: Glyph.block,
-                      text: "Nobody is messaged, invited, or added. Your contacts are never stored."),
-            ],
-            agreeTitle: "Check my contacts",
-            onAgree: onAgree
-        )
     }
 }
