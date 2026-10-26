@@ -56,9 +56,11 @@ final class WeekdayStore {
         } else if let nearby = preferredLocal(for: now, calendar: clock.calendar) {
             current = nearby
             shared.setCurrentSuggestion(id: nearby.id, on: now)
+            WidgetCenter.shared.reloadAllTimelines()
         } else {
             current = catalog.suggestion(forDay: now, calendar: clock.calendar)
             if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
+            WidgetCenter.shared.reloadAllTimelines()
         }
         justMarkedDone = false
     }

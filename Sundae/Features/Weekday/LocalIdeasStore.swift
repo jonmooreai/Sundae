@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import Observation
+import WidgetKit
 
 /// Ideas for the neighborhood the phone is in, Monday to Saturday, if the user asked for them.
 ///
@@ -123,6 +124,7 @@ final class LocalIdeasStore {
             guard !Task.isCancelled, isEnabled else { return }
             ideas = fresh
             shared.setLocalIdeas(fresh, at: clock.now())
+            WidgetCenter.shared.reloadAllTimelines()
             status = .ready(count: fresh.count)
         } catch SundaeError.offline {
             status = .offline

@@ -1,9 +1,8 @@
 import Foundation
 
-/// Small amount of state shared between the app and the widget through the app group.
-/// Nothing sensitive goes here: just which suggestion is showing and the approvals badge.
-///
-/// `UserDefaults` is documented thread-safe but not marked `Sendable`; the struct holds nothing else.
+/// Small amount of state shared between the app and the widget. Nothing sensitive goes here:
+/// which idea is showing, today's nearby ideas, whether this week is posted, the approvals badge.
+/// Storage is `SharedStore`: the app group when there is one, a shared keychain item otherwise.
 public struct SharedDefaults: @unchecked Sendable {
     public static let appGroup = "group.com.jonmooreai.sundae"
 
@@ -16,14 +15,10 @@ public struct SharedDefaults: @unchecked Sendable {
         return name
     }
 
-    private let defaults: UserDefaults
+    private let defaults: SharedStore
 
-    public init(suite: String? = SharedDefaults.configuredAppGroup) {
-        if let suite, let d = UserDefaults(suiteName: suite) {
-            defaults = d
-        } else {
-            defaults = .standard
-        }
+    public init() {
+        defaults = SharedStore.shared
     }
 
     private enum Key {

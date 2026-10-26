@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 /// Step three: one caption for the whole week, then post.
 struct CaptionStep: View {
@@ -119,6 +120,7 @@ struct CaptionStep: View {
         if let dump = await compose.save(weekStart: model.currentWeekStart) {
             model.feed.insertOwn(dump)
             model.shared.postedWeekStart = model.currentWeekStart
+            WidgetCenter.shared.reloadAllTimelines()
             path.append(.posted)
         } else if compose.queuedOffline {
             path.append(.posted)

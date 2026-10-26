@@ -48,6 +48,9 @@ targets:
         SundaeAPIBaseURL: ""
         # Set to group.com.jonmooreai.sundae (here and in the widget) once the App ID has the app group.
         SundaeAppGroup: ""
+        # Where the app leaves state for the widget. The team prefix comes from signing; the
+        # profiles' TEAMID.* keychain wildcard already allows it, so no portal setup is needed.
+        SundaeKeychainGroup: "$(AppIdentifierPrefix)com.jonmooreai.sundae.shared"
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:
@@ -72,7 +75,11 @@ targets:
     # signed. They come back once the developer account has them (see docs/TESTFLIGHT.md).
     entitlements:
       path: Sundae/Sundae.entitlements
-      properties: {}
+      properties:
+        # The app's own group first, so session tokens keep landing there; the shared one second.
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)com.jonmooreai.sundae"
+          - "$(AppIdentifierPrefix)com.jonmooreai.sundae.shared"
     dependencies:
       - target: SundaeWidget
         embed: true
@@ -96,11 +103,16 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         SundaeAppGroup: ""
+        SundaeKeychainGroup: "$(AppIdentifierPrefix)com.jonmooreai.sundae.shared"
+        NSPhotoLibraryUsageDescription: On Sunday the widget shows a few photos you took this week, using the same Photos access as the app. Nothing is copied or uploaded.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: SundaeWidget/SundaeWidget.entitlements
-      properties: {}
+      properties:
+        keychain-access-groups:
+          - "$(AppIdentifierPrefix)com.jonmooreai.sundae.widget"
+          - "$(AppIdentifierPrefix)com.jonmooreai.sundae.shared"
   SundaeTests:
     type: bundle.unit-test
     platform: iOS
