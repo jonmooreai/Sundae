@@ -838,6 +838,43 @@ test('who you follow, every day: accepted follows only, by username, never anyon
   assert.deepEqual((await s.call('GET', 'v1/me/following', { token: pat.token })).body, []);
 });
 
+test('followers and following open for whoever can see the profile, with how the viewer stands with each person', async () => {
+  const s = await server();
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
+  const sam = await s.signUp('apple-sam', 'sam', 'Sam Doe');
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Doe');
+  const ria = await s.signUp('apple-ria', 'ria', 'Ria Doe');
+  for (const who of [pat, sam, theo]) await s.call('PUT', 'v1/me/settings', { token: who.token, json: { is_public: true } });
+  // Sam and Theo follow Pat; Pat follows Sam back.
+  for (const who of [sam, theo]) await s.call('POST', `v1/users/${pat.user.id}/follow`, { token: who.token });
+  await s.call('POST', `v1/users/${sam.user.id}/follow`, { token: pat.token });
+  const list = (who, of, which) => s.call('GET', `v1/users/${of.user.id}/${which}`, { token: who.token });
+  const rows = (response) => response.body.map((u) => [u.username, u.relationship, u.follows_you]);
+
+  const seen = await list(theo, pat, 'followers');
+  assert.equal(seen.status, 200);
+  assert.deepEqual(rows(seen), [['sam', 'none', false], ['theo', 'me', false]]);
+  assert.equal(seen.body[0].timezone, null);
+  assert.deepEqual(rows(await list(pat, pat, 'followers')), [['sam', 'following', true], ['theo', 'none', true]], 'Theo is one to follow back');
+  assert.deepEqual((await list(theo, pat, 'following')).body.map((u) => u.username), ['sam']);
+  const profile = await s.call('GET', `v1/users/${pat.user.id}/profile`, { token: theo.token });
+  assert.deepEqual([profile.body.follower_count, profile.body.following_count], [2, 1]);
+
+  // A private account's lists stay closed to anyone it hasn't let in; a request is not enough.
+  await s.call('POST', `v1/users/${ria.user.id}/follow`, { token: theo.token });
+  assert.equal((await list(sam, ria, 'followers')).status, 404);
+  assert.equal((await list(theo, ria, 'following')).status, 404);
+  assert.equal((await s.call('GET', `v1/users/${ria.user.id}/profile`, { token: sam.token })).body.follower_count, null);
+  assert.equal((await list(ria, ria, 'followers')).status, 200, 'her own, always');
+
+  // Blocked either way: never in a list, and never a list of theirs.
+  s.env.DB.sqlite.prepare('INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(sam.user.id, theo.user.id);
+  assert.deepEqual((await list(theo, pat, 'followers')).body.map((u) => u.username), ['theo']);
+  assert.equal((await list(theo, sam, 'followers')).status, 404);
+  const counted = await s.call('GET', `v1/users/${pat.user.id}/profile`, { token: theo.token });
+  assert.deepEqual([counted.body.follower_count, counted.body.following_count], [1, 0], 'counted the way the lists are');
+});
+
 test('admin follows the Apple id: through a deleted and remade account, never to whoever takes the username', async () => {
   const s = await server();
   const jon = await s.signUp('apple-jon', 'jon');

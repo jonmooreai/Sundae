@@ -58,6 +58,9 @@ protocol SundaeAPI: Sendable {
     func followers() async throws -> [User]
     /// People the user follows, accepted, by username.
     func following() async throws -> [User]
+    /// Someone's followers or the people they follow, for whoever can see their profile. Sunday
+    /// only, like profiles.
+    func followList(of userID: ID, _ list: PeopleList) async throws -> [ListedPerson]
     /// Ends that person's follow of the user, or their request. Following again is a new request
     /// while the account is private.
     func removeFollower(userID: ID) async throws

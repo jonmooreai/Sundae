@@ -29,22 +29,26 @@ struct UserRow: View {
     }
 }
 
-/// Follow, Requested, Following. A fixed-width pill so rows line up.
+/// Follow, Follow back, Requested, Following. A fixed-width pill so rows line up.
 struct FollowButton: View {
     let relationship: Relationship
+    /// They already follow you, so following is following back.
+    var followsYou = false
     let action: () -> Void
+
+    static let width: CGFloat = 92
 
     var body: some View {
         Group {
             switch relationship {
             case .notFollowing:
-                Button(action: action) { Text("Follow").frame(width: 70) }
+                Button(action: action) { Text(followsYou ? "Follow back" : "Follow").frame(width: Self.width) }
                     .buttonStyle(.pill(.primary, size: .small))
             case .requested:
-                Button(action: action) { Text("Requested").frame(width: 70) }
+                Button(action: action) { Text("Requested").frame(width: Self.width) }
                     .buttonStyle(.pill(.secondary, size: .small))
             case .following:
-                Button(action: action) { Text("Following").frame(width: 70) }
+                Button(action: action) { Text("Following").frame(width: Self.width) }
                     .buttonStyle(.pill(.secondary, size: .small))
             case .me, .blocked:
                 EmptyView()

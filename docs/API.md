@@ -69,6 +69,8 @@ The client signs out after `DELETE me` only on a 2xx, or when the server says th
 | DELETE | `comments/{id}` | author, even on a week they can no longer open, or the dump's author |
 | PUT / DELETE | `comments/{id}/like` | returns the comment with `like_count` and `liked_by_me` |
 | GET | `users/{id}/profile` | profile object below |
+| GET | `users/{id}/followers` | `[user + {relationship: me|following|requested|none, follows_you}]`, accepted follows of that person, by username, at most 500. For whoever can see the profile: anyone when it is public, its followers when it is private, its owner; 404 otherwise. Never anyone blocked by or blocking the caller |
+| GET | `users/{id}/following` | the same, for the people that person follows |
 | GET | `users/search?q=` | name or username only |
 | GET | `users/suggested` | public accounts the caller has not followed or asked to follow, newest first, up to 20; never built from who anyone follows |
 | POST / DELETE | `users/{id}/follow` | POST returns `{relationship}`: `following` or `requested` |
@@ -128,7 +130,7 @@ dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photo
            comments_enabled, liked_by: [user], liked_by_me, comment_count, is_authors_first?}
 comment:  {id, dump_id, author: user, body, created_at, edited_at?, like_count, liked_by_me}
 profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week],
-           follower_count?, following_count?}      counts only when relationship is "me"
+           follower_count?, following_count?}      counts for whoever can see the profile (its lists open to them too), null otherwise
 week:     {week_start, dump?, tagged: [{photo, from: user, tag}]}
 tag_request: {tag, photo, tagger: user, week_start}
 local_idea: {id, text, reason, time_of_day: morning|afternoon|evening|any,

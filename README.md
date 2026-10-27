@@ -69,7 +69,7 @@ docs/API.md              The REST contract the live client expects
 
 **Photos.** `PhotosPicker` needs no permission. `PhotoProcessor` re-encodes every picked photo on device to a 2048 px JPEG through a fresh bitmap, which drops EXIF and GPS before upload. On the way back, `ImageDownsampler` decodes photos and avatars from the server at the size they are drawn, never in full, and refuses anything far larger than the app makes. Full library access is only requested for the "this week" filter and the "add Thursday's photos" prompt, with an explanation, and the picker keeps working if declined.
 
-**Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's week with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals is the social screen open on weekdays. Your followers and the people you follow open from the counts on your profile, where you can search them, remove a follower or unfollow someone.
+**Tags are consent-based.** A tag creates a pending request. The photo shows in the poster's week with the tag visible, but lands on the tagged person's profile only when approved. Decline removes the tag everywhere and nobody is told. Approvals is the social screen open on weekdays. Followers and following open from the counts on a profile, for whoever can see that profile: search them, follow back, unfollow, or on your own, remove a follower.
 
 **Offline compose.** Saving a post while offline writes the draft to Application Support and shows "will post when you're back online". `NetworkMonitor` watches the path; when it returns on the same Sunday the queued post goes up and lands at the top of the feed. If Sunday ended first the queue is dropped, because a missed week stays empty by design.
 
@@ -84,7 +84,7 @@ Built, against the mock:
 - Compose: 1 to 15 photos, chronological default, reorder, per-photo tags (up to 10), alt text, 300-char caption, comments toggle, post and edit until midnight, delete
 - This-week camera roll filter and the Sunday "you marked this done on Thursday" prompt
 - Tag approvals, open every day
-- Profiles with week rows, own then tagged photos with "from Maya" chips, collapsed empty weeks, owner-only counts
+- Profiles with week rows, own then tagged photos with "from Maya" chips, collapsed empty weeks, follower and following counts that open their lists (for whoever can see the profile)
 - Search by name or username, follow and follow requests, suggested people, invite link
 - Post detail with comments, report and block everywhere
 - Settings: appearance, public account, auto-approve list, comments, notification preferences, sign out everywhere, delete with fresh Face ID

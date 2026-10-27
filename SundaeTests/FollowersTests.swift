@@ -40,6 +40,16 @@ struct FollowersTests {
         #expect(!after.contains { $0.id == first.id })
     }
 
+    @Test func listsShowHowYouStandWithEachPerson() async throws {
+        let api = try await signedInAPI(at: date(2026, 10, 25))
+        let mine = try await api.followList(of: "u_me", .followers)
+        #expect(mine.allSatisfy(\.followsYou))
+        let count = try await api.profile(userID: "u_me").followerCount ?? -1
+        #expect(mine.count == count)
+        let following = try await api.followList(of: "u_me", .following)
+        #expect(following.allSatisfy { $0.relationship == .following })
+    }
+
     @Test func aRemovedFollowerIsGone() async throws {
         let api = try await signedInAPI(at: date(2026, 10, 25))
         let before = try await api.profile(userID: "u_me").followerCount ?? 0
