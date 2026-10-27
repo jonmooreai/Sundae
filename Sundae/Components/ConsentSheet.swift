@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A plain-words permission screen: what is about to happen, in a few points, then two buttons.
-/// It always comes before the system prompt, so iOS never asks first.
+/// It always comes before the system prompt, so iOS never asks first. With no decline title it is
+/// a short explainer with one button.
 struct ConsentSheet: View {
     struct Point {
         let glyph: Ph
@@ -11,6 +12,7 @@ struct ConsentSheet: View {
     let title: String
     let points: [Point]
     let agreeTitle: String
+    var declineTitle: String? = "Not now"
     let onAgree: () -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -43,8 +45,10 @@ struct ConsentSheet: View {
                     onAgree()
                     dismiss()
                 }
-                Button("Not now") { dismiss() }
-                    .buttonStyle(.pill(.quiet, fullWidth: true))
+                if let declineTitle {
+                    Button(declineTitle) { dismiss() }
+                        .buttonStyle(.pill(.quiet, fullWidth: true))
+                }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 16)

@@ -432,29 +432,43 @@ struct IdeaPhotoPicker: View {
     }
 }
 
-/// Asked once, the first time an idea is saved: may Sundae find its photos by place?
-struct PhotoAccessSheet: View {
-    let onAnswered: () -> Void
+/// Slides up once, after the first save: where saved ideas are and what to do with them. When
+/// Photos has never been asked, it also offers to find their photos, and says how, before iOS asks.
+struct SavedIntroSheet: View {
+    let onDone: () -> Void
     @Environment(AppModel.self) private var model
+    /// Read once, when it opens, so the buttons don't change under a finger.
+    @State private var asksForPhotos = PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined
 
     var body: some View {
         ConsentSheet(
-            title: "Find the photos for ideas you save?",
-            points: [
-                .init(glyph: Glyph.pin,
-                      text: "When you take photos at a place you saved, Sundae finds them by where they were taken and keeps them with the idea for Sunday."),
-                .init(glyph: Glyph.lock,
-                      text: "It all happens on this phone. Your photos and where they were taken stay here; only the ones you post on Sunday leave it."),
-                .init(glyph: Glyph.photos,
-                      text: "You can add photos to any saved idea yourself too. iOS asks next."),
-            ],
-            agreeTitle: "Allow photo access"
+            title: "Saved for this week",
+            points: points,
+            agreeTitle: asksForPhotos ? "Allow photo access" : "Got it",
+            declineTitle: asksForPhotos ? "Not now" : nil
         ) {
+            guard asksForPhotos else { return onDone() }
             Task {
                 _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-                onAnswered()
+                onDone()
             }
         }
-        .onAppear { model.savedIdeas.askedForPhotos = true }
+        .onAppear {
+            model.savedIdeas.introShown = true
+            if asksForPhotos { model.savedIdeas.askedForPhotos = true }
+        }
+    }
+
+    private var points: [ConsentSheet.Point] {
+        var points: [ConsentSheet.Point] = [
+            .init(glyph: Glyph.saved, text: "Tap the bookmark at the top left to see what you've saved."),
+            .init(glyph: Glyph.photos, text: "Add photos and a caption to each one whenever you like."),
+            .init(glyph: Glyph.calendar, text: "On Sunday, they're ready and waiting in your post."),
+        ]
+        if asksForPhotos {
+            points.append(.init(glyph: Glyph.lock,
+                                text: "Sundae can also find the photos you take at saved places. It looks on this phone only."))
+        }
+        return points
     }
 }

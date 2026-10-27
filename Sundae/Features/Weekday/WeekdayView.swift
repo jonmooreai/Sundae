@@ -1,4 +1,3 @@
-import Photos
 import SwiftUI
 import UIKit
 
@@ -12,7 +11,7 @@ struct WeekdayView: View {
     @State private var showSettings = false
     @State private var showLocationConsent = false
     @State private var showWeek = false
-    @State private var showPhotoAccess = false
+    @State private var showSavedIntro = false
     /// True for a moment after Save, for the line that says what happens next.
     @State private var justSaved = false
     /// The screen's height, so the place card leaves out its picture where there is no room.
@@ -83,8 +82,8 @@ struct WeekdayView: View {
         .sheet(isPresented: $showWeek) {
             YourWeekView()
         }
-        .sheet(isPresented: $showPhotoAccess) {
-            PhotoAccessSheet {
+        .sheet(isPresented: $showSavedIntro) {
+            SavedIntroSheet {
                 Task { await saved.findPhotos(clock: model.clock) }
             }
         }
@@ -92,21 +91,22 @@ struct WeekdayView: View {
 
     // MARK: - Pieces
 
-    /// The cherry in the middle; Your week and Settings up in the corner, out of its way.
+    /// The cherry in the middle; Your week up in the left corner and Settings in the right, out of its way.
     private var topBar: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .top) {
             // Big enough to want to tap; smaller when a phone on its side has little height to spare.
             TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96).wobbleOnTap()
                 .padding(.top, 12)
                 .frame(maxWidth: .infinity)
 
-            HStack(spacing: 8) {
+            HStack {
                 IconButton(glyph: Glyph.saved, label: weekLabel, filled: true) { showWeek = true }
                     .overlay(alignment: .topTrailing) { savedBadge }
                     .accessibilityIdentifier("your-week")
+                Spacer()
                 IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
             }
-            .padding(.trailing, -6)
+            .padding(.horizontal, -6)
         }
         .foregroundStyle(.primary)
     }
@@ -246,12 +246,12 @@ struct WeekdayView: View {
         .animation(.default, value: justSaved)
     }
 
-    /// Keeps the idea for the week. The first time, Sundae offers to find its photos for you.
+    /// Keeps the idea for the week. The first time, a drawer says where it went and what's next.
     private func save() {
         store.saveCurrent(clock: model.clock)
         justSaved = true
-        if !saved.askedForPhotos, PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined {
-            showPhotoAccess = true
+        if !saved.introShown {
+            showSavedIntro = true
         } else {
             Task { await saved.findPhotos(clock: model.clock) }
         }
@@ -260,9 +260,9 @@ struct WeekdayView: View {
     /// What happens to a saved idea, said once, just after saving it.
     private var savedLine: String {
         if store.current?.place != nil, PhotoFinder.isAuthorized {
-            return "Take photos there and they wait for Sunday in Your week."
+            return "Photos you take there are added to it for you."
         }
-        return "It waits in Your week, up top. Add its photos when you have them."
+        return "It's under the bookmark, top left."
     }
 
     /// One quiet line about ideas near you: the offer when it is off, the state when it is on.
