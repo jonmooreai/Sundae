@@ -11,6 +11,7 @@ enum MomentMemory {
         static let shownFirstSundays = "moments.shownFirstSundays"
         static let wrapShown = "moments.wrapShownWeekStart"
         static let anniversaryShown = "moments.anniversaryShownWeekStart"
+        static let halloweenShown = "moments.halloweenShownWeekStart"
     }
 
     /// "MM-DD" of the user's own birthday. Only the day and month, only on this phone.
@@ -76,5 +77,10 @@ enum MomentMemory {
     static var anniversaryShownWeekStart: Date? {
         get { defaults.object(forKey: Key.anniversaryShown) as? Date }
         set { defaults.set(newValue, forKey: Key.anniversaryShown) }
+    }
+
+    static var halloweenShownWeekStart: Date? {
+        get { defaults.object(forKey: Key.halloweenShown) as? Date }
+        set { defaults.set(newValue, forKey: Key.halloweenShown) }
     }
 }

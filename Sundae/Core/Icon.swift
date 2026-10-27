@@ -20,6 +20,7 @@ enum Ph: String, CaseIterable, Sendable {
     case export
     case flag
     case gearSix = "gear-six"
+    case ghost
     case handPalm = "hand-palm"
     case heart
     case house
@@ -85,6 +86,7 @@ enum Glyph {
     static var pin: Ph { .mapPin }
     static var bell: Ph { .bell }
     static var moon: Ph { .moon }
+    static var ghost: Ph { .ghost }
 }
 
 enum IconWeight {

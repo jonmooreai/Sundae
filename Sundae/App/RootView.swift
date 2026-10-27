@@ -37,23 +37,23 @@ struct SundayShell: View {
     @State private var barHeight: CGFloat = 50
     /// A pinched photo, drawn over everything including the bar.
     @State private var zoom = PhotoZoom()
-    /// Goes up each time Feed is tapped while it is already showing, to take the feed back to the top.
-    @State private var feedReselects = 0
+    /// Taps on a tab that is already showing, by tab: back to its first screen, then to the top.
+    @State private var reselects: [SundayTab: Int] = [:]
 
     private var compose: ComposeStore { model.compose }
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab(value: .feed) { FeedScreen(onPost: openCompose, reselects: feedReselects).tabPage(barHeight: barHeight) }
-            Tab(value: .search) { SearchScreen().tabPage(barHeight: barHeight) }
-            Tab(value: .approvals) { ApprovalsScreen().tabPage(barHeight: barHeight) }
-            Tab(value: .profile) { ProfileScreen().tabPage(barHeight: barHeight) }
+            Tab(value: .feed) { FeedScreen(onPost: openCompose, reselects: reselects[.feed, default: 0]).tabPage(barHeight: barHeight) }
+            Tab(value: .search) { SearchScreen(reselects: reselects[.search, default: 0]).tabPage(barHeight: barHeight) }
+            Tab(value: .approvals) { ApprovalsScreen(reselects: reselects[.approvals, default: 0]).tabPage(barHeight: barHeight) }
+            Tab(value: .profile) { ProfileScreen(reselects: reselects[.profile, default: 0]).tabPage(barHeight: barHeight) }
         }
         // The bar is an overlay and every page reserves its height. A safe area inset on the
         // TabView itself never reached the pages, so a screen's bottom composer sat under the bar.
         .overlay(alignment: .bottom) {
             SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
-                         onReselect: { if $0 == .feed { feedReselects += 1 } })
+                         onReselect: { reselects[$0, default: 0] += 1 })
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                 // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
                 .ignoresSafeArea(.keyboard, edges: .bottom)
