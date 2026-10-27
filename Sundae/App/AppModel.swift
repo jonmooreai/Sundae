@@ -32,8 +32,8 @@ enum Route: Hashable {
     /// A dump, opened on a particular photo when one is given.
     case dump(ID, photo: ID? = nil)
     case profile(ID)
-    /// Your own followers or the people you follow, from your profile.
-    case people(PeopleList)
+    /// Someone's followers or the people they follow, from the counts on their profile.
+    case people(userID: ID, username: String, list: PeopleList)
 }
 
 enum PeopleList: Hashable {

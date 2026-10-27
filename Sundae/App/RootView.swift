@@ -261,8 +261,8 @@ struct RouteView: View {
                 DumpDetailView(dumpID: id, photoID: photoID)
             case .profile(let id):
                 ProfileView(userID: id)
-            case .people(let list):
-                PeopleListView(initial: list)
+            case .people(let userID, let username, let list):
+                PeopleListView(userID: userID, username: username, initial: list)
             }
         }
         .aboveBottomBar()

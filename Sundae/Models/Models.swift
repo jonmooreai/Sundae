@@ -148,6 +148,16 @@ enum Relationship: Hashable, Sendable {
     case blocked
 }
 
+/// Someone in a followers or following list, with how the viewer stands with them.
+struct ListedPerson: Identifiable, Hashable, Sendable {
+    var user: User
+    var relationship: Relationship
+    /// They follow the viewer, so a Follow button says Follow back.
+    var followsYou: Bool
+
+    var id: ID { user.id }
+}
+
 /// A tag request as the tagged person sees it in Approvals.
 struct TagRequest: Identifiable, Hashable, Sendable {
     var tag: Tag
@@ -177,7 +187,7 @@ struct Profile: Hashable, Sendable {
     var user: User
     var relationship: Relationship
     var weeks: [ProfileWeek]
-    /// Only populated when the viewer is the owner. Never shown publicly.
+    /// Sent to whoever can see the profile, like its weeks; nil for anyone else. Each opens its list.
     var followerCount: Int?
     var followingCount: Int?
 }

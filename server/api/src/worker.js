@@ -22,6 +22,8 @@ const MAX_UPLOADS_PER_DAY = 150;
 const MAX_PHOTOS = 15;
 // A line or two under one photo, and the same under each photo of one idea.
 const MAX_PHOTO_CAPTION = 200;
+// The most people one followers or following list sends. A small group never comes near it.
+const MAX_LISTED = 500;
 const MAX_TAGS = 10;
 const MAX_CAPTION = 300;
 const MAX_COMMENT = 1000;
@@ -192,6 +194,8 @@ async function route(ctx, method, parts) {
     case 'GET users/search': return search(ctx);
     case 'GET users/suggested': return suggested(ctx);
     case 'GET users/:/profile': return profile(ctx, b);
+    case 'GET users/:/followers': return followList(ctx, b, 'followers');
+    case 'GET users/:/following': return followList(ctx, b, 'following');
     case 'POST users/:/follow': return follow(ctx, b);
     case 'DELETE users/:/follow': return unfollow(ctx, b);
   }
@@ -647,7 +651,7 @@ async function search(ctx) {
 }
 
 /** Public accounts the caller has not followed or asked to follow yet, newest first. Never built
- * from who anyone follows, which nobody else gets to see. */
+ * from who anyone follows: that is for the person to look at on a profile, not for Sundae to use. */
 async function suggested(ctx) {
   const { results } = await ctx.db.prepare(`
     SELECT * FROM users WHERE id != ?1 AND is_public = 1 AND ${NOT_BLOCKED}
@@ -1144,13 +1148,42 @@ async function profile(ctx, userId) {
     while (weeks.length > 1 && !weeks[weeks.length - 1].dump && !weeks[weeks.length - 1].tagged.length) weeks.pop();
   }
   const out = { user: await userJSON(ctx, user), relationship: rel === 'none' ? 'none' : rel, weeks, follower_count: null, following_count: null };
-  if (rel === 'me') {
-    const followers = await ctx.db.prepare(`SELECT COUNT(*) AS n FROM follows WHERE followee_id = ? AND status = 'accepted'`).bind(user.id).first();
-    const following = await ctx.db.prepare(`SELECT COUNT(*) AS n FROM follows WHERE follower_id = ? AND status = 'accepted'`).bind(user.id).first();
-    out.follower_count = followers.n;
-    out.following_count = following.n;
+  // Whoever can see the profile sees its counts and can open both lists (followList), counted
+  // the same way: accepted follows, leaving out anyone blocked by or blocking the viewer.
+  if (canSee) {
+    const counts = await ctx.db.prepare(`SELECT
+        (SELECT COUNT(*) FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT follower_id FROM follows WHERE followee_id = ?2 AND status = 'accepted')) AS followers,
+        (SELECT COUNT(*) FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT followee_id FROM follows WHERE follower_id = ?2 AND status = 'accepted')) AS following`)
+      .bind(ctx.me.id, user.id).first();
+    out.follower_count = counts.followers;
+    out.following_count = counts.following;
   }
   return json(out);
+}
+
+/** Someone's followers or the people they follow, for whoever can see their profile: anyone when
+ * the account is public, its followers when it is private, and its owner. Never anyone blocked by
+ * or blocking the viewer. Each person comes with how the viewer stands with them, for the Follow,
+ * Follow back and Following buttons. */
+async function followList(ctx, userId, direction) {
+  const user = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+  if (!user) fail(404, 'not_found');
+  const rel = await relationship(ctx, user);
+  // A private account's lists are as closed as its weeks; saying so would say it exists.
+  if (rel === 'blocked' || !(rel === 'me' || rel === 'following' || user.is_public)) fail(404, 'not_found');
+  const [listed, owner] = direction === 'followers' ? ['follower_id', 'followee_id'] : ['followee_id', 'follower_id'];
+  const { results } = await ctx.db.prepare(`
+    SELECT users.*,
+      (SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = users.id) AS my_status,
+      EXISTS (SELECT 1 FROM follows WHERE follower_id = users.id AND followee_id = ?1 AND status = 'accepted') AS follows_me
+    FROM users WHERE ${NOT_BLOCKED}
+      AND id IN (SELECT ${listed} FROM follows WHERE ${owner} = ?2 AND status = 'accepted')
+    ORDER BY username LIMIT ${MAX_LISTED}`).bind(ctx.me.id, user.id).all();
+  return json(await Promise.all(results.map(async (row) => ({
+    ...(await userJSON(ctx, row)),
+    relationship: row.id === ctx.me.id ? 'me' : row.my_status === 'accepted' ? 'following' : row.my_status === 'requested' ? 'requested' : 'none',
+    follows_you: Boolean(row.follows_me),
+  }))));
 }
 
 // MARK: - Suggestions done

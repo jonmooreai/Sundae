@@ -1,38 +1,44 @@
 import SwiftUI
 
-/// Your followers and the people you follow, opened from the counts on your profile. A search
-/// narrows the list; a follower can be removed, and anyone you follow unfollowed. Only ever your
-/// own lists: nobody else sees who you follow or who follows you.
+/// Someone's followers and the people they follow, opened from the counts on their profile, for
+/// whoever can see that profile. Two tabs with the counts, a search, and each person with a Follow,
+/// Follow back or Following button. On your own followers, Remove.
 struct PeopleListView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var tabSpace
 
+    let userID: ID
+    let username: String
     @State private var list: PeopleList
     @State private var query = ""
     /// Nil until they load.
-    @State private var followers: [User]?
-    @State private var following: [User]?
-    /// Anyone unfollowed or followed again here. They keep their row, so a slip can be undone.
-    @State private var relationships: [ID: Relationship] = [:]
+    @State private var followers: [ListedPerson]?
+    @State private var following: [ListedPerson]?
+    /// How the viewer stands with people followed, unfollowed or asked here. Rows stay, so a slip
+    /// can be undone from the same button.
+    @State private var changed: [ID: Relationship] = [:]
     @State private var loadFailed = false
     @State private var confirmRemove: User?
     @State private var confirmUnfollow: User?
     @State private var working: Set<ID> = []
     @State private var actionFailed = false
 
-    init(initial: PeopleList) {
+    init(userID: ID, username: String, initial: PeopleList) {
+        self.userID = userID
+        self.username = username
         _list = State(initialValue: initial)
     }
 
+    private var isOwn: Bool { userID == model.currentUser?.id }
+
     var body: some View {
         VStack(spacing: 0) {
-            ScreenHeader(title: list == .followers ? "Followers" : "Following", showsBack: true) { EmptyView() }
-            ChipPicker(options: [(PeopleList.followers, "Followers"), (PeopleList.following, "Following")], selection: $list)
+            ScreenHeader(title: username, showsBack: true) { EmptyView() }
+            tabs
+            SearchField(text: $query, placeholder: "Search username or name")
                 .padding(.horizontal, Theme.pagePadding)
-                .padding(.bottom, 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            SearchField(text: $query, placeholder: "Search")
-                .padding(.horizontal, Theme.pagePadding)
+                .padding(.top, 12)
                 .padding(.bottom, 6)
             List {
                 content
@@ -70,6 +76,48 @@ struct PeopleListView: View {
         }
     }
 
+    // MARK: - Tabs
+
+    private var tabs: some View {
+        HStack(spacing: 0) {
+            tab(.followers, title: followers.map { "\($0.count) \($0.count == 1 ? "follower" : "followers")" } ?? "Followers")
+            tab(.following, title: following.map { "\($0.count) following" } ?? "Following")
+        }
+        .padding(.horizontal, Theme.pagePadding)
+        .overlay(alignment: .bottom) { Hairline() }
+    }
+
+    private func tab(_ which: PeopleList, title: String) -> some View {
+        let isOn = list == which
+        return Button {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { list = which }
+        } label: {
+            VStack(spacing: 10) {
+                Text(title)
+                    .font(.subheadline.weight(isOn ? .semibold : .regular))
+                    .foregroundStyle(isOn ? .primary : .secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                ZStack {
+                    Color.clear.frame(height: 2)
+                    if isOn {
+                        Capsule()
+                            .fill(Color.primary)
+                            .frame(height: 2)
+                            .padding(.horizontal, 20)
+                            .matchedGeometryEffect(id: "tab", in: tabSpace)
+                    }
+                }
+            }
+            .padding(.top, 6)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
     // MARK: - Rows
 
     @ViewBuilder
@@ -81,8 +129,8 @@ struct PeopleListView: View {
                     .listRowInsets(rowInsets)
                     .listRowSeparator(.hidden)
             }
-            ForEach(people) { user in
-                row(user)
+            ForEach(people) { person in
+                row(person)
             }
         } else if loadFailed {
             VStack(alignment: .leading, spacing: 10) {
@@ -101,22 +149,49 @@ struct PeopleListView: View {
         }
     }
 
-    /// Row content with an invisible link behind it to their profile, so there is no chevron.
-    private func row(_ user: User) -> some View {
-        HStack(spacing: 8) {
-            // The name and the username together: a name can be copied, a username can't.
-            UserRow(user: user, title: user.displayName, subtitle: user.handle)
-            switch list {
-            case .followers:
-                Button { confirmRemove = user } label: { Text("Remove").frame(width: 70) }
+    /// The username first, the name under it; the button for how you stand with them; behind it
+    /// all, an invisible link to their profile, so there is no chevron.
+    private func row(_ person: ListedPerson) -> some View {
+        let relationship = changed[person.id] ?? person.relationship
+        let removable = isOwn && list == .followers
+        return HStack(spacing: 12) {
+            AvatarView(user: person.user, size: 54)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Text(person.user.username)
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
+                    // On your own followers the button is Remove, so following back is a word here.
+                    if removable, relationship == .notFollowing {
+                        Text("\u{00B7}").foregroundStyle(.secondary)
+                        Button("Follow back") { Task { await follow(person.user) } }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .buttonStyle(.plain)
+                            .disabled(working.contains(person.id))
+                    }
+                }
+                if !person.user.name.isEmpty {
+                    Text(person.user.name)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            if relationship == .me {
+                EmptyView()
+            } else if removable {
+                Button { confirmRemove = person.user } label: { Text("Remove").frame(width: FollowButton.width) }
                     .buttonStyle(.pill(.secondary, size: .small))
-                    .disabled(working.contains(user.id))
-            case .following:
-                FollowButton(relationship: relationships[user.id] ?? .following) { tapFollow(user) }
-                    .disabled(working.contains(user.id))
+                    .disabled(working.contains(person.id))
+            } else {
+                FollowButton(relationship: relationship, followsYou: person.followsYou) { tapFollow(person.user, relationship) }
+                    .disabled(working.contains(person.id))
             }
         }
-        .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
+        .contentShape(Rectangle())
+        .background { NavigationLink(value: Route.profile(person.id)) { EmptyView() }.opacity(0) }
         .listRowInsets(rowInsets)
         .listRowSeparator(.hidden)
     }
@@ -126,16 +201,21 @@ struct PeopleListView: View {
     }
 
     /// The list on screen, narrowed by the search: by username or any part of the name.
-    private var shown: [User]? {
+    private var shown: [ListedPerson]? {
         guard let everyone = list == .followers ? followers : following else { return nil }
         let words = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !words.isEmpty else { return everyone }
-        return everyone.filter { $0.username.lowercased().contains(words) || $0.name.lowercased().contains(words) }
+        return everyone.filter { $0.user.username.lowercased().contains(words) || $0.user.name.lowercased().contains(words) }
     }
 
     private var emptyText: String {
         if !query.trimmingCharacters(in: .whitespaces).isEmpty { return "Nobody by that name." }
-        return list == .followers ? "Nobody follows you yet." : "You don't follow anyone yet. Find your friends in Search."
+        switch (list, isOwn) {
+        case (.followers, true): return "Nobody follows you yet."
+        case (.following, true): return "You don't follow anyone yet. Find your friends in Search."
+        case (.followers, false): return "Nobody follows \(username) yet."
+        case (.following, false): return "\(username) doesn't follow anyone yet."
+        }
     }
 
     // MARK: - Titles
@@ -155,21 +235,22 @@ struct PeopleListView: View {
     private func load() async {
         loadFailed = false
         let api = model.api
+        let id = userID
         do {
-            async let theirs = api.followers()
-            async let mine = api.following()
+            async let theirs = api.followList(of: id, .followers)
+            async let mine = api.followList(of: id, .following)
             let (loadedFollowers, loadedFollowing) = try await (theirs, mine)
             followers = loadedFollowers
             following = loadedFollowing
+            changed = [:]
         } catch {
             if followers == nil || following == nil { loadFailed = true }
         }
     }
 
-    /// Following asks first; a request is simply taken back; and someone unfollowed here can be
-    /// followed again from the same row.
-    private func tapFollow(_ user: User) {
-        switch relationships[user.id] ?? .following {
+    /// Following asks first; a request is simply taken back; Follow and Follow back follow.
+    private func tapFollow(_ user: User, _ relationship: Relationship) {
+        switch relationship {
         case .following: confirmUnfollow = user
         case .requested: Task { await unfollow(user) }
         case .notFollowing: Task { await follow(user) }
@@ -187,7 +268,7 @@ struct PeopleListView: View {
                 followers = followers?.filter { $0.id != user.id }
             }
             Haptics.light()
-            changed()
+            noteChange()
         } catch {
             actionFailed = true
         }
@@ -198,9 +279,9 @@ struct PeopleListView: View {
         defer { working.remove(user.id) }
         do {
             try await model.api.unfollow(userID: user.id)
-            relationships[user.id] = .notFollowing
+            changed[user.id] = .notFollowing
             Haptics.light()
-            changed()
+            noteChange()
         } catch {
             actionFailed = true
         }
@@ -210,16 +291,16 @@ struct PeopleListView: View {
         guard working.insert(user.id).inserted else { return }
         defer { working.remove(user.id) }
         do {
-            relationships[user.id] = try await model.api.follow(userID: user.id)
+            changed[user.id] = try await model.api.follow(userID: user.id)
             Haptics.light()
-            changed()
+            noteChange()
         } catch {
             actionFailed = true
         }
     }
 
     /// The profile under this shows the new counts, and tagging knows who is still a friend.
-    private func changed() {
+    private func noteChange() {
         model.followsChanged += 1
         Task { await model.compose.refreshTaggable() }
     }

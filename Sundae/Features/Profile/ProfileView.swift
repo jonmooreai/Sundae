@@ -209,10 +209,14 @@ struct ProfileHeader: View {
                         .font(.headline)
                         .lineLimit(1)
                     if let followers = profile.followerCount, let following = profile.followingCount {
-                        // Visible only to the owner. Never shown publicly. Each opens its list.
+                        // Sent to whoever can see the profile, like its weeks. Each opens its list.
                         HStack(spacing: 18) {
-                            NavigationLink(value: Route.people(.followers)) { stat(followers, "followers") }
-                            NavigationLink(value: Route.people(.following)) { stat(following, "following") }
+                            NavigationLink(value: Route.people(userID: profile.user.id, username: profile.user.username, list: .followers)) {
+                                stat(followers, followers == 1 ? "follower" : "followers")
+                            }
+                            NavigationLink(value: Route.people(userID: profile.user.id, username: profile.user.username, list: .following)) {
+                                stat(following, "following")
+                            }
                         }
                         .buttonStyle(.plain)
                     } else {

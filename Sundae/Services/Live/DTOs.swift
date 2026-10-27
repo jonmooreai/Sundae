@@ -191,6 +191,28 @@ enum DTO {
         let relationship: String
     }
 
+    /// A user, with how the caller stands with them, in a followers or following list.
+    struct ListedUser: Decodable {
+        let user: User
+        let relationship: String
+        let followsYou: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case relationship, followsYou
+        }
+
+        init(from decoder: any Decoder) throws {
+            user = try User(from: decoder)
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            relationship = (try? container.decodeIfPresent(String.self, forKey: .relationship)) ?? "none"
+            followsYou = (try? container.decodeIfPresent(Bool.self, forKey: .followsYou)) ?? false
+        }
+
+        var model: Sundae.ListedPerson {
+            Sundae.ListedPerson(user: user.model, relationship: DTO.relationship(relationship), followsYou: followsYou)
+        }
+    }
+
     static func relationship(_ raw: String) -> Sundae.Relationship {
         switch raw {
         case "me": .me

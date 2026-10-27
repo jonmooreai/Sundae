@@ -377,8 +377,8 @@ actor MockSundaeAPI: SundaeAPI {
         let followers = follows.filter { $0.followeeID == userID && $0.status == .accepted }.count
         let following = follows.filter { $0.followerID == userID && $0.status == .accepted }.count
         return Profile(user: user, relationship: rel, weeks: weeks,
-                       followerCount: rel == .me ? followers : nil,
-                       followingCount: rel == .me ? following : nil)
+                       followerCount: canSee ? followers : nil,
+                       followingCount: canSee ? following : nil)
     }
 
     func searchUsers(_ query: String) async throws -> [User] {
@@ -476,6 +476,22 @@ actor MockSundaeAPI: SundaeAPI {
             .filter { $0.followerID == me.id && $0.status == .accepted && !blocked.contains($0.followeeID) }
             .compactMap { users[$0.followeeID] }
             .sorted { $0.username < $1.username }
+    }
+
+    func followList(of userID: ID, _ list: PeopleList) async throws -> [ListedPerson] {
+        let me = try requireSignedIn()
+        try requireSunday()
+        guard let owner = users[userID] else { throw SundaeError.notFound }
+        let rel = relationship(of: me.id, to: userID)
+        guard rel != .blocked, rel == .me || rel == .following || owner.isPublic else { throw SundaeError.notFound }
+        let ids = follows
+            .filter { $0.status == .accepted && (list == .followers ? $0.followeeID == userID : $0.followerID == userID) }
+            .map { list == .followers ? $0.followerID : $0.followeeID }
+        return ids.compactMap { users[$0] }
+            .filter { !blocked.contains($0.id) }
+            .sorted { $0.username < $1.username }
+            .map { ListedPerson(user: withContext($0, viewer: me.id), relationship: relationship(of: me.id, to: $0.id),
+                                followsYou: isFollowing($0.id, me.id)) }
     }
 
     func removeFollower(userID: ID) async throws {

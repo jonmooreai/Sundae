@@ -26,7 +26,9 @@
     {
       "title": "Who sees what",
       "items": [
-        "Your weeks are seen by your followers, or by anyone on Sundae if your account is public. On Sunday you can see and remove your followers from your profile, by tapping your follower count.",
+        "Your weeks are seen by your followers, or by anyone on Sundae if your account is public.",
+        "Who follows you and who you follow show on your profile to the same people who can see your weeks. Anyone you block never sees them, and never shows up in anyone's list for you.",
+        "On Sunday you can see and remove your followers from your profile, by tapping your follower count.",
         "Photos only open through private links that stop working within hours.",
         "Your photos are never sold, shared or used for anything else, and nobody looks through them. A photo someone reports may be looked at to handle the report."
       ]
