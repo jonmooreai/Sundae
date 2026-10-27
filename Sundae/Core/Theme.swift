@@ -23,6 +23,8 @@ enum Theme {
     /// Fill for secondary buttons.
     static var fill: Color { warm((236, 229, 217), (48, 44, 41)) }
     static var hairline: Color { warm((227, 220, 207), (59, 54, 49)) }
+    /// Dividers, one screen pixel thick, so a shade stronger than `hairline` to read the same.
+    static var divider: Color { warm((216, 208, 193), (70, 65, 59)) }
     /// The cherry on the sundae, and the color of a like. The only red in the app.
     static let cherry = Color(red: 0.86, green: 0.26, blue: 0.30)
 
@@ -302,6 +304,19 @@ struct ChipPicker<Option: Hashable>: View {
         }
         .padding(4)
         .background(Theme.surface, in: Capsule())
+    }
+}
+
+/// A divider one screen pixel thick. A half point is a pixel and a half on most iPhones, which
+/// the screen blends across two rows, so the same line looked darker in one place than another.
+struct Hairline: View {
+    @Environment(\.displayScale) private var displayScale
+
+    var body: some View {
+        Rectangle()
+            .fill(Theme.divider)
+            .frame(height: 1 / max(displayScale, 1))
+            .accessibilityHidden(true)
     }
 }
 

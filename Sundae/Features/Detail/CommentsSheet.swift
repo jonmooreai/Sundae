@@ -175,7 +175,7 @@ struct CommentsSheet: View {
             .padding(.vertical, 8)
         }
         .scrollIndicators(.hidden)
-        .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+        .overlay(alignment: .top) { Hairline() }
     }
 
     private var composer: some View {
