@@ -18,7 +18,9 @@ struct PhotoCarousel: View {
 
     @State private var showTags = false
     @State private var burst = 0
+    @State private var screenFrame = ScreenFrame()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(PhotoZoom.self) private var zoom: PhotoZoom?
 
     private var aspect: CGFloat {
         min(max(photos.first?.aspectRatio ?? 1, 0.8), 1.5)
@@ -43,6 +45,8 @@ struct PhotoCarousel: View {
                     }
                 }
                 .contentShape(Rectangle())
+                .pinchToZoom(photo.source, frame: { screenFrame.rect }, cornerRadius: cornerRadius,
+                             zoom: zoom, reduceMotion: reduceMotion)
                 // Declared first so two quick taps read as one double tap, not two singles.
                 .onTapGesture(count: 2) { doubleTap() }
                 .onTapGesture { singleTap() }
@@ -57,6 +61,7 @@ struct PhotoCarousel: View {
         .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { rect in screenFrame.rect = rect }
         .overlay {
             if burst > 0 {
                 HeartBurst().id(burst).transition(.opacity)

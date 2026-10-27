@@ -35,6 +35,8 @@ struct SundayShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var tab: SundayTab = .feed
     @State private var barHeight: CGFloat = 50
+    /// A pinched photo, drawn over everything including the bar.
+    @State private var zoom = PhotoZoom()
 
     private var compose: ComposeStore { model.compose }
 
@@ -59,6 +61,8 @@ struct SundayShell: View {
                 .ignoresSafeArea(edges: .top)
                 .allowsHitTesting(false)
         }
+        .overlay { PhotoZoomLayer() }
+        .environment(zoom)
         .filmGrain()
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
