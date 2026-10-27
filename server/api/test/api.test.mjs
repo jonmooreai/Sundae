@@ -818,6 +818,26 @@ test('with sign-ups closed, nobody new gets in and everyone else still signs in'
   assert.equal(back.user.id, jon.user.id);
 });
 
+test('who you follow, every day: accepted follows only, by username, never anyone blocked either way', async () => {
+  const s = await server();
+  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
+  const sam = await s.signUp('apple-sam', 'sam', 'Sam Doe');
+  const theo = await s.signUp('apple-theo', 'theo', 'Theo Doe');
+  const ria = await s.signUp('apple-ria', 'ria', 'Ria Doe');
+  for (const who of [sam, theo]) await s.call('PUT', 'v1/me/settings', { token: who.token, json: { is_public: true } });
+  for (const who of [sam, theo, ria]) await s.call('POST', `v1/users/${who.user.id}/follow`, { token: pat.token });
+  s.env.DB.sqlite.prepare('INSERT INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(theo.user.id, pat.user.id);
+
+  s.setNow(WEDNESDAY);
+  const listed = await s.call('GET', 'v1/me/following', { token: pat.token });
+  assert.equal(listed.status, 200);
+  assert.deepEqual(listed.body.map((u) => [u.username, u.name]), [['sam', 'Sam Doe']], 'Ria has only been asked; Theo blocked Pat');
+  // Unfollowing is on Sunday, from the list on your profile.
+  s.setNow(SUNDAY);
+  assert.equal((await s.call('DELETE', `v1/users/${sam.user.id}/follow`, { token: pat.token })).status, 204);
+  assert.deepEqual((await s.call('GET', 'v1/me/following', { token: pat.token })).body, []);
+});
+
 test('admin follows the Apple id: through a deleted and remade account, never to whoever takes the username', async () => {
   const s = await server();
   const jon = await s.signUp('apple-jon', 'jon');

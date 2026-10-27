@@ -42,6 +42,7 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 | GET | `me/follow-requests` | users waiting on the caller |
 | POST | `me/follow-requests/{user_id}` | `{accept: bool}` |
 | GET | `me/followers` | users who follow the caller, accepted, by username, never anyone blocked either way |
+| GET | `me/following` | users the caller follows, accepted, by username, never anyone blocked either way |
 | DELETE | `me/followers/{user_id}` | removes that person's follow of the caller, or their request; 204, and 204 again if there is nothing to remove. Following again is a new request while the caller is private. Photos they already loaded, and photo addresses already sent (up to seven hours), are not taken back |
 | GET | `me/tag-requests` | pending tag requests, every day |
 | GET | `me/suggestions/done?week_start=` | `[{suggestion_id, done_on}]` |

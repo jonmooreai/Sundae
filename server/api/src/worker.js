@@ -163,6 +163,7 @@ async function route(ctx, method, parts) {
     case 'GET me/follow-requests': return followRequests(ctx);
     case 'POST me/follow-requests/:': return respondToFollow(ctx, c);
     case 'GET me/followers': return followers(ctx);
+    case 'GET me/following': return following(ctx);
     case 'DELETE me/followers/:': return removeFollower(ctx, c);
     case 'GET me/tag-requests': return tagRequests(ctx);
     case 'GET me/suggestions/done': return suggestionsDone(ctx);
@@ -567,6 +568,14 @@ async function respondToFollow(ctx, userId) {
 async function followers(ctx) {
   const { results } = await ctx.db.prepare(`
     SELECT * FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT follower_id FROM follows WHERE followee_id = ?1 AND status = 'accepted')
+    ORDER BY username`).bind(ctx.me.id).all();
+  return json(await usersJSON(ctx, results));
+}
+
+/** The people the caller follows, accepted, by username: their own list, for their profile. */
+async function following(ctx) {
+  const { results } = await ctx.db.prepare(`
+    SELECT * FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT followee_id FROM follows WHERE follower_id = ?1 AND status = 'accepted')
     ORDER BY username`).bind(ctx.me.id).all();
   return json(await usersJSON(ctx, results));
 }

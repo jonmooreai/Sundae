@@ -32,6 +32,12 @@ enum Route: Hashable {
     /// A dump, opened on a particular photo when one is given.
     case dump(ID, photo: ID? = nil)
     case profile(ID)
+    /// Your own followers or the people you follow, from your profile.
+    case people(PeopleList)
+}
+
+enum PeopleList: Hashable {
+    case followers, following
 }
 
 @MainActor
@@ -64,6 +70,9 @@ final class AppModel {
     private(set) var debugDay: DebugDay
     /// Set by a view that wants the shell to switch tabs (the profile's "Post your week" card).
     var requestedTab: SundayTab?
+    /// Goes up when the user removes a follower or follows or unfollows someone, so a profile
+    /// already on screen shows the new counts.
+    var followsChanged = 0
 
     let feed: FeedStore
     let compose: ComposeStore
