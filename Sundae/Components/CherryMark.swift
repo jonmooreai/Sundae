@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreMotion
 import Observation
 import SwiftUI
@@ -80,7 +81,30 @@ final class DeviceTilt {
     }
 }
 
-/// Tap the cherry and it wobbles. Nothing happens otherwise; that is the point.
+/// The cherry's little boing, its pitch bending with each swing of the wobble (CherryBoing.m4a,
+/// made for Sundae). It follows the ring switch, like keyboard clicks, and mixes with anything
+/// already playing.
+@MainActor
+enum CherrySound {
+    private static let player: AVAudioPlayer? = {
+        guard let url = Bundle.main.url(forResource: "CherryBoing", withExtension: "m4a"),
+              let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
+        player.volume = 0.7
+        player.prepareToPlay()
+        return player
+    }()
+
+    static func play() {
+        let session = AVAudioSession.sharedInstance()
+        if session.category != .ambient { try? session.setCategory(.ambient, mode: .default) }
+        guard let player else { return }
+        player.currentTime = 0
+        player.play()
+    }
+}
+
+/// Tap the cherry and it wobbles, with a boing. Nothing happens otherwise; that is the point.
+/// With Reduce Motion on it stays still and only the boing and the tap are felt.
 private struct WobbleOnTap: ViewModifier {
     @State private var taps = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -100,8 +124,9 @@ private struct WobbleOnTap: ViewModifier {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                guard !reduceMotion else { return }
                 Haptics.light()
+                CherrySound.play()
+                guard !reduceMotion else { return }
                 taps += 1
             }
     }

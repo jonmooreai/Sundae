@@ -22,8 +22,9 @@ enum WidgetPalette {
     static func serif(_ size: CGFloat) -> Font { .system(size: size, weight: .semibold, design: .serif) }
 }
 
-/// Monday to Saturday: today's idea and what else the week holds. Sunday: a few of this week's
-/// photos and a nudge to post. One view for the widget and for the preview in Settings.
+/// Monday to Saturday: today's idea, and on the large widget a few more to read through. Sunday:
+/// a few of this week's photos and a nudge to post. One view for the widget, the preview in
+/// Settings and the one in onboarding.
 struct SundaeWidgetView: View {
     let snapshot: WidgetSnapshot
     let family: WidgetFamily
@@ -52,6 +53,8 @@ struct SundaeWidgetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         case .systemMedium:
             snapshot.mode == .sunday ? AnyView(sundayMedium) : AnyView(weekdayMedium)
+        case .systemLarge:
+            snapshot.mode == .sunday ? AnyView(sundayLarge) : AnyView(weekdayLarge)
         default:
             snapshot.mode == .sunday ? AnyView(sundaySmall) : AnyView(weekdaySmall)
         }
@@ -87,8 +90,9 @@ struct SundaeWidgetView: View {
         .padding(inset)
     }
 
+    /// Today's one idea, and the felt cherry.
     private var weekdayMedium: some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("\(snapshot.dayName.uppercased()) · \(snapshot.countdown.uppercased())")
                     .font(.caption2.weight(.semibold))
@@ -99,38 +103,54 @@ struct SundaeWidgetView: View {
                 Spacer(minLength: 6)
                 Text(snapshot.idea?.text ?? "Go make something worth posting.")
                     .font(WidgetPalette.serif(19))
-                    .lineLimit(4)
+                    .lineLimit(3)
                     .minimumScaleFactor(0.7)
                 if let place = snapshot.idea?.place {
                     PlaceLine(place: place).padding(.top, 5)
+                } else if let reason = snapshot.idea?.reason {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .padding(.top, 4)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            VStack(alignment: .leading, spacing: 9) {
-                HStack {
-                    Text("LATER")
+            CherryArt(size: 76)
+        }
+        .padding(inset)
+    }
+
+    /// A few ideas to read through, not tied to days. Nearby ones open in Apple Maps.
+    private var weekdayLarge: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("IDEAS")
                         .font(.caption2.weight(.semibold))
                         .tracking(0.6)
+                        .widgetAccentable()
+                    Text(snapshot.countdown)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    CherryArt(size: 20)
                 }
-                ForEach(snapshot.upcoming, id: \.self) { day in
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(day.day)
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(day.text)
-                            .font(.caption)
-                            .lineLimit(2)
-                    }
-                }
-                Spacer(minLength: 0)
+                Spacer(minLength: 4)
+                CherryArt(size: 40)
             }
-            .frame(width: 112, alignment: .leading)
-            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.bottom, 8)
+            let ideas = snapshot.list.isEmpty ? [snapshot.idea].compactMap { $0 } : snapshot.list
+            ForEach(Array(ideas.prefix(5).enumerated()), id: \.element.id) { index, idea in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(height: 0.5)
+                }
+                IdeaListRow(idea: idea, first: index == 0)
+            }
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(inset)
     }
 
@@ -183,6 +203,37 @@ struct SundaeWidgetView: View {
                 .padding(inset)
             }
         }
+    }
+
+    private var sundayLarge: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("It's Sunday.")
+                        .font(WidgetPalette.serif(24))
+                        .widgetAccentable()
+                    Text(headline)
+                        .font(.subheadline.weight(.medium))
+                    Text(photoCountLine)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 4)
+                CherryArt(size: 40)
+            }
+            if snapshot.photos.isEmpty {
+                SundaeArt()
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            } else {
+                HStack(spacing: 6) {
+                    ForEach(Array(snapshot.photos.suffix(3).enumerated()), id: \.offset) { _, data in
+                        WidgetPhoto(data: data)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                }
+            }
+        }
+        .padding(inset)
     }
 
     private var sundayMedium: some View {
@@ -266,6 +317,43 @@ struct SundaeArt: View {
             }
             .clipped()
             .accessibilityHidden(true)
+    }
+}
+
+/// One idea in the large widget's list: the idea, and for a nearby one where it is and a button
+/// that opens it in Apple Maps.
+struct IdeaListRow: View {
+    let idea: Suggestion
+    var first = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(idea.text)
+                    .font(first ? WidgetPalette.serif(17) : WidgetPalette.serif(15))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                if let place = idea.place { PlaceLine(place: place) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let place = idea.place, let link = WidgetSnapshot.mapsLink(for: place) {
+                Link(destination: link) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "map.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Maps")
+                            .font(.caption2.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(WidgetPalette.sage, in: Capsule())
+                    .widgetAccentable()
+                }
+                .accessibilityLabel("Open \(place.name) in Maps")
+            }
+        }
+        .padding(.vertical, 7)
     }
 }
 

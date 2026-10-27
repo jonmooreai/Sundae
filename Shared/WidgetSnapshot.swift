@@ -20,6 +20,9 @@ public struct WidgetSnapshot: Sendable, Equatable {
     public var dayName: String
     public var daysUntilSunday: Int
     public var idea: Suggestion?
+    /// A few ideas to read through on the large widget, today's first and nearby ones next. Not
+    /// tied to days.
+    public var list: [Suggestion] = []
     public var upcoming: [Upcoming]
     /// Small JPEGs of a few photos from this week, oldest first. Empty without Photos access.
     public var photos: [Data]
@@ -41,9 +44,39 @@ public struct WidgetSnapshot: Sendable, Equatable {
         idea: Suggestion(id: "placeholder", text: "Walk a neighborhood you don't know.",
                          reason: "Pick a direction and take the first street that looks interesting.",
                          categories: [.outdoors], timeOfDay: .any),
+        list: [Suggestion(id: "placeholder", text: "Walk a neighborhood you don't know.",
+                          reason: "Pick a direction and take the first street that looks interesting.",
+                          categories: [.outdoors], timeOfDay: .any),
+               Suggestion(id: "placeholder-2", text: "Find the oldest book in the library.",
+                          reason: "Take a photo of the first page.", categories: [.creative], timeOfDay: .any),
+               Suggestion(id: "placeholder-3", text: "Cook something you can't pronounce.",
+                          reason: "Snap a pic before the first bite.", categories: [.food], timeOfDay: .any)],
         upcoming: [Upcoming(day: "Thu", text: "Find the oldest book in the library."),
                    Upcoming(day: "Fri", text: "Cook something you can't pronounce.")],
         photos: [], weekPhotoCount: 0, hasPosted: false)
+
+    /// How the large widget asks the app to open a place in Apple Maps: widgets can only hand a
+    /// link to their own app, which passes it on (`mapsDestination`).
+    public static func mapsLink(for place: Suggestion.Place) -> URL? {
+        guard let maps = place.mapsURL else { return nil }
+        var components = URLComponents()
+        components.scheme = "sundae"
+        components.host = "maps"
+        // Encoded whole, so the Maps address's own & and = stay inside the one value.
+        let plain = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        guard let value = maps.absoluteString.addingPercentEncoding(withAllowedCharacters: plain) else { return nil }
+        components.percentEncodedQueryItems = [URLQueryItem(name: "to", value: value)]
+        return components.url
+    }
+
+    /// The Apple Maps address inside a link from the large widget, and nothing else: anything
+    /// that is not a Maps link is ignored.
+    public static func mapsDestination(from link: URL) -> URL? {
+        guard link.scheme == "sundae", link.host == "maps",
+              let value = URLComponents(url: link, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "to" })?.value,
+              let target = URL(string: value), target.scheme == "maps" else { return nil }
+        return target
+    }
 }
 
 public enum WidgetSnapshotBuilder {
@@ -61,6 +94,7 @@ public enum WidgetSnapshotBuilder {
             dayName: clock.weekdayName(date),
             daysUntilSunday: clock.daysUntilSunday(),
             idea: idea(on: date, calendar: calendar, catalog: catalog, shared: shared),
+            list: list(on: date, calendar: calendar, catalog: catalog, shared: shared),
             upcoming: upcoming(after: date, clock: clock, catalog: catalog),
             photos: photos.thumbnails,
             weekPhotoCount: photos.count,
@@ -81,6 +115,27 @@ public enum WidgetSnapshotBuilder {
             return nearby
         }
         return catalog.suggestion(forDay: date, calendar: calendar)
+    }
+
+    /// Today's idea, then today's other nearby ideas, then a few more from the catalog, five in
+    /// all, no repeats. Every one has passed IdeaGuard.
+    static func list(on date: Date, calendar: Calendar, catalog: SuggestionCatalog, shared: SharedDefaults,
+                     count: Int = 5) -> [Suggestion] {
+        var result: [Suggestion] = []
+        func add(_ suggestion: Suggestion?) {
+            guard let suggestion, result.count < count, IdeaGuard.isSafe(suggestion),
+                  !result.contains(where: { $0.id == suggestion.id }) else { return }
+            result.append(suggestion)
+        }
+        add(idea(on: date, calendar: calendar, catalog: catalog, shared: shared))
+        for nearby in shared.localIdeas(on: date, calendar: calendar) ?? [] { add(nearby) }
+        let today = calendar.startOfDay(for: date)
+        for offset in 1...14 where result.count < count {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: today),
+                  let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) else { continue }
+            add(catalog.suggestion(forDay: noon, calendar: calendar))
+        }
+        return result
     }
 
     /// The next two days: their catalog ideas, or Sunday's nudge when Sunday comes first.

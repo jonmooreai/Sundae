@@ -27,14 +27,18 @@ public struct Suggestion: Codable, Identifiable, Hashable, Sendable {
         public let distanceMeters: Double?
         public let latitude: Double?
         public let longitude: Double?
+        /// Apple Maps' own id for the place, so the app can open Apple's place card for it (photos,
+        /// hours). Kept on the phone with the day's ideas; ideas saved before it existed have none.
+        public let mapsID: String?
 
         public init(name: String, walkMinutes: Int? = nil, distanceMeters: Double? = nil,
-                    latitude: Double? = nil, longitude: Double? = nil) {
+                    latitude: Double? = nil, longitude: Double? = nil, mapsID: String? = nil) {
             self.name = name
             self.walkMinutes = walkMinutes
             self.distanceMeters = distanceMeters
             self.latitude = latitude
             self.longitude = longitude
+            self.mapsID = mapsID
         }
 
         /// Apple Maps, searching the name and pinning the place itself.

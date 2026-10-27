@@ -1,9 +1,10 @@
 import SwiftUI
 import WidgetKit
 
-/// Monday to Saturday the widget is the best version of the weekday screen: today's idea and
-/// what the rest of the week holds. On Sunday it turns to a few of this week's photos and a
-/// nudge to post. Small and wide on the Home Screen, plus the Lock Screen sizes.
+/// Monday to Saturday the widget is the best version of the weekday screen: today's idea, and on
+/// the large size a few more to read through, nearby ones a tap from Apple Maps. On Sunday it
+/// turns to a few of this week's photos and a nudge to post. Small, wide and large on the Home
+/// Screen, plus the Lock Screen sizes.
 struct SundaeEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot
@@ -79,8 +80,8 @@ struct SundaeWidget: Widget {
                 .containerBackground(for: .widget) { WidgetPalette.paper }
         }
         .configurationDisplayName("Sundae")
-        .description("Monday to Saturday, ideas for your week. On Sunday, a few of this week's photos and a nudge to post.")
-        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular, .accessoryInline])
+        .description("Monday to Saturday, ideas worth doing, some near you. On Sunday, a few of this week's photos and a nudge to post.")
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }
 }

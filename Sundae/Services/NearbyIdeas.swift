@@ -88,6 +88,7 @@ enum NearbyIdeas {
         let theme: Theme
         let latitude: Double
         let longitude: Double
+        let mapsID: String?
     }
 
     struct Line: Sendable {
@@ -175,7 +176,8 @@ enum NearbyIdeas {
                     else { return nil }
                     let coordinate = item.placemark.coordinate
                     let key = "\(name.lowercased())@\((coordinate.latitude * 1000).rounded()),\((coordinate.longitude * 1000).rounded())"
-                    return Place(id: key, name: name, theme: kind, latitude: coordinate.latitude, longitude: coordinate.longitude)
+                    return Place(id: key, name: name, theme: kind, latitude: coordinate.latitude, longitude: coordinate.longitude,
+                                 mapsID: item.identifier?.rawValue)
                 }
                 continuation.resume(returning: places)
             }
@@ -235,7 +237,8 @@ enum NearbyIdeas {
                 place: Suggestion.Place(name: choice.place.name,
                                         walkMinutes: choice.meters <= walkMeters ? max(1, Int((choice.meters / walkPace).rounded())) : nil,
                                         distanceMeters: choice.meters,
-                                        latitude: choice.place.latitude, longitude: choice.place.longitude)),
+                                        latitude: choice.place.latitude, longitude: choice.place.longitude,
+                                        mapsID: choice.place.mapsID)),
                 theme: choice.place.theme))
         }
         return ideas.filter { IdeaGuard.isSafe($0.suggestion) }
