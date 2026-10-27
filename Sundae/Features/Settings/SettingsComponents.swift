@@ -53,7 +53,7 @@ struct SettingsGroup<Content: View>: View {
                     Group(subviews: content) { rows in
                         ForEach(rows) { row in
                             if row.id != rows.first?.id {
-                                Rectangle().fill(Theme.hairline).frame(height: 0.5)
+                                Hairline()
                             }
                             row
                         }

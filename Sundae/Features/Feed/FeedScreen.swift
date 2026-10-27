@@ -134,7 +134,7 @@ struct PostYourWeekRow: View {
         .padding(.horizontal, Theme.pagePadding)
         .padding(.vertical, 12)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Theme.hairline).frame(height: 0.5).padding(.horizontal, Theme.pagePadding)
+            Hairline().padding(.horizontal, Theme.pagePadding)
         }
     }
 }

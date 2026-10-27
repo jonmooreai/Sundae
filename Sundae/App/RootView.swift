@@ -175,7 +175,7 @@ struct SundaeTabBar: View {
         .padding(.horizontal, 8)
         .background {
             Theme.background
-                .overlay(alignment: .top) { Rectangle().fill(Theme.hairline).frame(height: 0.5) }
+                .overlay(alignment: .top) { Hairline() }
                 .ignoresSafeArea(edges: .bottom)
         }
     }
