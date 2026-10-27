@@ -290,7 +290,6 @@ struct SundayPromptStep: View {
         }
         .padding(24)
         .background(Theme.background)
-        .halloweenNight(date: model.clock.now(), calendar: model.clock.calendar)
         .toolbar(.hidden, for: .navigationBar)
         .task { await loadPreviews() }
     }

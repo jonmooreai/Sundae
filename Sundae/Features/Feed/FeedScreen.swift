@@ -103,7 +103,6 @@ struct FeedList: View {
         .background(Theme.background)
         .goldenHour(calendar: model.clock.calendar)
         .birthdayPaper(calendar: model.clock.calendar)
-        .halloweenNight(date: model.clock.now(), calendar: model.clock.calendar)
         .refreshable {
             await feed.load(refresh: true)
             await model.compose.load(weekStart: model.currentWeekStart)
