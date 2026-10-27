@@ -107,12 +107,14 @@ struct DumpDetailView: View {
 
         PhotoCarousel(photos: dump.photos, index: $page, onDoubleTap: {
             if !dump.likedByMe { Task { await toggleLike() } }
-        }, tagsLinkToProfiles: true)
+        }, tagsLinkToProfiles: true, onCherry: { photo, cherried in
+            Task { await setCherry(cherried, on: photo) }
+        })
             .focusable()
             .onKeyPress(.leftArrow) { page = max(0, page - 1); return .handled }
             .onKeyPress(.rightArrow) { page = min(dump.photos.count - 1, page + 1); return .handled }
+            // A long press gives a cherry now; pinching looks closer. Space still opens full screen.
             .onKeyPress(.space) { showFullScreen = true; return .handled }
-            .onLongPressGesture { showFullScreen = true }
 
         PhotoCaptionLine(photos: dump.photos, page: page)
             .padding(.horizontal, Theme.pagePadding)
@@ -203,6 +205,20 @@ struct DumpDetailView: View {
             dump = loaded
             comments = try await model.api.comments(dumpID: dumpID)
         } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// The viewer's cherry on one photo: shown at once, settled by the server, or put back.
+    private func setCherry(_ cherried: Bool, on photo: Photo) async {
+        guard let current = dump else { return }
+        dump = current.replacingPhoto(photo.withCherry(cherried, from: model.currentUser))
+        do {
+            let settled = try await model.api.setCherry(photoID: photo.id, cherried: cherried)
+            dump = dump?.replacingPhoto(settled)
+            if let dump { model.feed.replace(dump) }
+        } catch {
+            dump = dump?.replacingPhoto(photo)
             errorMessage = error.localizedDescription
         }
     }

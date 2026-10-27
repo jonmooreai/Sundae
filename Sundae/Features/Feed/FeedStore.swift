@@ -73,6 +73,19 @@ final class FeedStore {
         }
     }
 
+    /// The viewer's cherry on one photo: shown at once, then settled by the server, or put back.
+    func setCherry(_ cherried: Bool, photoID: ID, dumpID: ID, me: User?) async {
+        guard let index = dumps.firstIndex(where: { $0.id == dumpID }),
+              let photo = dumps[index].photos.first(where: { $0.id == photoID }) else { return }
+        dumps[index] = dumps[index].replacingPhoto(photo.withCherry(cherried, from: me))
+        do {
+            let settled = try await api.setCherry(photoID: photoID, cherried: cherried)
+            if let now = dumps.firstIndex(where: { $0.id == dumpID }) { dumps[now] = dumps[now].replacingPhoto(settled) }
+        } catch {
+            if let now = dumps.firstIndex(where: { $0.id == dumpID }) { dumps[now] = dumps[now].replacingPhoto(photo) }
+        }
+    }
+
     func replace(_ dump: Dump) {
         if let index = dumps.firstIndex(where: { $0.id == dump.id }) {
             dumps[index] = dump

@@ -4,7 +4,8 @@
 // 2: the admins and used_nonces tables.
 // 3: a caption on each photo (COLUMNS).
 // 4: admins by the Apple id they sign in with (admin_apple_ids), not by account.
-export const SCHEMA_VERSION = '4';
+// 5: replies to comments (parent_id, COLUMNS) and cherries on photos (photo_cherries).
+export const SCHEMA_VERSION = '5';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -49,9 +50,12 @@ export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS likes (dump_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (dump_id, user_id))`,
   `CREATE TABLE IF NOT EXISTS comments (
      id TEXT PRIMARY KEY, dump_id TEXT NOT NULL, author_id TEXT NOT NULL, body TEXT NOT NULL,
-     created_at TEXT NOT NULL, edited_at TEXT)`,
+     created_at TEXT NOT NULL, edited_at TEXT, parent_id TEXT)`,
   `CREATE INDEX IF NOT EXISTS comments_dump ON comments (dump_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS comment_likes (comment_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (comment_id, user_id))`,
+  // A cherry someone gave one photo: a reaction lighter than a comment.
+  `CREATE TABLE IF NOT EXISTS photo_cherries (
+     photo_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (photo_id, user_id))`,
   `CREATE TABLE IF NOT EXISTS suggestions_done (
      user_id TEXT NOT NULL, suggestion_id TEXT NOT NULL, done_on TEXT NOT NULL, PRIMARY KEY (user_id, suggestion_id))`,
   `CREATE TABLE IF NOT EXISTS reports (
@@ -65,6 +69,7 @@ export const SCHEMA = [
  * an older one gets them here, each added only when missing, since adding one twice fails. */
 export const COLUMNS = [
   { table: 'photos', column: 'caption', sql: 'ALTER TABLE photos ADD COLUMN caption TEXT' },
+  { table: 'comments', column: 'parent_id', sql: 'ALTER TABLE comments ADD COLUMN parent_id TEXT' },
 ];
 
 let ready = null;

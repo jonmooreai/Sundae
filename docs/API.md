@@ -64,7 +64,8 @@ The client signs out after `DELETE me` only on a 2xx, or when the server says th
 | PUT | `me/dumps/{week_start}` | create or update; see below |
 | DELETE | `dumps/{id}` | allowed any day |
 | PUT | `dumps/{id}/like` | `{liked: bool}`, returns the dump |
-| GET / POST | `dumps/{id}/comments` | POST body `{body}`; up to 30 comments a person on each week, then 429 `too_many_comments` |
+| PUT | `photos/{id}/cherry` | `{cherried: bool}`, the caller's cherry on one photo of a week they can open; returns the photo |
+| GET / POST | `dumps/{id}/comments` | POST body `{body, parent_id?}`; `parent_id` makes it a reply, kept one level deep (a reply to a reply goes under the same comment), on the same week or 400. Up to 30 comments a person on each week, then 429 `too_many_comments`. Deleting a comment deletes its replies |
 | PATCH | `comments/{id}` | `{body}`; author only; sets `edited_at` |
 | DELETE | `comments/{id}` | author, even on a week they can no longer open, or the dump's author |
 | PUT / DELETE | `comments/{id}/like` | returns the comment with `like_count` and `liked_by_me` |
@@ -125,10 +126,11 @@ user:     {id, username, name?, bio?, avatar_url?, is_public, timezone?,
            birthday?: "MM-DD" (friends only, never a year), invited_by_me?}
                                                    timezone only on the caller's own account (me, sign-in), null for anyone else
 tag:      {id, photo_id, tagger_id, tagged_user: user, status: pending|approved|declined|removed, responded_at?}
-photo:    {id, dump_id, order, url, width, height, alt_text?, caption?, tags: [tag]}
+photo:    {id, dump_id, order, url, width, height, alt_text?, caption?, tags: [tag],
+           cherry_count, cherried_by_me, cherried_by: [user]}     cherries from anyone the caller can see, oldest first
 dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photos: [photo],
            comments_enabled, liked_by: [user], liked_by_me, comment_count, is_authors_first?}
-comment:  {id, dump_id, author: user, body, created_at, edited_at?, like_count, liked_by_me}
+comment:  {id, dump_id, parent_id?, author: user, body, created_at, edited_at?, like_count, liked_by_me}
 profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week],
            follower_count?, following_count?}      counts for whoever can see the profile (its lists open to them too), null otherwise
 week:     {week_start, dump?, tagged: [{photo, from: user, tag}]}

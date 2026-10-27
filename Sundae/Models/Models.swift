@@ -69,10 +69,29 @@ struct Photo: Identifiable, Hashable, Codable, Sendable {
     /// A line or two under this photo. One idea's photos carry the same one.
     var caption: String? = nil
     var tags: [Tag]
+    /// Cherries from friends: a reaction lighter than a comment, one each.
+    var cherryCount: Int = 0
+    var cherriedByMe: Bool = false
+    var cherriedBy: [User] = []
 
     var aspectRatio: CGFloat { height == 0 ? 1 : CGFloat(width) / CGFloat(height) }
     /// Tags that should be drawn: pending and approved. Declined and removed tags vanish everywhere.
     var visibleTags: [Tag] { tags.filter { $0.status == .pending || $0.status == .approved } }
+}
+
+extension Photo {
+    /// This photo with the viewer's cherry given or taken back, shown before the server answers.
+    func withCherry(_ cherried: Bool, from me: User?) -> Photo {
+        guard cherriedByMe != cherried else { return self }
+        var photo = self
+        photo.cherriedByMe = cherried
+        photo.cherryCount = max(0, cherryCount + (cherried ? 1 : -1))
+        if let me {
+            photo.cherriedBy.removeAll { $0.id == me.id }
+            if cherried { photo.cherriedBy.append(me) }
+        }
+        return photo
+    }
 }
 
 struct Dump: Identifiable, Hashable, Codable, Sendable {
@@ -98,6 +117,15 @@ struct Dump: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+extension Dump {
+    /// The same week with one photo swapped for a newer copy of it.
+    func replacingPhoto(_ photo: Photo) -> Dump {
+        var dump = self
+        if let index = dump.photos.firstIndex(where: { $0.id == photo.id }) { dump.photos[index] = photo }
+        return dump
+    }
+}
+
 struct Comment: Identifiable, Hashable, Codable, Sendable {
     var id: ID
     var dumpID: ID
@@ -107,9 +135,11 @@ struct Comment: Identifiable, Hashable, Codable, Sendable {
     var editedAt: Date?
     var likeCount: Int
     var likedByMe: Bool
+    /// The comment this one answers. Replies are one level deep.
+    var parentID: ID?
 
     init(id: ID, dumpID: ID, author: User, body: String, createdAt: Date,
-         editedAt: Date? = nil, likeCount: Int = 0, likedByMe: Bool = false) {
+         editedAt: Date? = nil, likeCount: Int = 0, likedByMe: Bool = false, parentID: ID? = nil) {
         self.id = id
         self.dumpID = dumpID
         self.author = author
@@ -118,6 +148,7 @@ struct Comment: Identifiable, Hashable, Codable, Sendable {
         self.editedAt = editedAt
         self.likeCount = likeCount
         self.likedByMe = likedByMe
+        self.parentID = parentID
     }
 
     init(from decoder: Decoder) throws {
@@ -130,6 +161,7 @@ struct Comment: Identifiable, Hashable, Codable, Sendable {
         editedAt = try c.decodeIfPresent(Date.self, forKey: .editedAt)
         likeCount = try c.decodeIfPresent(Int.self, forKey: .likeCount) ?? 0
         likedByMe = try c.decodeIfPresent(Bool.self, forKey: .likedByMe) ?? false
+        parentID = try c.decodeIfPresent(ID.self, forKey: .parentID)
     }
 }
 

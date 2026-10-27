@@ -185,6 +185,7 @@ async function route(ctx, method, parts) {
     case 'GET me/dumps/:': return myDump(ctx, c);
     case 'PUT me/dumps/:': return saveDump(ctx, c);
     case 'PUT dumps/:/like': return likeDump(ctx, b);
+    case 'PUT photos/:/cherry': return cherryPhoto(ctx, b);
     case 'GET dumps/:/comments': return listComments(ctx, b);
     case 'POST dumps/:/comments': return addComment(ctx, b);
     case 'PATCH comments/:': return editComment(ctx, b);
@@ -210,7 +211,7 @@ function isParam(parts, i) {
   if (['me', 'auth', 'ideas'].includes(before) && i === 1) return false;
   if (before === 'users' && ['search', 'suggested'].includes(parts[i])) return false;
   if (before === 'suggestions' && parts[i] === 'done') return false;
-  return ['uploads', 'media', 'dumps', 'comments', 'users', 'tags', 'follow-requests', 'followers', 'suggestions'].includes(before);
+  return ['uploads', 'media', 'dumps', 'photos', 'comments', 'users', 'tags', 'follow-requests', 'followers', 'suggestions'].includes(before);
 }
 
 // MARK: - Auth
@@ -485,6 +486,7 @@ async function deleteMe(ctx) {
     db.prepare(`DELETE FROM comment_likes WHERE user_id = ?1 OR comment_id IN (SELECT id FROM comments WHERE author_id = ?1 OR dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM comments WHERE author_id = ?1 OR dump_id IN ${mine}`).bind(me),
     db.prepare(`DELETE FROM likes WHERE user_id = ?1 OR dump_id IN ${mine}`).bind(me),
+    db.prepare(`DELETE FROM photo_cherries WHERE user_id = ?1 OR photo_id IN (SELECT id FROM photos WHERE dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM photos WHERE dump_id IN ${mine}`).bind(me),
     db.prepare('DELETE FROM dumps WHERE author_id = ?1').bind(me),
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
@@ -627,6 +629,9 @@ async function block(ctx, userId) {
       OR (user_id = ?1 AND comment_id IN (SELECT id FROM comments WHERE author_id = ?2))`).bind(ctx.me.id, userId),
     db.prepare(`DELETE FROM comments WHERE id IN (${comments})`).bind(ctx.me.id, userId),
     db.prepare(`DELETE FROM likes WHERE ${onEachOthers('user_id')}`).bind(ctx.me.id, userId),
+    db.prepare(`DELETE FROM photo_cherries WHERE
+      (user_id = ?2 AND photo_id IN (SELECT id FROM photos WHERE dump_id IN (SELECT id FROM dumps WHERE author_id = ?1)))
+      OR (user_id = ?1 AND photo_id IN (SELECT id FROM photos WHERE dump_id IN (SELECT id FROM dumps WHERE author_id = ?2)))`).bind(ctx.me.id, userId),
   ]);
   return empty();
 }
@@ -736,13 +741,15 @@ function lockedAt(dump, author, now) {
 /** Photos with their visible tags, keyed by photo id. Nobody blocked either way shows up tagged. */
 async function photosJSON(ctx, photos) {
   if (!photos.length) return new Map();
-  const [{ results: tags }, blocked] = await Promise.all([
+  const ids = JSON.stringify(photos.map((p) => p.id));
+  const [{ results: tags }, { results: cherries }, blocked] = await Promise.all([
     ctx.db.prepare(`
       SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
-      .bind(JSON.stringify(photos.map((p) => p.id))).all(),
+      .bind(ids).all(),
+    ctx.db.prepare('SELECT photo_id, user_id FROM photo_cherries WHERE photo_id IN (SELECT value FROM json_each(?)) ORDER BY created_at').bind(ids).all(),
     blockedIds(ctx),
   ]);
-  const people = await usersById(ctx, tags.map((t) => t.tagged_user_id));
+  const people = await usersById(ctx, [...tags.map((t) => t.tagged_user_id), ...cherries.map((c) => c.user_id)]);
   const out = new Map();
   for (const photo of photos) {
     const photoTags = [];
@@ -750,10 +757,14 @@ async function photosJSON(ctx, photos) {
       const tagged = !blocked.has(tag.tagged_user_id) && people.get(tag.tagged_user_id);
       if (tagged) photoTags.push(await tagJSON(ctx, tag, tagged));
     }
+    // Cherries from anyone the viewer can still see, oldest first.
+    const givers = cherries.filter((c) => c.photo_id === photo.id && !blocked.has(c.user_id)).map((c) => people.get(c.user_id)).filter(Boolean);
     out.set(photo.id, {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
       width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null,
       caption: photo.caption || null, tags: photoTags,
+      cherry_count: givers.length, cherried_by_me: givers.some((g) => g.id === ctx.me.id),
+      cherried_by: await usersJSON(ctx, givers),
     });
   }
   return out;
@@ -918,6 +929,7 @@ async function saveDump(ctx, week) {
     db.prepare('INSERT OR IGNORE INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso),
     db.prepare(`DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?)))`).bind(me.id, week, keptIds),
+    db.prepare(`DELETE FROM photo_cherries WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?)))`).bind(me.id, week, keptIds),
     db.prepare(`DELETE FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?))`).bind(me.id, week, keptIds),
     ...writes,
     db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE author_id = ? AND week_start = ?').bind(caption, commentsEnabled, nowIso, me.id, week),
@@ -953,6 +965,7 @@ async function deleteDump(ctx, id) {
   const { results: photos } = await db.prepare('SELECT object_key FROM photos WHERE dump_id = ?').bind(id).all();
   await db.batch([
     db.prepare('DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ?)').bind(id),
+    db.prepare('DELETE FROM photo_cherries WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ?)').bind(id),
     db.prepare('DELETE FROM photos WHERE dump_id = ?').bind(id),
     db.prepare('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE dump_id = ?)').bind(id),
     db.prepare('DELETE FROM comments WHERE dump_id = ?').bind(id),
@@ -974,6 +987,19 @@ async function likeDump(ctx, id) {
   return json(await dumpJSON(ctx, dump));
 }
 
+/** Gives one photo the caller's cherry, or takes it back. For anyone who can open the week. */
+async function cherryPhoto(ctx, photoId) {
+  const photo = await ctx.db.prepare('SELECT * FROM photos WHERE id = ?').bind(photoId).first();
+  if (!photo) fail(404, 'not_found');
+  await readableDump(ctx, photo.dump_id);
+  if ((await body(ctx.request)).cherried) {
+    await ctx.db.prepare('INSERT OR IGNORE INTO photo_cherries (photo_id, user_id, created_at) VALUES (?, ?, ?)').bind(photo.id, ctx.me.id, ctx.now.toISOString()).run();
+  } else {
+    await ctx.db.prepare('DELETE FROM photo_cherries WHERE photo_id = ? AND user_id = ?').bind(photo.id, ctx.me.id).run();
+  }
+  return json((await photosJSON(ctx, [photo])).get(photo.id));
+}
+
 // MARK: - Comments
 
 async function commentsJSON(ctx, rows) {
@@ -989,7 +1015,7 @@ async function commentsJSON(ctx, rows) {
     const author = people.get(row.author_id);
     if (!author) continue;
     out.push({
-      id: row.id, dump_id: row.dump_id, author: await userJSON(ctx, author), body: row.body,
+      id: row.id, dump_id: row.dump_id, parent_id: row.parent_id || null, author: await userJSON(ctx, author), body: row.body,
       created_at: row.created_at, edited_at: row.edited_at || null,
       like_count: counts.find((c) => c.comment_id === row.id)?.n ?? 0,
       liked_by_me: mine.some((m) => m.comment_id === row.id),
@@ -1011,15 +1037,24 @@ async function listComments(ctx, dumpId) {
 async function addComment(ctx, dumpId) {
   const dump = await readableDump(ctx, dumpId);
   if (!dump.comments_enabled) fail(403, 'forbidden', 'Comments are off for this week.');
-  const text = clean((await body(ctx.request)).body, MAX_COMMENT + 1);
+  const input = await body(ctx.request);
+  const text = clean(input.body, MAX_COMMENT + 1);
   if (!text) fail(400, 'bad_request', 'Say something first.');
   if (text.length > MAX_COMMENT) fail(400, 'bad_request', 'That comment is too long.');
+  // A reply goes under the comment it answers; a reply to a reply goes under the same one, so
+  // there is only ever one level.
+  let parentId = null;
+  if (input.parent_id) {
+    const parent = await ctx.db.prepare('SELECT id, parent_id FROM comments WHERE id = ? AND dump_id = ?').bind(clean(input.parent_id, 80), dump.id).first();
+    if (!parent) fail(400, 'bad_request', 'That comment is gone.');
+    parentId = parent.parent_id || parent.id;
+  }
   const id = newId('c');
   // Counted and written in one statement, so comments sent together cannot pass the limit.
   const inserted = await ctx.db.prepare(`
-    INSERT INTO comments (id, dump_id, author_id, body, created_at)
-      SELECT ?1, ?2, ?3, ?4, ?5 WHERE (SELECT COUNT(*) FROM comments WHERE dump_id = ?2 AND author_id = ?3) < ?6`)
-    .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString(), MAX_COMMENTS).run();
+    INSERT INTO comments (id, dump_id, author_id, body, created_at, parent_id)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?7 WHERE (SELECT COUNT(*) FROM comments WHERE dump_id = ?2 AND author_id = ?3) < ?6`)
+    .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString(), MAX_COMMENTS, parentId).run();
   if (!inserted.meta?.changes) fail(429, 'too_many_comments', 'That is a lot of comments for one week. Up to 30 each.');
   const row = await ctx.db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
   return json((await commentsJSON(ctx, [row]))[0]);
@@ -1047,9 +1082,10 @@ async function deleteComment(ctx, id) {
   if (!row) fail(404, 'not_found');
   // Anyone can take back their own comment, even on a week they can no longer open.
   if (row.author_id !== ctx.me.id && (await readableDump(ctx, row.dump_id)).author_id !== ctx.me.id) fail(403, 'forbidden');
+  // Its replies go with it, as they answer something no longer there.
   await ctx.db.batch([
-    ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ?').bind(id),
-    ctx.db.prepare('DELETE FROM comments WHERE id = ?').bind(id),
+    ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ?1 OR comment_id IN (SELECT id FROM comments WHERE parent_id = ?1)').bind(id),
+    ctx.db.prepare('DELETE FROM comments WHERE id = ?1 OR parent_id = ?1').bind(id),
   ]);
   return empty();
 }

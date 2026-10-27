@@ -164,6 +164,11 @@ actor LiveSundaeAPI: SundaeAPI {
         return dump.model
     }
 
+    func setCherry(photoID: ID, cherried: Bool) async throws -> Photo {
+        let photo: DTO.Photo = try await client.put("v1/photos/\(photoID)/cherry", body: DTO.CherryBody(cherried: cherried))
+        return photo.model
+    }
+
     func comments(dumpID: ID) async throws -> [Comment] {
         let comments: [DTO.Comment] = try await client.get("v1/dumps/\(dumpID)/comments")
         return comments.map(\.model)
@@ -188,8 +193,8 @@ actor LiveSundaeAPI: SundaeAPI {
         return comment.model
     }
 
-    func addComment(dumpID: ID, body: String) async throws -> Comment {
-        let comment: DTO.Comment = try await client.post("v1/dumps/\(dumpID)/comments", body: DTO.CommentBody(body: body))
+    func addComment(dumpID: ID, body: String, replyingTo parentID: ID?) async throws -> Comment {
+        let comment: DTO.Comment = try await client.post("v1/dumps/\(dumpID)/comments", body: DTO.CommentBody(body: body, parentId: parentID))
         return comment.model
     }
 

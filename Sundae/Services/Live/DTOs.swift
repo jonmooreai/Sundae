@@ -62,14 +62,18 @@ enum DTO {
         let altText: String?
         let caption: String?
         let tags: [Tag]
+        let cherryCount: Int
+        let cherriedByMe: Bool
+        let cherriedBy: [User]
 
         private enum CodingKeys: String, CodingKey {
-            case id, dumpId, order, url, width, height, altText, caption, tags
+            case id, dumpId, order, url, width, height, altText, caption, tags, cherryCount, cherriedByMe, cherriedBy
         }
 
         var model: Sundae.Photo {
             Sundae.Photo(id: id, dumpID: dumpId, order: order, source: .remote(url), width: width, height: height,
-                         altText: altText, caption: caption, tags: tags.map(\.model))
+                         altText: altText, caption: caption, tags: tags.map(\.model),
+                         cherryCount: cherryCount, cherriedByMe: cherriedByMe, cherriedBy: cherriedBy.map(\.model))
         }
 
         /// Width and height only shape the frame, so an odd value (a fraction, a huge number,
@@ -136,10 +140,11 @@ enum DTO {
         let editedAt: Date?
         let likeCount: Int?
         let likedByMe: Bool?
+        let parentId: String?
 
         var model: Sundae.Comment {
             Sundae.Comment(id: id, dumpID: dumpId, author: author.model, body: body, createdAt: createdAt,
-                           editedAt: editedAt, likeCount: likeCount ?? 0, likedByMe: likedByMe ?? false)
+                           editedAt: editedAt, likeCount: likeCount ?? 0, likedByMe: likedByMe ?? false, parentID: parentId)
         }
     }
 
@@ -404,6 +409,12 @@ enum DTO {
 
     struct CommentBody: Encodable {
         let body: String
+        /// Present for a reply.
+        var parentId: String? = nil
+    }
+
+    struct CherryBody: Encodable {
+        let cherried: Bool
     }
 
     struct Respond: Encodable {
@@ -438,6 +449,10 @@ extension DTO.Photo {
         altText = try container.decodeIfPresent(String.self, forKey: .altText)
         caption = try? container.decodeIfPresent(String.self, forKey: .caption)
         tags = try container.decode([DTO.Tag].self, forKey: .tags)
+        // A server from before cherries sends none; that is no cherries, not a broken photo.
+        cherryCount = max(0, (try? container.decodeIfPresent(Int.self, forKey: .cherryCount)) ?? 0)
+        cherriedByMe = (try? container.decodeIfPresent(Bool.self, forKey: .cherriedByMe)) ?? false
+        cherriedBy = (try? container.decodeIfPresent(DTO.LossyList<DTO.User>.self, forKey: .cherriedBy))?.elements ?? []
     }
 }
 
