@@ -49,8 +49,6 @@ struct SettingsView: View {
                 } else {
                     LoadingRow(title: "Loading your settings")
                 }
-                // Not tied to the settings above, so it opens even while they load.
-                SettingsLinkRow(title: "Followers") { FollowersList() }
             }
 
             SettingsGroup(title: "Weekdays") {

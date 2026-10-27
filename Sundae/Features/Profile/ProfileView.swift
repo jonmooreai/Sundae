@@ -86,6 +86,8 @@ struct ProfileView: View {
         }
         .task(id: userID) { await load() }
         .refreshable { await load() }
+        // Someone removed, followed or unfollowed from a list opened here: the counts follow.
+        .onChange(of: model.followsChanged) { _, _ in Task { await load() } }
     }
 
     @ViewBuilder
@@ -207,11 +209,12 @@ struct ProfileHeader: View {
                         .font(.headline)
                         .lineLimit(1)
                     if let followers = profile.followerCount, let following = profile.followingCount {
-                        // Visible only to the owner. Never shown publicly.
+                        // Visible only to the owner. Never shown publicly. Each opens its list.
                         HStack(spacing: 18) {
-                            stat(followers, "followers")
-                            stat(following, "following")
+                            NavigationLink(value: Route.people(.followers)) { stat(followers, "followers") }
+                            NavigationLink(value: Route.people(.following)) { stat(following, "following") }
                         }
+                        .buttonStyle(.plain)
                     } else {
                         Text("Sundays only")
                             .font(.subheadline)
@@ -244,6 +247,10 @@ struct ProfileHeader: View {
             Text(label).font(.subheadline)
         }
         .lineLimit(1)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Shows the list")
     }
 }
 

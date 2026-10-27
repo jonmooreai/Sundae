@@ -470,6 +470,14 @@ actor MockSundaeAPI: SundaeAPI {
             .sorted { $0.username < $1.username }
     }
 
+    func following() async throws -> [User] {
+        let me = try requireSignedIn()
+        return follows
+            .filter { $0.followerID == me.id && $0.status == .accepted && !blocked.contains($0.followeeID) }
+            .compactMap { users[$0.followeeID] }
+            .sorted { $0.username < $1.username }
+    }
+
     func removeFollower(userID: ID) async throws {
         let me = try requireSignedIn()
         follows.removeAll { $0.followerID == userID && $0.followeeID == me.id }

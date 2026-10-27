@@ -28,6 +28,18 @@ struct FollowersTests {
         #expect(followers.map(\.username) == followers.map(\.username).sorted())
     }
 
+    @Test func followingListsOnlyAcceptedFollowsInOrder() async throws {
+        let api = try await signedInAPI(at: date(2026, 10, 25))
+        let following = try await api.following()
+        let count = try await api.profile(userID: "u_me").followingCount ?? -1
+        #expect(following.count == count)
+        #expect(following.map(\.username) == following.map(\.username).sorted())
+        guard let first = following.first else { return }
+        try await api.unfollow(userID: first.id)
+        let after = try await api.following()
+        #expect(!after.contains { $0.id == first.id })
+    }
+
     @Test func aRemovedFollowerIsGone() async throws {
         let api = try await signedInAPI(at: date(2026, 10, 25))
         let before = try await api.profile(userID: "u_me").followerCount ?? 0
@@ -52,9 +64,10 @@ struct FollowersTests {
     @Test func theUsernameStandsBesideTheName() {
         let pat = User(id: "u_pat", username: "patdoe", name: "Pat Doe", bio: "", avatar: nil, isPublic: false, timezone: "UTC")
         #expect(pat.handle == "@patdoe")
-        #expect(FollowersList.removeTitle(pat) == "Remove Pat Doe?")
+        #expect(PeopleListView.removeTitle(pat) == "Remove Pat Doe?")
+        #expect(PeopleListView.unfollowTitle(pat) == "Unfollow Pat Doe?")
         var nameless = pat
         nameless.name = ""
-        #expect(FollowersList.removeTitle(nameless) == "Remove patdoe?")
+        #expect(PeopleListView.removeTitle(nameless) == "Remove patdoe?")
     }
 }

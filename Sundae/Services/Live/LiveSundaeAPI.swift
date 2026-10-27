@@ -238,6 +238,11 @@ actor LiveSundaeAPI: SundaeAPI {
         return users.map(\.model)
     }
 
+    func following() async throws -> [User] {
+        let users: [DTO.User] = try await client.get("v1/me/following")
+        return users.map(\.model)
+    }
+
     func removeFollower(userID: ID) async throws {
         let _: HTTPClient.Empty = try await client.delete("v1/me/followers/\(userID)")
     }

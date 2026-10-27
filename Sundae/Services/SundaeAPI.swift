@@ -56,6 +56,8 @@ protocol SundaeAPI: Sendable {
     // MARK: Every day
     /// People whose follow of the user is accepted, by username.
     func followers() async throws -> [User]
+    /// People the user follows, accepted, by username.
+    func following() async throws -> [User]
     /// Ends that person's follow of the user, or their request. Following again is a new request
     /// while the account is private.
     func removeFollower(userID: ID) async throws
