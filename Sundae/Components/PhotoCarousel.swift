@@ -35,48 +35,7 @@ struct PhotoCarousel: View {
     var body: some View {
         TabView(selection: $index) {
             ForEach(Array(photos.enumerated()), id: \.element.id) { offset, photo in
-                ZStack(alignment: .bottomLeading) {
-                    PhotoView(source: photo.source)
-                    if !photo.visibleTags.isEmpty {
-                        // The badge stays put; the people stack up above it, clear of the page dots.
-                        VStack(alignment: .leading, spacing: 6) {
-                            if showTags {
-                                TagChips(tags: photo.visibleTags, linksToProfiles: tagsLinkToProfiles, onTap: onTapTag)
-                            }
-                            Button(action: toggleTags) { TagBadge(isOpen: showTags) }
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
-                        }
-                        .padding(10)
-                    }
-                }
-                .overlay(alignment: .bottomTrailing) {
-                    if photo.cherryCount > 0 {
-                        Button { cherriesOf = photo } label: {
-                            CherryPile(count: photo.cherryCount)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(10)
-                        .accessibilityLabel(photo.cherryCount == 1 ? "1 cherry" : "\(photo.cherryCount) cherries")
-                        .accessibilityHint("Shows who sent them")
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
-                    }
-                }
-                .animation(reduceMotion ? nil : .bouncy(duration: 0.35), value: photo.cherryCount)
-                .contentShape(Rectangle())
-                .pinchToZoom(photo.source, frame: { screenFrame.rect }, cornerRadius: cornerRadius,
-                             zoom: zoom, reduceMotion: reduceMotion)
-                // Declared first so two quick taps read as one double tap, not two singles.
-                .onTapGesture(count: 2) { doubleTap() }
-                .onTapGesture { singleTap() }
-                .onLongPressGesture(minimumDuration: 0.4) { cherry(photo) }
-                .tag(offset)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(accessibilityLabel(for: photo, position: offset))
-                .accessibilityAddTraits(onTap == nil ? AccessibilityTraits() : .isButton)
-                .accessibilityAction { if let onTap { onTap(offset) } else { toggleTags() } }
-                .accessibilityAction(named: "Show tagged friends") { toggleTags() }
-                .accessibilityAction(named: photo.cherriedByMe ? "Take back your cherry" : "Give a cherry") { cherry(photo) }
+                page(photo, at: offset)
             }
         }
         .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
@@ -95,6 +54,57 @@ struct PhotoCarousel: View {
             CherriesSheet(photo: photo)
         }
         .transaction { t in if reduceMotion { t.animation = nil } }
+    }
+
+    /// One page: the photo with its gestures and what VoiceOver hears.
+    private func page(_ photo: Photo, at offset: Int) -> some View {
+        face(photo)
+            .contentShape(Rectangle())
+            .pinchToZoom(photo.source, frame: { screenFrame.rect }, cornerRadius: cornerRadius,
+                         zoom: zoom, reduceMotion: reduceMotion)
+            // Declared first so two quick taps read as one double tap, not two singles.
+            .onTapGesture(count: 2) { doubleTap() }
+            .onTapGesture { singleTap() }
+            .onLongPressGesture(minimumDuration: 0.4) { cherry(photo) }
+            .tag(offset)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel(for: photo, position: offset))
+            .accessibilityAddTraits(onTap == nil ? AccessibilityTraits() : .isButton)
+            .accessibilityAction { if let onTap { onTap(offset) } else { toggleTags() } }
+            .accessibilityAction(named: "Show tagged friends") { toggleTags() }
+            .accessibilityAction(named: Text(photo.cherriedByMe ? "Take back your cherry" : "Give a cherry")) { cherry(photo) }
+    }
+
+    /// The photo, its tags and its cherries.
+    private func face(_ photo: Photo) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            PhotoView(source: photo.source)
+            if !photo.visibleTags.isEmpty {
+                // The badge stays put; the people stack up above it, clear of the page dots.
+                VStack(alignment: .leading, spacing: 6) {
+                    if showTags {
+                        TagChips(tags: photo.visibleTags, linksToProfiles: tagsLinkToProfiles, onTap: onTapTag)
+                    }
+                    Button(action: toggleTags) { TagBadge(isOpen: showTags) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showTags ? "Hide tagged friends" : "Show tagged friends")
+                }
+                .padding(10)
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if photo.cherryCount > 0 {
+                Button { cherriesOf = photo } label: {
+                    CherryPile(count: photo.cherryCount)
+                }
+                .buttonStyle(.plain)
+                .padding(10)
+                .accessibilityLabel(Text(photo.cherryCount == 1 ? "1 cherry" : "\(photo.cherryCount) cherries"))
+                .accessibilityHint("Shows who sent them")
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? nil : .bouncy(duration: 0.35), value: photo.cherryCount)
     }
 
     private func singleTap() {
