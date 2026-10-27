@@ -3,12 +3,15 @@
 
 // 2: the admins and used_nonces tables.
 // 3: a caption on each photo (COLUMNS).
-export const SCHEMA_VERSION = '3';
+// 4: admins by the Apple id they sign in with (admin_apple_ids), not by account.
+export const SCHEMA_VERSION = '4';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
-  // Who may use Sunday any day, to test. Filled by hand from the Cloudflare side, never by the API.
-  `CREATE TABLE IF NOT EXISTS admins (user_id TEXT PRIMARY KEY)`,
+  // Who may use Sunday any day, to test, by the Sign in with Apple id they sign in with, so it
+  // follows the person through a new username or an account deleted and made again. Filled by
+  // hand from the Cloudflare side, never by the API (docs/SERVER.md).
+  `CREATE TABLE IF NOT EXISTS admin_apple_ids (apple_sub TEXT PRIMARY KEY)`,
   `CREATE TABLE IF NOT EXISTS users (
      id TEXT PRIMARY KEY, apple_sub TEXT UNIQUE, username TEXT NOT NULL UNIQUE,
      name TEXT NOT NULL DEFAULT '', bio TEXT NOT NULL DEFAULT '', avatar_key TEXT,

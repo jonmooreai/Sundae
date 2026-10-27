@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { server, r2, jpeg, frame, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
 import { cleanUp } from '../src/worker.js';
-import { resetSchemaCache } from '../src/schema.js';
+import { resetSchemaCache, SCHEMA_VERSION } from '../src/schema.js';
 
 /** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
 async function appleSignIn(s, sub, { nonce = `nonce-${Math.random()}-${Date.now()}`, sent = nonce, timezone = 'UTC', ...claims } = {}) {
@@ -682,12 +682,11 @@ test('deleting an account removes everything of theirs', async () => {
     assert.equal((await report(maya, type, id)).status, 204);
   }
   await report(maya, 'profile', pat.user.id);
-  s.env.DB.sqlite.prepare('INSERT INTO admins (user_id) VALUES (?)').run(jon.user.id);
   assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
   assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).status, 401);
   assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body.length, 0);
-  const left = s.env.DB.sqlite.prepare('SELECT (SELECT COUNT(*) FROM photos) AS photos, (SELECT COUNT(*) FROM blob_chunks) AS blobs, (SELECT COUNT(*) FROM tags) AS tags, (SELECT COUNT(*) FROM comments) AS comments, (SELECT COUNT(*) FROM admins) AS admins').get();
-  assert.deepEqual({ ...left }, { photos: 0, blobs: 0, tags: 0, comments: 0, admins: 0 });
+  const left = s.env.DB.sqlite.prepare('SELECT (SELECT COUNT(*) FROM photos) AS photos, (SELECT COUNT(*) FROM blob_chunks) AS blobs, (SELECT COUNT(*) FROM tags) AS tags, (SELECT COUNT(*) FROM comments) AS comments').get();
+  assert.deepEqual({ ...left }, { photos: 0, blobs: 0, tags: 0, comments: 0 });
   const reports = s.env.DB.sqlite.prepare('SELECT reporter_id, target_id FROM reports').all().map((r) => ({ ...r }));
   assert.deepEqual(reports, [{ reporter_id: maya.user.id, target_id: pat.user.id }], 'only Maya\'s report about Pat is left');
 });
@@ -819,10 +818,25 @@ test('with sign-ups closed, nobody new gets in and everyone else still signs in'
   assert.equal(back.user.id, jon.user.id);
 });
 
+test('admin follows the Apple id: through a deleted and remade account, never to whoever takes the username', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon');
+  s.env.DB.sqlite.prepare('INSERT INTO admin_apple_ids (apple_sub) VALUES (?)').run('apple-jon');
+  assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).body.is_admin, true);
+  assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
+
+  const other = await s.signUp('apple-someone', 'jon');
+  assert.equal('is_admin' in (await s.call('GET', 'v1/me', { token: other.token })).body, false, 'the username is not the admin');
+
+  const back = await s.signUp('apple-jon', 'jonmoore');
+  assert.notEqual(back.user.id, jon.user.id);
+  assert.equal((await s.call('GET', 'v1/me', { token: back.token })).body.is_admin, true, 'the same Apple id, a new account');
+});
+
 test('an admin can open Sunday any day; nobody else can, or even sees the flag', async () => {
   const s = await server();
   const { jon, maya } = await friends(s);
-  s.env.DB.sqlite.prepare('INSERT INTO admins (user_id) VALUES (?)').run(jon.user.id);
+  s.env.DB.sqlite.prepare('INSERT INTO admin_apple_ids (apple_sub) SELECT apple_sub FROM users WHERE id = ?').run(jon.user.id);
   s.setNow(WEDNESDAY);
   await refresh(s, jon);
   await refresh(s, maya);
@@ -927,7 +941,7 @@ test('a database from before photo captions gets the column once, and starting a
 
   await s.call('GET', 'v1/me');
   assert.ok(columns().includes('caption'));
-  assert.equal(db.prepare(`SELECT value FROM config WHERE key = 'schema_version'`).get().value, '3');
+  assert.equal(db.prepare(`SELECT value FROM config WHERE key = 'schema_version'`).get().value, SCHEMA_VERSION);
   assert.equal(db.prepare(`SELECT id FROM photos`).get().id, 'p_old', 'existing photos are untouched');
 
   // Starting again, even with the version set back, never tries to add the column twice.
