@@ -1,10 +1,11 @@
 import AuthenticationServices
 import PhotosUI
 import SwiftUI
+import WidgetKit
 import PhosphorSwift
 
 /// The felt sundae full screen, then short steps on cream paper: what Sundae is, sign in, who you
-/// are, ideas near you, Sunday reminders, bring your group.
+/// are, ideas near you, Sunday reminders, the widgets, bring your group.
 /// Someone signing back in skips the rest: their account comes back as it was, and only a question
 /// this phone has never had an answer to (location, notifications) is still asked.
 /// Every step says plainly what happens next; nothing is sent to anyone without a tap that
@@ -14,7 +15,7 @@ struct OnboardingView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, reminders, friends }
+    private enum Step: Int, CaseIterable { case welcome, signIn, profile, ideas, reminders, widgets, friends }
 
     @State private var showsIntro = true
     @State private var step: Step = .welcome
@@ -83,6 +84,7 @@ struct OnboardingView: View {
                         case .profile: profile
                         case .ideas: ideas
                         case .reminders: reminders
+                        case .widgets: widgets
                         case .friends: friends
                         }
                     }
@@ -419,6 +421,72 @@ struct OnboardingView: View {
             .disabled(isWorking)
         }
     }
+
+    /// The widgets, shown rather than explained: swipe through the sizes. After the location
+    /// question, so with a yes the samples are real ideas from nearby.
+    private var widgets: some View {
+        let sizes = WidgetMetrics.current()
+        let snapshot = widgetSamples
+        return VStack(alignment: .leading, spacing: 20) {
+            heading("On your Home Screen", "Today's idea, without opening the app. Swipe to see the sizes, and add one any time from your Home Screen.")
+
+            TabView {
+                widgetPage(WidgetPreview(snapshot: snapshot, family: .systemSmall, size: sizes.small), "Small")
+                widgetPage(WidgetPreview(snapshot: snapshot, family: .systemMedium, size: sizes.medium), "Wide")
+                widgetPage(WidgetPreview(snapshot: snapshot, family: .systemLarge, size: sizes.large), "Large: a few ideas, nearby ones a tap from Maps")
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .indexViewStyle(.page(backgroundDisplayMode: .always))
+            .frame(height: sizes.large.height + 76)
+            .padding(.horizontal, -24)
+
+            PrimaryButton(title: "Continue") { next() }
+        }
+        .task {
+            // With a yes to location, look now, so the samples are from around here.
+            await model.localIdeas.refresh(clock: model.clock)
+        }
+    }
+
+    private func widgetPage(_ preview: WidgetPreview, _ label: String) -> some View {
+        VStack(spacing: 10) {
+            preview
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Today's real ideas when there are nearby ones; otherwise today's catalog ideas with a few
+    /// made-up nearby places mixed in, so every size shows what it can do.
+    private var widgetSamples: WidgetSnapshot {
+        var snapshot = WidgetSnapshotBuilder.snapshot(at: Date(), mode: .weekday,
+                                                      catalog: model.suggestions, shared: model.shared)
+        let nearby = model.localIdeas.ideas
+        if nearby.isEmpty {
+            let samples = Self.sampleNearby
+            snapshot.idea = samples[0]
+            let catalog = snapshot.list.filter { $0.place == nil }
+            snapshot.list = [samples[0]] + Array(catalog.prefix(1)) + [samples[1]] + Array(catalog.dropFirst().prefix(1)) + [samples[2]]
+        }
+        return snapshot
+    }
+
+    /// Made-up places, worded like the real nearby ideas.
+    private static let sampleNearby: [Suggestion] = [
+        Suggestion(id: "sample-1", text: "Pick something you've never tried at Juniper Bakery.",
+                   reason: "Take a photo of it before the first bite.", categories: [.local], timeOfDay: .any,
+                   place: Suggestion.Place(name: "Juniper Bakery", walkMinutes: 6)),
+        Suggestion(id: "sample-2", text: "Catch the last light at Riverside Park.",
+                   reason: "Bring a friend and take photos of the sky as it changes.", categories: [.local], timeOfDay: .any,
+                   place: Suggestion.Place(name: "Riverside Park", walkMinutes: 11)),
+        Suggestion(id: "sample-3", text: "Browse Second Story Books for twenty minutes.",
+                   reason: "Pick a book by its first sentence. Take a photo of it in your hands.", categories: [.local], timeOfDay: .any,
+                   place: Suggestion.Place(name: "Second Story Books", distanceMeters: 2400)),
+    ]
 
     /// Nothing here happens on its own. Each choice says who is involved before you tap.
     private var friends: some View {

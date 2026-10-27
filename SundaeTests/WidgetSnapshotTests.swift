@@ -51,4 +51,23 @@ struct WidgetSnapshotTests {
         #expect(snapshot(21, mode: .sunday).mode == .sunday)
         #expect(snapshot(25, mode: .weekday).mode == .weekday)
     }
+
+    @Test func theLargeWidgetListsTodaysIdeaFirstWithNoRepeats() {
+        let s = snapshot(21)
+        #expect(!s.list.isEmpty)
+        #expect(s.list.count <= 5)
+        #expect(s.list.first?.id == s.idea?.id)
+        #expect(Set(s.list.map(\.id)).count == s.list.count)
+    }
+
+    @Test func aMapsButtonOnlyEverOpensAppleMaps() throws {
+        let place = Suggestion.Place(name: "Juniper Bakery", latitude: 40.0, longitude: -86.0)
+        let link = try #require(WidgetSnapshot.mapsLink(for: place))
+        #expect(link.scheme == "sundae")
+        let target = try #require(WidgetSnapshot.mapsDestination(from: link))
+        #expect(target == place.mapsURL)
+        #expect(WidgetSnapshot.mapsDestination(from: URL(string: "sundae://maps?to=https://example.com")!) == nil)
+        #expect(WidgetSnapshot.mapsDestination(from: URL(string: "sundae://other?to=maps://?q=x")!) == nil)
+        #expect(WidgetSnapshot.mapsDestination(from: URL(string: "https://maps?to=maps://?q=x")!) == nil)
+    }
 }
