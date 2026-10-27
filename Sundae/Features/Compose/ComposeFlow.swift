@@ -218,7 +218,7 @@ struct SundayPromptStep: View {
     @State private var previews: [UIImage] = []
     @State private var preparing = false
 
-    private var holiday: HolidaySunday? { HolidaySunday.on(model.clock.now(), calendar: model.clock.calendar) }
+    private var holiday: HolidaySunday? { model.holidayToday }
     private var compose: ComposeStore { model.compose }
     /// Photos kept with this week's saved ideas, ready to start the post.
     private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost() }

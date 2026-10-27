@@ -54,6 +54,7 @@ final class AppModel {
         // A saved "Pretend it's Sunday" only counts for demo data or an admin.
         didSet {
             if !canChangeDay, debugDay != .real { setDebugDay(.real) }
+            if !canChangeDay { holidayPreview = nil }
             // Saved ideas belong to whoever saved them. Set on sign-in and on a restored session alike.
             if let id = currentUser?.id, id != oldValue?.id { savedIdeas.signedIn(userID: id) }
         }
@@ -68,6 +69,8 @@ final class AppModel {
     private(set) var accountSettings: AccountSettings?
     private(set) var appearance: Appearance
     private(set) var debugDay: DebugDay
+    /// An admin's look at a holiday Sunday on any Sunday, until set back. Never saved.
+    var holidayPreview: HolidaySunday?
     /// Set by a view that wants the shell to switch tabs (the profile's "Post your week" card).
     var requestedTab: SundayTab?
     /// Goes up when the user removes a follower or follows or unfollows someone, so a profile
@@ -105,6 +108,12 @@ final class AppModel {
     }
 
     var isSunday: Bool { phase == .sunday }
+    /// The holiday this Sunday dresses up as, if any: the real one, or an admin's preview.
+    var holidayToday: HolidaySunday? {
+        guard isSunday else { return nil }
+        if canChangeDay, let holidayPreview { return holidayPreview }
+        return HolidaySunday.on(clock.now(), calendar: clock.calendar)
+    }
     var isSignedIn: Bool { currentUser != nil }
     var currentWeekStart: Date { clock.weekStart() }
 

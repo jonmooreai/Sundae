@@ -285,6 +285,38 @@ struct SettingsValueRow: View {
     }
 }
 
+/// One of a few choices, from a menu: the title on the left, the current choice on the right.
+struct SettingsMenuRow<Value: Hashable>: View {
+    let title: String
+    /// Each option's value and its label.
+    let options: [(Value, String)]
+    @Binding var selection: Value
+
+    var body: some View {
+        Menu {
+            Picker(title, selection: $selection) {
+                ForEach(options.indices, id: \.self) { index in
+                    Text(options[index].1).tag(options[index].0)
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Text(title).font(.body).foregroundStyle(.primary)
+                Spacer(minLength: 8)
+                Text(options.first { $0.0 == selection }?.1 ?? "")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, minHeight: SettingsRow.minHeight, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, SettingsRow.verticalPadding)
+            .contentShape(Rectangle())
+        }
+        .accessibilityValue(options.first { $0.0 == selection }?.1 ?? "")
+    }
+}
+
 /// Something to do. Cherry red when it cannot be undone.
 struct SettingsActionRow: View {
     let title: String
