@@ -156,6 +156,8 @@ private struct SavedIdeaCard: View {
     let onRemove: () -> Void
 
     private let side: CGFloat = 76
+    /// The card's own inset, which the photo row reaches out across.
+    private let cardPadding: CGFloat = 16
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -204,7 +206,7 @@ private struct SavedIdeaCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card()
+        .card(padding: cardPadding)
     }
 
     private var photos: some View {
@@ -228,9 +230,11 @@ private struct SavedIdeaCard: View {
                     .accessibilityLabel("Add photos to this idea")
                 }
             }
+            // Starts in line with the words and scrolls out to the card's edges, never past them.
+            .padding(.horizontal, cardPadding)
         }
         .scrollIndicators(.hidden)
-        .scrollClipDisabled()
+        .padding(.horizontal, -cardPadding)
     }
 
     private func thumbnail(_ photo: SavedPhoto) -> some View {
