@@ -1,10 +1,9 @@
 import MapKit
 import SwiftUI
 
-/// The place behind a nearby idea, as a little card: the street outside it from Apple's Look
-/// Around where Apple has it, or else a small map with the place pinned, how far it is, Apple
-/// Maps' own place card for its photos and hours, and the way there. Everything here is looked up
-/// by the place's public id or position, never by where the person is.
+/// The place behind a nearby idea, as a little card: a small map with the place pinned, how far
+/// it is, Apple Maps' own place card for its photos and hours, and the way there. Everything here
+/// is looked up by the place's public id or position, never by where the person is.
 struct PlaceCard: View {
     let place: Suggestion.Place
     /// "6 min walk", "12 mi".
@@ -19,21 +18,13 @@ struct PlaceCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if showsPicture, let scene = lookup?.scene {
-                LookAroundPreview(initialScene: scene, allowsNavigation: true, showsRoadLabels: false,
-                                  pointsOfInterest: .excludingAll, badgePosition: .bottomTrailing)
-                    .frame(height: 132)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .padding([.top, .horizontal], 8)
-                    .accessibilityLabel("Look Around at \(place.name)")
-                    .transition(.opacity)
-            } else if showsPicture, lookup != nil, let coordinate {
-                // Apple has no street view here: the place on a map instead, once that is known.
+            // A map, not Look Around: the street view at a place's position too often shows the
+            // house next door.
+            if showsPicture, let coordinate {
                 map(of: coordinate)
                     .frame(height: 132)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding([.top, .horizontal], 8)
-                    .transition(.opacity)
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -83,8 +74,6 @@ struct PlaceCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup?.scene != nil)
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup != nil)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup?.mapItem != nil)
         .mapItemDetailSheet(item: $placeCard)
         .task(id: place) {
@@ -123,15 +112,13 @@ extension PlaceCard {
     }
 }
 
-/// Apple Maps' record of a place and Apple's street-level view of it, looked up once a place is on
-/// screen. Read-only MapKit objects, made once and never changed, so they cross to the screen safely.
+/// Apple Maps' record of a place, looked up once a place is on screen, for its place card. A
+/// read-only MapKit object, made once and never changed, so it crosses to the screen safely.
 final class PlaceLookup: @unchecked Sendable {
     let mapItem: MKMapItem?
-    let scene: MKLookAroundScene?
 
-    private init(mapItem: MKMapItem?, scene: MKLookAroundScene?) {
+    private init(mapItem: MKMapItem?) {
         self.mapItem = mapItem
-        self.scene = scene
     }
 
     /// By Apple's id when the idea has one; for ideas saved before that, by name close to where
@@ -144,13 +131,7 @@ final class PlaceLookup: @unchecked Sendable {
         if item == nil, let latitude = place.latitude, let longitude = place.longitude {
             item = await search(place.name, near: CLLocationCoordinate2D(latitude: latitude, longitude: longitude))
         }
-        var scene: MKLookAroundScene?
-        if let item {
-            scene = try? await MKLookAroundSceneRequest(mapItem: item).scene
-        } else if let latitude = place.latitude, let longitude = place.longitude {
-            scene = try? await MKLookAroundSceneRequest(coordinate: CLLocationCoordinate2D(latitude: latitude, longitude: longitude)).scene
-        }
-        return PlaceLookup(mapItem: item, scene: scene)
+        return PlaceLookup(mapItem: item)
     }
 
     /// The result with the same name within a few hundred meters, or nothing.
