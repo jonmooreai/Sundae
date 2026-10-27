@@ -7,6 +7,8 @@ struct FeedScreen: View {
     @State private var path: [Route] = []
     @State private var selection: Route?
     let onPost: () -> Void
+    /// Counts taps on Feed while it is showing: each one goes back to the feed itself.
+    var reselects = 0
 
     var body: some View {
         if sizeClass == .regular {
@@ -29,6 +31,8 @@ struct FeedScreen: View {
                     .aboveBottomBar()
                     .swipeBackEnabled()
             }
+            // From a post, or anything opened from one, straight back to the feed where it was.
+            .onChange(of: reselects) { _, _ in path.removeAll() }
         }
     }
 }

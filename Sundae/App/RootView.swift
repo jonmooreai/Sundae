@@ -37,12 +37,14 @@ struct SundayShell: View {
     @State private var barHeight: CGFloat = 50
     /// A pinched photo, drawn over everything including the bar.
     @State private var zoom = PhotoZoom()
+    /// Goes up each time Feed is tapped while it is already showing, to take the feed back to the top.
+    @State private var feedReselects = 0
 
     private var compose: ComposeStore { model.compose }
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab(value: .feed) { FeedScreen(onPost: openCompose).tabPage(barHeight: barHeight) }
+            Tab(value: .feed) { FeedScreen(onPost: openCompose, reselects: feedReselects).tabPage(barHeight: barHeight) }
             Tab(value: .search) { SearchScreen().tabPage(barHeight: barHeight) }
             Tab(value: .approvals) { ApprovalsScreen().tabPage(barHeight: barHeight) }
             Tab(value: .profile) { ProfileScreen().tabPage(barHeight: barHeight) }
@@ -50,7 +52,8 @@ struct SundayShell: View {
         // The bar is an overlay and every page reserves its height. A safe area inset on the
         // TabView itself never reached the pages, so a screen's bottom composer sat under the bar.
         .overlay(alignment: .bottom) {
-            SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose)
+            SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
+                         onReselect: { if $0 == .feed { feedReselects += 1 } })
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                 // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
                 .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -144,6 +147,8 @@ struct SundaeTabBar: View {
     let pendingApprovals: Int
     let user: User?
     let onPost: () -> Void
+    /// The tab that was already showing was tapped again.
+    var onReselect: (SundayTab) -> Void = { _ in }
     @State private var bumped: SundayTab?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -178,7 +183,7 @@ struct SundaeTabBar: View {
     private func item(_ which: SundayTab, _ glyph: Ph, _ label: String, badge: Int = 0) -> some View {
         let isSelected = selected == which
         return Button {
-            selected = which
+            if selected == which { onReselect(which) } else { selected = which }
             bump(which)
         } label: {
             Icon(glyph, weight: isSelected ? .fill : .regular, size: 27)
@@ -209,7 +214,7 @@ struct SundaeTabBar: View {
     private var profileItem: some View {
         let isSelected = selected == .profile
         return Button {
-            selected = .profile
+            if selected == .profile { onReselect(.profile) } else { selected = .profile }
         } label: {
             Group {
                 if let user {
