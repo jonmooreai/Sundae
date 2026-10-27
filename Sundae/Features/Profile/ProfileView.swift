@@ -4,15 +4,23 @@ import PhotosUI
 /// The Profile tab: your own archive.
 struct ProfileScreen: View {
     @Environment(AppModel.self) private var model
+    /// Taps on the tab while it shows: back to your profile, then to its top.
+    var reselects = 0
+    @State private var path: [Route] = []
+    @State private var scrollSignal = 0
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             if let id = model.currentUser?.id {
                 ProfileView(userID: id, isRoot: true)
+                    .environment(\.scrollToTop, scrollSignal)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
                     .aboveBottomBar()
                     .swipeBackEnabled()
             }
+        }
+        .onChange(of: reselects) { _, _ in
+            if path.isEmpty { scrollSignal += 1 } else { path.removeAll() }
         }
     }
 }
@@ -59,6 +67,7 @@ struct ProfileView: View {
                         .accessibilityLabel("More")
                     }
                 }
+                .id(ScrollTop.id)
                 if let profile {
                     ProfileHeader(profile: profile, onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
                         .padding(.horizontal, Theme.pagePadding)
@@ -73,6 +82,7 @@ struct ProfileView: View {
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
         }
+        .scrollsToTopOnTabTap()
         .background(Theme.background)
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSettings) {

@@ -273,6 +273,22 @@ actor MockSundaeAPI: SundaeAPI {
         return dump
     }
 
+    func setCherry(photoID: ID, cherried: Bool) async throws -> Photo {
+        let me = try requireSignedIn()
+        try requireSunday()
+        guard let dumpID = dumps.first(where: { $0.value.photos.contains { $0.id == photoID } })?.key,
+              var dump = dumps[dumpID], canRead(dump, as: me.id),
+              let index = dump.photos.firstIndex(where: { $0.id == photoID }) else { throw SundaeError.notFound }
+        var photo = dump.photos[index]
+        photo.cherriedBy.removeAll { $0.id == me.id }
+        if cherried { photo.cherriedBy.append(me) }
+        photo.cherryCount = photo.cherriedBy.count
+        photo.cherriedByMe = cherried
+        dump.photos[index] = photo
+        dumps[dumpID] = dump
+        return photo
+    }
+
     func comments(dumpID: ID) async throws -> [Comment] {
         let me = try requireSignedIn()
         try requireSunday()
@@ -311,9 +327,12 @@ actor MockSundaeAPI: SundaeAPI {
         let (dumpID, index) = located
         let comment = comments[dumpID]![index]
         guard comment.author.id == me.id || dump.author.id == me.id else { throw SundaeError.notAuthorized }
-        comments[dumpID]!.remove(at: index)
-        commentLikes[id] = nil
-        dump.commentCount = max(0, dump.commentCount - 1)
+        // Its replies go with it, like on the server.
+        let gone = comments[dumpID]!.filter { $0.id == id || $0.parentID == id }.map(\.id)
+        comments[dumpID]!.removeAll { gone.contains($0.id) }
+        _ = index
+        for goneID in gone { commentLikes[goneID] = nil }
+        dump.commentCount = max(0, dump.commentCount - gone.count)
         dumps[dumpID] = dump
     }
 
@@ -331,12 +350,19 @@ actor MockSundaeAPI: SundaeAPI {
         return withLikes(comments[dumpID]![index], viewer: me.id)
     }
 
-    func addComment(dumpID: ID, body: String) async throws -> Comment {
+    func addComment(dumpID: ID, body: String, replyingTo parentID: ID?) async throws -> Comment {
         let me = try requireSignedIn()
         try requireSunday()
         guard var dump = dumps[dumpID], canRead(dump, as: me.id) else { throw SundaeError.notFound }
         guard dump.commentsEnabled else { throw SundaeError.notAuthorized }
-        let comment = Comment(id: "c_\(UUID().uuidString)", dumpID: dumpID, author: me, body: body, createdAt: clock.now())
+        // One level deep, like the server: a reply to a reply goes under the same comment.
+        var parent: ID?
+        if let parentID {
+            guard let found = comments[dumpID]?.first(where: { $0.id == parentID }) else { throw SundaeError.notFound }
+            parent = found.parentID ?? found.id
+        }
+        let comment = Comment(id: "c_\(UUID().uuidString)", dumpID: dumpID, author: me, body: body, createdAt: clock.now(),
+                              parentID: parent)
         comments[dumpID, default: []].append(comment)
         dump.commentCount += 1
         dumps[dumpID] = dump

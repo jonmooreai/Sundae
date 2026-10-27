@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// One photo, edge to edge, with its caption and tags. Space or a long press opens it;
+/// One photo, edge to edge, with its caption and tags. Space opens it;
 /// a swipe down or the close button dismisses.
 struct FullScreenPhotoView: View {
     let photo: Photo

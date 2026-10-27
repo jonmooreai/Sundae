@@ -30,8 +30,11 @@ protocol SundaeAPI: Sendable {
     func saveDump(_ draft: DumpDraft, weekStart: Date) async throws -> Dump
     func deleteDump(id: ID) async throws
     func setLike(dumpID: ID, liked: Bool) async throws -> Dump
+    /// The user's cherry on one photo, given or taken back. Returns the photo.
+    func setCherry(photoID: ID, cherried: Bool) async throws -> Photo
     func comments(dumpID: ID) async throws -> [Comment]
-    func addComment(dumpID: ID, body: String) async throws -> Comment
+    /// `parentID` makes it a reply to that comment.
+    func addComment(dumpID: ID, body: String, replyingTo parentID: ID?) async throws -> Comment
     /// Only the author may edit. Returns the comment with `editedAt` set.
     func updateComment(id: ID, body: String) async throws -> Comment
     /// The author or the dump's author may delete.

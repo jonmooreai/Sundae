@@ -10,14 +10,22 @@ struct FeedMoments: View {
     @State private var dismissedAnniversary = false
     @State private var dismissedFirst: Set<ID> = []
     @State private var dismissedWrap = false
+    @State private var dismissedHalloween = false
 
     private var feed: FeedStore { model.feed }
 
     var body: some View {
         let firsts = firstSundays
         let wrap = wrapSummary
-        if anniversary != nil && !dismissedAnniversary || !firsts.isEmpty || wrap != nil {
+        let halloween = showsHalloween
+        if anniversary != nil && !dismissedAnniversary || !firsts.isEmpty || wrap != nil || halloween {
             VStack(spacing: 12) {
+                if halloween {
+                    HalloweenCard {
+                        MomentMemory.halloweenShownWeekStart = model.currentWeekStart
+                        withAnimation { dismissedHalloween = true }
+                    }
+                }
                 if let anniversary, !dismissedAnniversary {
                     AnniversaryCard(dump: anniversary, rangeLabel: model.clock.rangeLabel(weekStart: anniversary.weekStart)) {
                         open(.dump(anniversary.id))
@@ -47,6 +55,13 @@ struct FeedMoments: View {
         } else {
             Color.clear.frame(height: 0).task { await loadAnniversary() }
         }
+    }
+
+    /// Halloween Sunday's hello, until it is waved away.
+    private var showsHalloween: Bool {
+        guard model.isSunday, !dismissedHalloween else { return false }
+        return Halloween.isHalloweenSunday(model.clock.now(), calendar: model.clock.calendar)
+            && MomentMemory.halloweenShownWeekStart != model.currentWeekStart
     }
 
     /// Friends whose first week ever is in the feed, until you have seen the card.
@@ -104,6 +119,31 @@ struct WrapSummary: Equatable {
 }
 
 /// The end-of-Sunday card: warm, not a dashboard, and it ends with Monday.
+/// "Happy Halloween Sunday." with the jack-o'-lantern, once.
+struct HalloweenCard: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            PumpkinCherry(size: 44)
+                .modifier(RiseIn(delay: 0.1))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Happy Halloween Sunday.").font(Theme.display(22))
+                Text("Costumes, candy hauls and carved pumpkins: the spooky bits of your week belong here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            IconButton(glyph: Glyph.close, label: "Dismiss", size: 18, action: onDismiss)
+                .padding(.trailing, -10)
+                .padding(.top, -8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 16)
+    }
+}
+
 struct SundayWrapCard: View {
     let summary: WrapSummary
     let onDismiss: () -> Void

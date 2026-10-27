@@ -1,13 +1,22 @@
 import SwiftUI
 
 struct SearchScreen: View {
+    /// Taps on the tab while it shows: back to search, then a fresh search at the top.
+    var reselects = 0
+    @State private var path: [Route] = []
+    @State private var scrollSignal = 0
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             SearchView()
+                .environment(\.scrollToTop, scrollSignal)
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                 .aboveBottomBar()
                 .swipeBackEnabled()
+        }
+        .onChange(of: reselects) { _, _ in
+            if path.isEmpty { scrollSignal += 1 } else { path.removeAll() }
         }
     }
 }
@@ -24,6 +33,7 @@ struct SearchView: View {
     /// Requests just confirmed, showing their moment before the row leaves.
     @State private var confirmed: Set<ID> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scrollToTop) private var scrollToTop
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,6 +41,7 @@ struct SearchView: View {
             SearchField(text: $query, placeholder: "Name or username")
                 .padding(.horizontal, Theme.pagePadding)
                 .padding(.bottom, 6)
+            ScrollViewReader { proxy in
             List {
                 if !requests.isEmpty && query.isEmpty {
                     Section {
@@ -96,6 +107,13 @@ struct SearchView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 70)
+            // The tab tapped again: a fresh search, from the top.
+            .onChange(of: scrollToTop) { _, _ in
+                query = ""
+                guard let first = requests.first?.id ?? suggested.first?.id else { return }
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.4)) { proxy.scrollTo(first, anchor: .top) }
+            }
+            }
         }
         .background(Theme.background)
         .task {

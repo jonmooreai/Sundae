@@ -25,6 +25,8 @@ struct DumpCard: View {
                 if !dump.likedByMe { onLike() }
             }, onTapTag: { user in
                 open(.profile(user.id))
+            }, onCherry: { photo, cherried in
+                Task { await model.feed.setCherry(cherried, photoID: photo.id, dumpID: dump.id, me: model.currentUser) }
             })
 
             PhotoCaptionLine(photos: dump.photos, page: page)

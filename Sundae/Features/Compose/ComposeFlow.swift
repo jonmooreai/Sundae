@@ -53,9 +53,10 @@ struct ComposeFlow: View {
 /// A handful of sprinkles that scatter from the check when the week goes up.
 struct Sprinkles: View {
     let fired: Bool
+    /// Candy corn on Halloween Sunday, the usual sprinkles every other day.
+    var colors: [Color] = Sprinkles.everyday
+    static let everyday: [Color] = [Theme.cherry, Color.accentColor, Color(red: 0.93, green: 0.76, blue: 0.40), Color(red: 0.62, green: 0.74, blue: 0.86)]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private let colors: [Color] = [Theme.cherry, Color.accentColor, Color(red: 0.93, green: 0.76, blue: 0.40), Color(red: 0.62, green: 0.74, blue: 0.86)]
 
     var body: some View {
         ZStack {
@@ -218,6 +219,7 @@ struct SundayPromptStep: View {
     @State private var previews: [UIImage] = []
     @State private var preparing = false
 
+    private var isHalloween: Bool { Halloween.isHalloweenSunday(model.clock.now(), calendar: model.clock.calendar) }
     private var compose: ComposeStore { model.compose }
     /// Photos kept with this week's saved ideas, ready to start the post.
     private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost() }
@@ -226,7 +228,11 @@ struct SundayPromptStep: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                CherryMark(size: 30)
+                if isHalloween {
+                    PumpkinCherry(size: 34)
+                } else {
+                    CherryMark(size: 30)
+                }
                 Spacer()
                 Button("Not now") { notNow() }
                     .font(.subheadline.weight(.medium))
@@ -241,7 +247,7 @@ struct SundayPromptStep: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.8)
-                Text(compose.hasPosted ? "It's Sunday.\nYour week is up." : "It's Sunday.\nPost your week.")
+                Text("\(isHalloween ? "Happy Halloween Sunday." : "It's Sunday.")\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
                     .font(Theme.display(44))
                     .lineSpacing(2)
                 Text(compose.hasPosted
@@ -284,6 +290,7 @@ struct SundayPromptStep: View {
         }
         .padding(24)
         .background(Theme.background)
+        .halloweenNight(date: model.clock.now(), calendar: model.clock.calendar)
         .toolbar(.hidden, for: .navigationBar)
         .task { await loadPreviews() }
     }
@@ -344,7 +351,11 @@ struct PostedStep: View {
                 .foregroundStyle(Color.accentColor)
                 .scaleEffect(appeared ? 1 : 0.6)
                 .animation(.bouncy(duration: 0.5), value: appeared)
-                .background { Sprinkles(fired: appeared) }
+                .background {
+                    Sprinkles(fired: appeared,
+                              colors: Halloween.isHalloweenSunday(model.clock.now(), calendar: model.clock.calendar)
+                                ? Halloween.colors : Sprinkles.everyday)
+                }
             Text(compose.queuedOffline ? "Saved for when you're back online." : "Your week is up.")
                 .font(Theme.display(36))
                 .multilineTextAlignment(.center)

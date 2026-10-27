@@ -6,14 +6,16 @@ struct FeedScreen: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var path: [Route] = []
     @State private var selection: Route?
+    @State private var scrollSignal = 0
     let onPost: () -> Void
-    /// Counts taps on Feed while it is showing: each one goes back to the feed itself.
+    /// Counts taps on Feed while it is showing: back to the feed itself, then to its top.
     var reselects = 0
 
     var body: some View {
         if sizeClass == .regular {
             NavigationSplitView {
                 FeedList(open: { selection = $0 }, onPost: onPost)
+                    .environment(\.scrollToTop, scrollSignal)
                     .toolbar(.hidden, for: .navigationBar)
                     .navigationSplitViewColumnWidth(min: 380, ideal: 460, max: 560)
             } detail: {
@@ -23,16 +25,21 @@ struct FeedScreen: View {
                     ContentUnavailableView("Pick a post", systemImage: "photo.on.rectangle", description: Text("Tap a photo or a name on the left."))
                 }
             }
+            .onChange(of: reselects) { _, _ in scrollSignal += 1 }
         } else {
             NavigationStack(path: $path) {
                 FeedList(open: { path.append($0) }, onPost: onPost)
+                    .environment(\.scrollToTop, scrollSignal)
                     .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
                     .aboveBottomBar()
                     .swipeBackEnabled()
             }
-            // From a post, or anything opened from one, straight back to the feed where it was.
-            .onChange(of: reselects) { _, _ in path.removeAll() }
+            // From a post, or anything opened from one, straight back to the feed where it was;
+            // already there, up to the top.
+            .onChange(of: reselects) { _, _ in
+                if path.isEmpty { scrollSignal += 1 } else { path.removeAll() }
+            }
         }
     }
 }
@@ -47,6 +54,7 @@ struct FeedList: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
+                ScrollTop()
                 ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) { EmptyView() }
                 .accessibilityElement(children: .contain)
 
@@ -88,9 +96,11 @@ struct FeedList: View {
             .frame(maxWidth: .infinity)
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
         }
+        .scrollsToTopOnTabTap()
         .background(Theme.background)
         .goldenHour(calendar: model.clock.calendar)
         .birthdayPaper(calendar: model.clock.calendar)
+        .halloweenNight(date: model.clock.now(), calendar: model.clock.calendar)
         .refreshable {
             await feed.load(refresh: true)
             await model.compose.load(weekStart: model.currentWeekStart)

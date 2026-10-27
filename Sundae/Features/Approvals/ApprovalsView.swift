@@ -1,13 +1,22 @@
 import SwiftUI
 
 struct ApprovalsScreen: View {
+    /// Taps on the tab while it shows: back to this screen, then to its top.
+    var reselects = 0
+    @State private var path: [Route] = []
+    @State private var scrollSignal = 0
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ApprovalsView()
+                .environment(\.scrollToTop, scrollSignal)
                 .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                 .aboveBottomBar()
                 .swipeBackEnabled()
+        }
+        .onChange(of: reselects) { _, _ in
+            if path.isEmpty { scrollSignal += 1 } else { path.removeAll() }
         }
     }
 }
@@ -32,6 +41,7 @@ struct ApprovalsView: View {
                             .buttonStyle(.pill(.secondary, size: .small))
                     }
                 }
+                .id(ScrollTop.id)
                 if let message = store.errorMessage {
                     ErrorBanner(message: message).padding(.horizontal, Theme.pagePadding)
                 }
@@ -58,6 +68,7 @@ struct ApprovalsView: View {
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity)
         }
+        .scrollsToTopOnTabTap()
         .background(Theme.background)
         .task { await store.load() }
         .refreshable { await store.load() }

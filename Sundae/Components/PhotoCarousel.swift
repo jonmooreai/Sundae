@@ -15,9 +15,15 @@ struct PhotoCarousel: View {
     /// `tagsLinkToProfiles` pushes the profile instead.
     var onTapTag: ((User) -> Void)? = nil
     var tagsLinkToProfiles = false
+    /// A long press gives the photo the viewer's cherry, or takes it back: the photo and whether
+    /// it is cherried now. Without it there are no cherries to give.
+    var onCherry: ((Photo, Bool) -> Void)? = nil
 
     @State private var showTags = false
     @State private var burst = 0
+    @State private var cherryBurst = 0
+    /// The photo whose cherries are listed, who gave them.
+    @State private var cherriesOf: Photo?
     @State private var screenFrame = ScreenFrame()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PhotoZoom.self) private var zoom: PhotoZoom?
@@ -44,18 +50,33 @@ struct PhotoCarousel: View {
                         .padding(10)
                     }
                 }
+                .overlay(alignment: .bottomTrailing) {
+                    if photo.cherryCount > 0 {
+                        Button { cherriesOf = photo } label: {
+                            CherryPile(count: photo.cherryCount)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(10)
+                        .accessibilityLabel(photo.cherryCount == 1 ? "1 cherry" : "\(photo.cherryCount) cherries")
+                        .accessibilityHint("Shows who sent them")
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
+                }
+                .animation(reduceMotion ? nil : .bouncy(duration: 0.35), value: photo.cherryCount)
                 .contentShape(Rectangle())
                 .pinchToZoom(photo.source, frame: { screenFrame.rect }, cornerRadius: cornerRadius,
                              zoom: zoom, reduceMotion: reduceMotion)
                 // Declared first so two quick taps read as one double tap, not two singles.
                 .onTapGesture(count: 2) { doubleTap() }
                 .onTapGesture { singleTap() }
+                .onLongPressGesture(minimumDuration: 0.4) { cherry(photo) }
                 .tag(offset)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityLabel(for: photo, position: offset))
                 .accessibilityAddTraits(onTap == nil ? AccessibilityTraits() : .isButton)
                 .accessibilityAction { if let onTap { onTap(offset) } else { toggleTags() } }
                 .accessibilityAction(named: "Show tagged friends") { toggleTags() }
+                .accessibilityAction(named: photo.cherriedByMe ? "Take back your cherry" : "Give a cherry") { cherry(photo) }
             }
         }
         .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
@@ -66,6 +87,12 @@ struct PhotoCarousel: View {
             if burst > 0 {
                 HeartBurst().id(burst).transition(.opacity)
             }
+            if cherryBurst > 0 {
+                CherryBurst().id(cherryBurst).transition(.opacity)
+            }
+        }
+        .sheet(item: $cherriesOf) { photo in
+            CherriesSheet(photo: photo)
         }
         .transaction { t in if reduceMotion { t.animation = nil } }
     }
@@ -83,6 +110,26 @@ struct PhotoCarousel: View {
             try? await Task.sleep(for: .milliseconds(700))
             guard burst == shown else { return }
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { burst = 0 }
+        }
+    }
+
+    /// A long press: the viewer's cherry, given with a pop and a squeak, or quietly taken back.
+    private func cherry(_ photo: Photo) {
+        guard let onCherry else { return }
+        let giving = !photo.cherriedByMe
+        onCherry(photo, giving)
+        guard giving else {
+            Haptics.light()
+            return
+        }
+        Haptics.success()
+        CherrySound.play()
+        cherryBurst += 1
+        let shown = cherryBurst
+        Task {
+            try? await Task.sleep(for: .milliseconds(800))
+            guard cherryBurst == shown else { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { cherryBurst = 0 }
         }
     }
 
@@ -140,6 +187,96 @@ private struct HeartBurst: View {
             .onAppear { withAnimation(reduceMotion ? nil : .bouncy(duration: 0.4)) { shown = true } }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
+    }
+}
+
+/// The felt cherry that drops onto a photo when you give it one.
+private struct CherryBurst: View {
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image("Cherry")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 112)
+            .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+            .rotationEffect(.degrees(shown ? -8 : 14))
+            .scaleEffect(shown ? 1 : 0.4)
+            .offset(y: shown ? 0 : -40)
+            .opacity(shown ? 1 : 0)
+            .onAppear { withAnimation(reduceMotion ? nil : .bouncy(duration: 0.45, extraBounce: 0.15)) { shown = true } }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Up to three little cherries in a heap, and how many there are, in a photo's corner.
+struct CherryPile: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 5) {
+            HStack(spacing: -10) {
+                ForEach(0..<min(count, 3), id: \.self) { index in
+                    Image("Cherry")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 22, height: 22)
+                        .rotationEffect(.degrees([-14, 8, -4][index]))
+                        .offset(y: index == 1 ? -2 : 0)
+                }
+            }
+            Text("\(count)")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 9)
+        .padding(.vertical, 3)
+        .background(Color.black.opacity(0.55), in: Capsule())
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+}
+
+/// Who gave a photo a cherry, oldest first.
+struct CherriesSheet: View {
+    let photo: Photo
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Cherries").font(Theme.display(26))
+                Spacer()
+                IconButton(glyph: Glyph.close, label: "Close", size: 20) { dismiss() }
+                    .padding(.trailing, -8)
+            }
+            .padding(.horizontal, Theme.pagePadding)
+            .padding(.top, 18)
+            .padding(.bottom, 6)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(photo.cherriedBy) { person in
+                        UserRow(user: person, title: person.displayName, subtitle: person.handle)
+                            .padding(.vertical, 6)
+                    }
+                }
+                .padding(.horizontal, Theme.pagePadding)
+            }
+            Text("Long-press a photo to give it a cherry. Long-press again to take it back.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Theme.pagePadding)
+                .padding(.vertical, 12)
+        }
+        .background(Theme.background)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationBackground(Theme.background)
     }
 }
 
