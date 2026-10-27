@@ -255,7 +255,7 @@ struct SundayPromptStep: View {
                     .tracking(0.8)
                 Text("\(greeting)\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
                     .font(Theme.display(44))
-                    .lineSpacing(2)
+                    .lineHeight(.multiple(factor: 1.05))
                 Text(compose.hasPosted
                      ? "Add a photo, fix the caption, or tag someone you missed. You have until midnight."
                      : startsFromSaved ? savedLine
