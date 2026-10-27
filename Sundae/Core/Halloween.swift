@@ -13,47 +13,16 @@ enum Halloween {
     }
 }
 
-/// The cherry in costume: a little carved pumpkin with a cherry's stem.
-struct PumpkinCherry: View {
+/// The cherry in costume: a felt jack-o'-lantern. A picture, not a drawing, like the cherry, so it
+/// keeps its wool; it is a little taller than wide, so it sits centered in its square.
+struct JackOLantern: View {
     var size: CGFloat = 30
 
     var body: some View {
-        Canvas { context, canvas in
-            let s = canvas.width / 30
-            let orange = Color(red: 0.95, green: 0.52, blue: 0.13)
-            let rib = Color(red: 0.80, green: 0.38, blue: 0.08)
-            let carved = Color(red: 0.23, green: 0.13, blue: 0.07)
-            let pumpkin = CGRect(x: 1.5 * s, y: 8 * s, width: 27 * s, height: 20.5 * s)
-            context.fill(Path(ellipseIn: pumpkin), with: .color(orange))
-            for inset in [5.5, 10.0] {
-                let band = pumpkin.insetBy(dx: inset * s, dy: 0.4 * s)
-                context.stroke(Path(ellipseIn: band), with: .color(rib.opacity(0.7)), lineWidth: 1.1 * s)
-            }
-
-            var stem = Path()
-            stem.move(to: CGPoint(x: 15 * s, y: 9 * s))
-            stem.addQuadCurve(to: CGPoint(x: 19.5 * s, y: 1.5 * s), control: CGPoint(x: 15 * s, y: 3 * s))
-            context.stroke(stem, with: .color(Color(red: 0.36, green: 0.52, blue: 0.30)),
-                           style: StrokeStyle(lineWidth: 2.4 * s, lineCap: .round))
-
-            for x in [8.5, 17.5] {
-                var eye = Path()
-                eye.move(to: CGPoint(x: x * s, y: 17.5 * s))
-                eye.addLine(to: CGPoint(x: (x + 4) * s, y: 17.5 * s))
-                eye.addLine(to: CGPoint(x: (x + 2) * s, y: 13.5 * s))
-                eye.closeSubpath()
-                context.fill(eye, with: .color(carved))
-            }
-
-            var mouth = Path()
-            mouth.move(to: CGPoint(x: 8 * s, y: 20.5 * s))
-            for (x, y) in [(10.5, 23), (13, 21.3), (15, 23.6), (17, 21.3), (19.5, 23), (22, 20.5)] {
-                mouth.addLine(to: CGPoint(x: x * s, y: y * s))
-            }
-            mouth.addQuadCurve(to: CGPoint(x: 8 * s, y: 20.5 * s), control: CGPoint(x: 15 * s, y: 28 * s))
-            context.fill(mouth, with: .color(carved))
-        }
-        .frame(width: size, height: size)
-        .accessibilityLabel("Jack-o'-lantern")
+        Image("JackOLantern")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityLabel("Jack-o'-lantern")
     }
 }

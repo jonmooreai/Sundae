@@ -118,14 +118,13 @@ struct WrapSummary: Equatable {
     }
 }
 
-/// The end-of-Sunday card: warm, not a dashboard, and it ends with Monday.
 /// "Happy Halloween Sunday." with the jack-o'-lantern, once.
 struct HalloweenCard: View {
     let onDismiss: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            PumpkinCherry(size: 44)
+            JackOLantern(size: 44)
                 .modifier(RiseIn(delay: 0.1))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Happy Halloween Sunday.").font(Theme.display(22))
@@ -144,6 +143,7 @@ struct HalloweenCard: View {
     }
 }
 
+/// The end-of-Sunday card: warm, not a dashboard, and it ends with Monday.
 struct SundayWrapCard: View {
     let summary: WrapSummary
     let onDismiss: () -> Void
