@@ -518,7 +518,7 @@
   {
     "id": "s055",
     "text": "Try a cuisine you can't remember ever eating.",
-    "reason": "There's a place within a few miles.",
+    "reason": "There's probably one closer than you think.",
     "categories": [
       "food"
     ],
@@ -633,7 +633,7 @@
   {
     "id": "s067",
     "text": "Go to a free event. A reading, a show, a game.",
-    "reason": "Something is happening tonight within two miles.",
+    "reason": "Libraries, bookshops and parks post them. Something is usually on.",
     "categories": [
       "people",
       "local"

@@ -58,10 +58,33 @@ struct IdeaWriterTests {
     }
 
     @Test func thePromptCarriesOnlyWhatIsTrue() {
-        let prompt = IdeaWriter.prompt(for: bakery)
+        let prompt = IdeaWriter.prompt(for: bakery, why: "")
         #expect(prompt.contains("Pat's Bakery"))
         #expect(prompt.contains("a 6 minute walk"))
         #expect(!prompt.contains("Weather"))
-        #expect(!IdeaWriter.prompt(for: park).contains("walk"))
+        #expect(!prompt.contains("Take a photo"), "the photo ask is never the model's to write")
+        #expect(!IdeaWriter.prompt(for: park, why: "").contains("walk"))
+    }
+
+    @Test func thePhotoAskIsKeptWordForWord() {
+        let parts = IdeaWriter.split("Pick a book you'd never choose. Take a photo of the cover.")
+        #expect(parts.why == "Pick a book you'd never choose.")
+        #expect(parts.ask == "Take a photo of the cover.")
+        let only = IdeaWriter.split("Take a photo of it before the first bite.")
+        #expect(only.why.isEmpty)
+        #expect(only.ask == "Take a photo of it before the first bite.")
+        let one = IdeaWriter.split("Take one photo, then put the phone away and look.")
+        #expect(one.why.isEmpty)
+    }
+
+    @Test func itNeverAsksForAPhotoTwice() {
+        #expect(!IdeaWriter.accepts(text: "Try something new at Pat's Bakery.",
+                                    reason: "Take a photo of it, then snap a pic before the first bite.", for: bakery))
+        #expect(!IdeaWriter.accepts(text: "Try something new at Pat's Bakery.",
+                                    reason: "Take a photo or snap a pic of it.", for: bakery))
+        #expect(!IdeaWriter.accepts(text: "Take a photo at Pat's Bakery.",
+                                    reason: "Take a photo of it before the first bite.", for: bakery))
+        #expect(!IdeaWriter.accepts(text: "Try something new at Pat's Bakery.",
+                                    reason: "Great for pictures. Take a photo of it before the first bite.", for: bakery))
     }
 }
