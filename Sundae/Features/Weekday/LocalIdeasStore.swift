@@ -33,6 +33,10 @@ final class LocalIdeasStore {
     private let shared: SharedDefaults
     private static let enabledKey = "localIdeas.enabled"
     private static let resumeKey = "localIdeas.resumeFor"
+    /// Raised whenever the way ideas are picked or worded changes, so today's ideas from an older
+    /// build are thrown away and made again rather than kept for the rest of the day.
+    private static let ideasVersion = 2
+    private static let versionKey = "localIdeas.version"
 
     private(set) var isEnabled: Bool
     private(set) var status: Status
@@ -100,6 +104,10 @@ final class LocalIdeasStore {
             // The rule. Sunday never looks, and shows nothing left over from Saturday.
             ideas = []
             return
+        }
+        if UserDefaults.standard.integer(forKey: Self.versionKey) != Self.ideasVersion {
+            shared.clearLocalIdeas()
+            UserDefaults.standard.set(Self.ideasVersion, forKey: Self.versionKey)
         }
         let now = clock.now()
         if let cached = shared.localIdeas(on: now, calendar: clock.calendar) {

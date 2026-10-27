@@ -178,6 +178,9 @@ enum IdeaWriter {
         // The place, by its own name.
         let place = brief.place.replacingOccurrences(of: "\u{2019}", with: "'")
         guard text.contains(place) else { return false }
+        // An idea, not just the place's name: it starts with what to do and says something more.
+        let around = text.replacingOccurrences(of: place, with: " ")
+        guard !text.hasPrefix(place), IdeaGuard.words(in: around.lowercased()).count >= 2 else { return false }
         // Asks for a picture once, in the app's own words, and nowhere else mentions one.
         let lowered = reason.lowercased()
         let askCount = photoAsks.reduce(0) { $0 + lowered.components(separatedBy: $1).count - 1 }

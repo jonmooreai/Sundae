@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The place behind a nearby idea, as a little card: the street outside it from Apple's Look
 /// Around where Apple has it, how far it is, Apple Maps' own place card for its photos and hours,
-/// and the way there. The felt cherry is stuck on the corner. Everything here is looked up by the
+/// and the way there. Everything here is looked up by the
 /// place's public id or position, never by where the person is.
 struct PlaceCard: View {
     let place: Suggestion.Place
@@ -32,8 +32,6 @@ struct PlaceCard: View {
                 Text(place.name)
                     .font(.body.weight(.semibold))
                     .lineLimit(1)
-                    // Room for the cherry sticker when there is no picture under it.
-                    .padding(.trailing, hasPicture ? 0 : 36)
                 if let distance {
                     HStack(spacing: 5) {
                         Icon(Glyph.pin, weight: .fill, size: 13)
@@ -77,14 +75,6 @@ struct PlaceCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
-        // The sticker: the felt cherry pressed onto the corner, a little crooked.
-        .overlay(alignment: .topTrailing) {
-            CherryMark(size: 46)
-                .rotationEffect(.degrees(14))
-                .shadow(color: .black.opacity(0.15), radius: 3, y: 2)
-                .offset(x: 10, y: -16)
-                .allowsHitTesting(false)
-        }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup?.scene != nil)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup?.mapItem != nil)
         .mapItemDetailSheet(item: $placeCard)
@@ -93,8 +83,6 @@ struct PlaceCard: View {
             lookup = await PlaceLookup.find(place)
         }
     }
-
-    private var hasPicture: Bool { showsPicture && lookup?.scene != nil }
 }
 
 /// Apple Maps' record of a place and Apple's street-level view of it, looked up once a place is on
