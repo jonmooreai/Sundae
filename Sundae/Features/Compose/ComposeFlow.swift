@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 enum ComposeStep: Hashable {
     case pick, arrange, caption, posted

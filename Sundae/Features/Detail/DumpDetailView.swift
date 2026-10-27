@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// Full dump: photos, caption, tags, likes, and the one conversation per dump.
 struct DumpDetailView: View {

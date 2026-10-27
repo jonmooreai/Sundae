@@ -1,7 +1,6 @@
 import Photos
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 /// The screen people see most. One suggestion, large type, nowhere else to go.
 /// It should look like a nice postcard, not an error state.

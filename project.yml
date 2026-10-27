@@ -7,12 +7,6 @@ options:
   xcodeVersion: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
-packages:
-  # Pinned to one commit (the 2.1.0 tag) so a new or moved upstream tag never reaches the app or
-  # CI unseen. To update, read the new release and put its commit here.
-  PhosphorSwift:
-    url: https://github.com/phosphor-icons/swift
-    revision: 9a9467181782bbe319ad4935d0993c77cd8a5fbc
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -91,7 +85,6 @@ targets:
     dependencies:
       - target: SundaeWidget
         embed: true
-      - package: PhosphorSwift
   SundaeWidget:
     type: app-extension
     platform: iOS

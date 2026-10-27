@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 /// Cream paper, warm grays, a sage accent, serif display type, pill buttons. Photos carry
 /// the color; the chrome stays quiet in either theme. Nothing here is a stock iOS control.

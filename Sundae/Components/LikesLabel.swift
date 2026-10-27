@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// Likes show as names of friends, not a total, until the count passes 10. One line.
 struct LikesLabel: View {

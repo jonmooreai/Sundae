@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// One week on a profile: date range, then a 160 pt strip of photos with a 4 pt gap.
 /// Own photos first, then tagged photos with a "from Maya" chip. Captions show on tap only,

@@ -2,7 +2,6 @@ import LocalAuthentication
 import SwiftUI
 import UIKit
 import UserNotifications
-import PhosphorSwift
 
 /// Account, privacy, weekday ideas, tags, notifications, data. Open every day.
 struct SettingsView: View {

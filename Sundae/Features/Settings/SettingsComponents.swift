@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 // The pieces every settings screen is built from: a page, grouped cards with hairlines between
 // rows, and rows that are switches, radios, links, values or actions. Few words, clear states.

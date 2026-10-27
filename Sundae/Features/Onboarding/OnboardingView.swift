@@ -2,7 +2,6 @@ import AuthenticationServices
 import PhotosUI
 import SwiftUI
 import WidgetKit
-import PhosphorSwift
 
 /// The felt sundae full screen, then short steps on cream paper: what Sundae is, sign in, who you
 /// are, ideas near you, Sunday reminders, the widgets, bring your group.

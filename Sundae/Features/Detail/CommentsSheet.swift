@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// The conversation under a week, in a drawer over the photos. Flat comments, newest at the
 /// bottom, a heart on each. Your own can be edited or deleted (delete gives you a few seconds to

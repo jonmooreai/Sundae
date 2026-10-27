@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// The small cards that sometimes sit above the feed: a year ago today, a friend's first Sunday,
 /// and the Sunday wrap after dark. Each shows once and goes away on its own.

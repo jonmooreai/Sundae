@@ -3,7 +3,6 @@ import CoreMotion
 import Observation
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 /// The app's mark: the felt cherry from the app icon. A picture, not a drawing, so it keeps its
 /// wool texture; the image is square with the cherry centered, so any size frames it the same.

@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// Step two: see each photo large, give it a caption, tag the friends who were there, fix the order.
 struct ArrangeStep: View {

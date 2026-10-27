@@ -1,6 +1,5 @@
 import SwiftUI
 import PhotosUI
-import PhosphorSwift
 
 /// The Profile tab: your own archive.
 struct ProfileScreen: View {

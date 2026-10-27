@@ -1,6 +1,5 @@
 import Photos
 import SwiftUI
-import PhosphorSwift
 
 /// Search the people you follow or who follow you, attach up to 10 to one photo.
 struct TagPickerSheet: View {
