@@ -487,6 +487,7 @@ async function deleteMe(ctx) {
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?1').bind(me),
     db.prepare("UPDATE uploads SET user_id = '', expires_at = 0 WHERE user_id = ?1").bind(me),
     db.prepare('DELETE FROM suggestions_done WHERE user_id = ?1').bind(me),
+    db.prepare('DELETE FROM admins WHERE user_id = ?1').bind(me),
     db.prepare('DELETE FROM users WHERE id = ?1').bind(me),
   ]);
   try {
