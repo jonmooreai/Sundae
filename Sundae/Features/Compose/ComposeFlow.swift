@@ -228,7 +228,7 @@ struct SundayPromptStep: View {
         VStack(spacing: 0) {
             HStack {
                 if isHalloween {
-                    PumpkinCherry(size: 34)
+                    JackOLantern(size: 34)
                 } else {
                     CherryMark(size: 30)
                 }
