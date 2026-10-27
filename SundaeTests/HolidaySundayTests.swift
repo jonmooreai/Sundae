@@ -43,6 +43,20 @@ struct HolidaySundayTests {
         #expect(HolidaySunday.on(date(2026, 2, 8), calendar: calendar) == nil, "a week before Valentine's Day")
     }
 
+    @Test func theWeekBeforeEachHolidaySunday() {
+        #expect(HolidaySunday.during(weekStartingOn: date(2026, 10, 26), calendar: calendar) == .halloween, "Halloween on Saturday")
+        #expect(HolidaySunday.during(weekStartingOn: date(2026, 12, 21), calendar: calendar) == .winter, "Christmas on Friday")
+        #expect(HolidaySunday.during(weekStartingOn: date(2026, 10, 19), calendar: calendar) == nil, "two weeks before")
+        #expect(HolidaySunday.during(weekStartingOn: date(2026, 11, 2), calendar: calendar) == nil, "the week after")
+    }
+
+    @Test func aHolidayEarlyInTheWeekKeepsItsPieceOnTheDay() {
+        // Valentine's Day 2028 is a Monday; its Sunday is the day before.
+        #expect(HolidaySunday.during(weekStartingOn: date(2028, 2, 7), calendar: calendar) == .valentines)
+        #expect(HolidaySunday.during(weekStartingOn: date(2028, 2, 14), calendar: calendar) == .valentines)
+        #expect(HolidaySunday.during(weekStartingOn: date(2028, 2, 21), calendar: calendar) == nil)
+    }
+
     @Test(arguments: HolidaySunday.allCases)
     func everyHolidayHasItsFeltPiece(_ holiday: HolidaySunday) {
         #expect(UIImage(named: holiday.image, in: .main, compatibleWith: nil) != nil, "\(holiday.image) is missing from Assets.xcassets")
