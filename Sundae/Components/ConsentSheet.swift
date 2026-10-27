@@ -15,29 +15,35 @@ struct ConsentSheet: View {
     var declineTitle: String? = "Not now"
     let onAgree: () -> Void
     @Environment(\.dismiss) private var dismiss
+    /// The words' and the buttons' own heights, so the sheet is as tall as what it says.
+    @State private var wordsHeight: CGFloat = 0
+    @State private var buttonsHeight: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Scrolls only when the text is bigger than the screen, as with the largest type sizes.
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 20) {
                     Text(title)
                         .font(Theme.display(28))
-                        .padding(.top, 24)
-                    VStack(alignment: .leading, spacing: 12) {
+                        .padding(.top, 28)
+                    VStack(alignment: .leading, spacing: 16) {
                         ForEach(Array(points.enumerated()), id: \.offset) { _, point in
-                            HStack(alignment: .top, spacing: 12) {
-                                Icon(point.glyph, weight: .bold, size: 18)
+                            HStack(alignment: .top, spacing: 14) {
+                                Icon(point.glyph, weight: .bold, size: 22)
                                     .foregroundStyle(Color.accentColor)
                                     .frame(width: 28)
                                 Text(point.text)
-                                    .font(.subheadline)
+                                    .font(.body)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 16)
+                .padding(.bottom, 24)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
             VStack(spacing: 8) {
@@ -52,10 +58,17 @@ struct ConsentSheet: View {
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 16)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { buttonsHeight = $0 }
         }
         .background(Theme.background)
-        .presentationDetents([.medium, .large])
+        .presentationDetents(detents)
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.background)
+    }
+
+    /// Fitted to the words and buttons once they are measured. iOS keeps it within the screen.
+    private var detents: Set<PresentationDetent> {
+        guard wordsHeight > 0, buttonsHeight > 0 else { return [.medium] }
+        return [.height(wordsHeight + buttonsHeight)]
     }
 }
