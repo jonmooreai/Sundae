@@ -180,6 +180,8 @@ struct SettingsView: View {
         } message: {
             Text("Try again when you're online.")
         }
+        // Settings is a sheet, and a sheet keeps the look it opened with unless it asks for its own.
+        .preferredColorScheme(model.appearance.colorScheme)
     }
 
     /// Asks the server for the account's settings. Until it answers, the switches stay hidden.
