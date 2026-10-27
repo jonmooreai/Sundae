@@ -81,13 +81,12 @@ final class DeviceTilt {
     }
 }
 
-/// The cherry's little boing, its pitch bending with each swing of the wobble (CherryBoing.m4a,
-/// made for Sundae). It plays even with the ring switch on silent, softly, and mixes with anything
-/// already playing instead of stopping it.
+/// The cherry's little squeak (CherrySqueak.m4a). It plays even with the ring switch on silent,
+/// softly, and mixes with anything already playing instead of stopping it.
 @MainActor
 enum CherrySound {
     private static let player: AVAudioPlayer? = {
-        guard let url = Bundle.main.url(forResource: "CherryBoing", withExtension: "m4a"),
+        guard let url = Bundle.main.url(forResource: "CherrySqueak", withExtension: "m4a"),
               let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
         player.volume = 0.5
         player.prepareToPlay()
@@ -105,8 +104,8 @@ enum CherrySound {
     }
 }
 
-/// Tap the cherry and it wobbles, with a boing. Nothing happens otherwise; that is the point.
-/// With Reduce Motion on it stays still and only the boing and the tap are felt.
+/// Tap the cherry and it wobbles, with a squeak. Nothing happens otherwise; that is the point.
+/// With Reduce Motion on it stays still and only the squeak and the tap are felt.
 private struct WobbleOnTap: ViewModifier {
     @State private var taps = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
