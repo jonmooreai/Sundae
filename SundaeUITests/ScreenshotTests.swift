@@ -81,9 +81,12 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.buttons["Shuffle"].waitForExistence(timeout: 15))
         snap(app, "01-weekday")
         app.buttons["Save"].tap()
-        // The first Save explains finding photos by place; the screenshot is of the saved idea.
-        let notNow = app.buttons["Not now"].firstMatch
-        if notNow.waitForExistence(timeout: 3) { notNow.tap() }
+        // The first Save slides up a short explainer; one shot of it, then one of the saved idea.
+        snap(app, "01-weekday-saved-intro", settle: 1.2)
+        for title in ["Got it", "Not now"] {
+            let button = app.buttons[title].firstMatch
+            if button.waitForExistence(timeout: 2) { button.tap(); break }
+        }
         snap(app, "01-weekday-saved", settle: 0.8)
     }
 

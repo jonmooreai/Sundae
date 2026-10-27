@@ -72,6 +72,7 @@ final class SavedIdeasStore {
     private enum Key {
         static let week = "savedIdeas.week"
         static let askedForPhotos = "savedIdeas.askedForPhotos"
+        static let introShown = "savedIdeas.introShown"
     }
 
     /// What is kept on the phone: whose week it is, which week, and its ideas.
@@ -90,6 +91,12 @@ final class SavedIdeasStore {
     var askedForPhotos: Bool {
         get { defaults.bool(forKey: Key.askedForPhotos) }
         set { defaults.set(newValue, forKey: Key.askedForPhotos) }
+    }
+
+    /// True once the first save has explained where saved ideas go.
+    var introShown: Bool {
+        get { defaults.bool(forKey: Key.introShown) }
+        set { defaults.set(newValue, forKey: Key.introShown) }
     }
 
     func isSaved(_ suggestion: Suggestion) -> Bool {
@@ -237,6 +244,7 @@ final class SavedIdeasStore {
         signedOut()
         defaults.removeObject(forKey: Key.week)
         defaults.removeObject(forKey: Key.askedForPhotos)
+        defaults.removeObject(forKey: Key.introShown)
     }
 
     // MARK: - Storage
