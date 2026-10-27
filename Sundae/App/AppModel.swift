@@ -72,7 +72,7 @@ final class AppModel {
     private(set) var accountSettings: AccountSettings?
     private(set) var appearance: Appearance
     private(set) var debugDay: DebugDay
-    /// An admin's look at a holiday Sunday on any Sunday, until set back. Never saved.
+    /// An admin's look at a holiday's week and Sunday on any day, until set back. Never saved.
     var holidayPreview: HolidaySunday?
     /// An admin's look at their birthday week, until switched off. Never saved.
     var birthdayWeekPreview = false
@@ -116,6 +116,11 @@ final class AppModel {
     /// The user's own birthday week, from the day and month kept on this phone, or an admin's preview.
     var isBirthdayWeek: Bool {
         (canChangeDay && birthdayWeekPreview) || MomentMemory.isBirthdayWeek(startingOn: currentWeekStart, calendar: clock.calendar)
+    }
+    /// The holiday this week dresses up as, for the weekday screen: the real one, or an admin's preview.
+    var holidayThisWeek: HolidaySunday? {
+        if canChangeDay, let holidayPreview { return holidayPreview }
+        return HolidaySunday.during(weekStartingOn: currentWeekStart, calendar: clock.calendar)
     }
     /// The holiday this Sunday dresses up as, if any: the real one, or an admin's preview.
     var holidayToday: HolidaySunday? {

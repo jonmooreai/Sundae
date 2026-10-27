@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Sundae's costumes: three Sundays a year dress up, the ones nearest Valentine's Day, Halloween
-/// and Christmas. A felt piece stands in for the cherry and a hello sits at the top of the feed.
-/// Never announced ahead, gone by Monday. Read from the app's clock, so "Pretend it's Sunday" in
-/// the right week shows it.
+/// and Christmas. A felt piece stands in for the cherry through the week before, and on the day a
+/// hello sits at the top of the feed. Read from the app's clock, so "Pretend it's Sunday" in the
+/// right week shows it.
 enum HolidaySunday: CaseIterable {
     case valentines, halloween, winter
 
@@ -17,6 +17,17 @@ enum HolidaySunday: CaseIterable {
                   let apart = calendar.dateComponents([.day], from: day, to: today).day else { return false }
             return abs(apart) <= 3
         }
+    }
+
+    /// The holiday whose week starts on `weekStart` (a Monday), for the weekday screen: the week
+    /// ending on its Sunday, and the week holding the day itself when that falls early in the next.
+    static func during(weekStartingOn weekStart: Date, calendar: Calendar) -> HolidaySunday? {
+        if let sunday = calendar.date(byAdding: .day, value: 6, to: weekStart), let holiday = on(sunday, calendar: calendar) {
+            return holiday
+        }
+        let days = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: weekStart) }
+            .map { calendar.dateComponents([.month, .day], from: $0) }
+        return allCases.first { holiday in days.contains { $0.month == holiday.month && $0.day == holiday.day } }
     }
 
     private var month: Int {
