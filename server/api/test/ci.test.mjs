@@ -1,5 +1,5 @@
 // The build pipeline's own guards, read straight from the files: no job that builds or runs the
-// app can write to the repository, the one Swift package is pinned to a commit, and rotating the
+// app can write to the repository, any Swift package is pinned to a commit, and rotating the
 // signing certificate takes a run started by hand.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,11 +26,11 @@ function jobs(workflow) {
 
 const steps = (job) => job.split(/^(?= {6}- )/m).slice(1);
 
-test('the Swift package in the app is pinned to one commit, not a version range', () => {
+test('a Swift package in the app, if one is ever added, is pinned to one commit, not a version range', () => {
   const spec = read('project.yml');
-  const block = spec.match(/^packages:\n([\s\S]*?)^\S/m)[1];
-  const packages = block.split(/^(?= {2}[\w-]+:\s*$)/m).slice(1);
-  assert.ok(packages.some((p) => p.startsWith('  PhosphorSwift:')));
+  // None today: the icons are the app's own copies of the ones in use (THIRD_PARTY_NOTICES.md).
+  const block = spec.match(/^packages:\n([\s\S]*?)^\S/m);
+  const packages = block ? block[1].split(/^(?= {2}[\w-]+:\s*$)/m).slice(1) : [];
   for (const p of packages) {
     assert.match(p, /^ {4}revision: "?[0-9a-f]{40}"?\s*$/m, p);
     assert.doesNotMatch(p, /^ {4}(from|version|exactVersion|majorVersion|minorVersion|minVersion|maxVersion|branch):/m, p);
