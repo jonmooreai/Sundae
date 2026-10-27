@@ -96,8 +96,9 @@ struct WidgetGalleryView: View {
                 .frame(width: 14, alignment: .leading)
             Text(text).font(.body)
         }
-        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: SettingsRow.minHeight, alignment: .leading)
         .padding(.horizontal, 16)
+        .padding(.vertical, SettingsRow.verticalPadding)
     }
 
     private func loadPhotos() async {

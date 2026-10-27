@@ -37,7 +37,7 @@ struct SettingsView: View {
 
             SettingsGroup(title: "Account", footer: saved == nil && loadFailed ? "Couldn't load your settings. Check your connection." : nil) {
                 if saved != nil {
-                    RadioRow(title: "Private", detail: "New followers need your approval. Remove anyone under Followers.",
+                    RadioRow(title: "Private", detail: "New followers need your approval.",
                              isSelected: !settings.isPublic) {
                         settings.isPublic = false
                     }
@@ -54,7 +54,7 @@ struct SettingsView: View {
             }
 
             SettingsGroup(title: "Weekdays") {
-                SettingsToggle(title: "Ideas near me", detail: "From your neighborhood. Never on Sunday.",
+                SettingsToggle(title: "Ideas near me", detail: "Near you, Monday to Saturday.",
                                isOn: Binding(get: { model.localIdeas.isEnabled },
                                              set: { on in
                                                  if on { showLocationConsent = true } else { model.localIdeas.disable() }
@@ -118,7 +118,9 @@ struct SettingsView: View {
                                 : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday.") {
                     SegmentedChoice(options: DebugDay.allCases.map { ($0, $0.shortLabel) },
                                     selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) }))
-                        .padding(10)
+                        // As tall as every other row.
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 9)
                     SettingsToggle(title: "Always open on the post screen",
                                    isOn: Binding(get: { model.compose.alwaysShowPrompt }, set: { model.compose.alwaysShowPrompt = $0 }))
                 }
@@ -348,9 +350,9 @@ private struct LoadingRow: View {
             Spacer(minLength: 8)
             ProgressView()
         }
-        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: SettingsRow.minHeight, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.vertical, SettingsRow.verticalPadding)
         .accessibilityElement(children: .combine)
     }
 }

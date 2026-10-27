@@ -682,11 +682,12 @@ test('deleting an account removes everything of theirs', async () => {
     assert.equal((await report(maya, type, id)).status, 204);
   }
   await report(maya, 'profile', pat.user.id);
+  s.env.DB.sqlite.prepare('INSERT INTO admins (user_id) VALUES (?)').run(jon.user.id);
   assert.equal((await s.call('DELETE', 'v1/me', { token: jon.token })).status, 204);
   assert.equal((await s.call('GET', 'v1/me', { token: jon.token })).status, 401);
   assert.equal((await s.call('GET', 'v1/feed', { token: maya.token })).body.length, 0);
-  const left = s.env.DB.sqlite.prepare('SELECT (SELECT COUNT(*) FROM photos) AS photos, (SELECT COUNT(*) FROM blob_chunks) AS blobs, (SELECT COUNT(*) FROM tags) AS tags, (SELECT COUNT(*) FROM comments) AS comments').get();
-  assert.deepEqual({ ...left }, { photos: 0, blobs: 0, tags: 0, comments: 0 });
+  const left = s.env.DB.sqlite.prepare('SELECT (SELECT COUNT(*) FROM photos) AS photos, (SELECT COUNT(*) FROM blob_chunks) AS blobs, (SELECT COUNT(*) FROM tags) AS tags, (SELECT COUNT(*) FROM comments) AS comments, (SELECT COUNT(*) FROM admins) AS admins').get();
+  assert.deepEqual({ ...left }, { photos: 0, blobs: 0, tags: 0, comments: 0, admins: 0 });
   const reports = s.env.DB.sqlite.prepare('SELECT reporter_id, target_id FROM reports').all().map((r) => ({ ...r }));
   assert.deepEqual(reports, [{ reporter_id: maya.user.id, target_id: pat.user.id }], 'only Maya\'s report about Pat is left');
 });
