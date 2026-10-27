@@ -164,7 +164,8 @@ struct WeekdayView: View {
                     .foregroundStyle(.secondary)
                     Text(suggestion.text)
                         .font(Theme.display(verticalSizeClass == .compact ? 30 : 40))
-                        .lineSpacing(2)
+                        // Lines set close, so a headline of two or three lines reads as one.
+                        .lineHeight(.multiple(factor: 1.05))
                         .minimumScaleFactor(0.6)
                     Text(suggestion.reason)
                         .font(.title3)
