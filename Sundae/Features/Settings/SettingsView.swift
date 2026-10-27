@@ -175,7 +175,7 @@ struct SettingsView: View {
         .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) { Task { await deleteAccount() } }
         } message: {
-            Text("Your dumps, comments and tags are removed right away. Photos you were tagged in stay in the poster's dump with the tag removed.")
+            Text("Your posts, comments and tags are removed right away. Photos you were tagged in stay in the poster's week with the tag removed.")
         }
         .alert("Couldn't finish deleting your account", isPresented: $deleteFailed) {
             Button("OK", role: .cancel) { }

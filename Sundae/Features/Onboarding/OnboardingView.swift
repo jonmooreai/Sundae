@@ -161,7 +161,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Sundae")
                     .font(Theme.display(44))
-                Text("A photo dump app that opens once a week. Six days to live it, one day to share it.")
+                Text("Your week in photos, shared on Sunday. Six days to live it, one day to share it.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }

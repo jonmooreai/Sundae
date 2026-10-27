@@ -361,9 +361,9 @@ enum SundaeError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .sundayClosed: "The feed opens on Sunday."
-        case .dumpLocked: "This week's dump is locked. Sunday is over."
+        case .dumpLocked: "This week's post is locked. Sunday is over."
         case .invalidPhoto: "That image could not be read."
-        case .tooManyPhotos: "A dump holds up to \(DumpDraft.maxPhotos) photos."
+        case .tooManyPhotos: "A post holds up to \(DumpDraft.maxPhotos) photos."
         case .tooManyTags: "You can tag up to \(DumpDraft.maxTagsPerPhoto) people per photo."
         case .captionTooLong: "Captions are up to \(DumpDraft.maxCaptionLength) characters."
         case .notAuthorized: "You can't do that."
