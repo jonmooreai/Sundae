@@ -34,39 +34,39 @@ struct ApprovalsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 28) {
-                ScreenHeader(title: "Approvals", subtitle: store.requests.isEmpty ? nil : "Photos friends tagged you in") {
-                    if !model.isSunday {
-                        Button("Done") { dismiss() }
-                            .buttonStyle(.pill(.secondary, size: .small))
+            VStack(spacing: 0) {
+                LazyVStack(spacing: 28) {
+                    ScreenHeader(title: "Approvals", subtitle: store.requests.isEmpty ? nil : "Photos friends tagged you in") {
+                        if !model.isSunday {
+                            Button("Done") { dismiss() }
+                                .buttonStyle(.pill(.secondary, size: .small))
+                        }
+                    }
+                    .id(ScrollTop.id)
+                    if let message = store.errorMessage {
+                        ErrorBanner(message: message).padding(.horizontal, Theme.pagePadding)
+                    }
+                    ForEach(store.requests) { request in
+                        TagRequestCard(request: request, isApproved: approved.contains(request.id)) { approve in
+                            respond(to: request, approve: approve)
+                        }
+                        .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 0.94).combined(with: .opacity)))
                     }
                 }
-                .id(ScrollTop.id)
-                if let message = store.errorMessage {
-                    ErrorBanner(message: message).padding(.horizontal, Theme.pagePadding)
-                }
-                ForEach(store.requests) { request in
-                    TagRequestCard(request: request, isApproved: approved.contains(request.id)) { approve in
-                        respond(to: request, approve: approve)
+                if store.requests.isEmpty {
+                    if store.hasLoaded {
+                        EmptyState("Nothing waiting", glyph: Glyph.approvals,
+                                   message: "When a friend tags you in their week, it shows up here first.")
+                    } else if store.errorMessage == nil {
+                        LoadingState()
                     }
-                    .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 0.94).combined(with: .opacity)))
-                }
-                if store.hasLoaded && store.requests.isEmpty {
-                    VStack(spacing: 10) {
-                        Icon(Glyph.approvals, size: 36).foregroundStyle(.secondary)
-                        Text("Nothing waiting").font(Theme.display(24))
-                        Text("When a friend tags you in their week, it shows up here first.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(32)
-                    .padding(.top, 40)
                 }
             }
             .padding(.bottom, 24)
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity)
+            // Nothing waiting: the state sits in the middle of the space under the header.
+            .fillsVisibleHeight(store.requests.isEmpty)
         }
         .scrollsToTopOnTabTap()
         .background(Theme.background)
