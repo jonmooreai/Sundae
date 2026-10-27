@@ -3,8 +3,8 @@ import SwiftUI
 import Testing
 @testable import Sundae
 
-/// Cherries on photos, replies one level deep, and @mentions that link only people Sundae knows.
-struct CherriesAndRepliesTests {
+/// Replies one level deep, and @mentions that link only people Sundae knows.
+struct RepliesAndMentionsTests {
     let zone = TimeZone(identifier: "America/Indiana/Indianapolis")!
 
     /// Sunday, October 25, 2026, at noon.
@@ -22,31 +22,6 @@ struct CherriesAndRepliesTests {
     }
 
     private let pat = User(id: "u_pat", username: "pat.doe", name: "Pat Doe", bio: "", avatar: nil, isPublic: false, timezone: "UTC")
-
-    @Test func aCherryIsOneEachAndCanBeTakenBack() async throws {
-        let api = try await signedInAPI()
-        let feed = try await api.feed(olderThan: nil, limit: 20)
-        let dump = try #require(feed.first(where: { !$0.photos.isEmpty }))
-        let photo = dump.photos[0]
-        let given = try await api.setCherry(photoID: photo.id, cherried: true)
-        #expect(given.cherriedByMe)
-        #expect(given.cherryCount == photo.cherryCount + 1)
-        let again = try await api.setCherry(photoID: photo.id, cherried: true)
-        #expect(again.cherryCount == given.cherryCount, "one cherry each")
-        let back = try await api.setCherry(photoID: photo.id, cherried: false)
-        #expect(!back.cherriedByMe)
-        #expect(back.cherryCount == photo.cherryCount)
-    }
-
-    @Test func theCherryShowsBeforeTheServerAnswers() {
-        let photo = Photo(id: "p1", dumpID: "d1", order: 0, source: .placeholder(seed: 1), width: 10, height: 10,
-                          altText: nil, tags: [])
-        let given = photo.withCherry(true, from: pat)
-        #expect(given.cherryCount == 1 && given.cherriedByMe && given.cherriedBy.map(\.id) == ["u_pat"])
-        #expect(given.withCherry(true, from: pat) == given, "giving twice changes nothing")
-        let back = given.withCherry(false, from: pat)
-        #expect(back.cherryCount == 0 && !back.cherriedByMe && back.cherriedBy.isEmpty)
-    }
 
     @Test func aReplyToAReplyGoesUnderTheSameComment() async throws {
         let api = try await signedInAPI()

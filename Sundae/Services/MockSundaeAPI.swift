@@ -273,22 +273,6 @@ actor MockSundaeAPI: SundaeAPI {
         return dump
     }
 
-    func setCherry(photoID: ID, cherried: Bool) async throws -> Photo {
-        let me = try requireSignedIn()
-        try requireSunday()
-        guard let dumpID = dumps.first(where: { $0.value.photos.contains { $0.id == photoID } })?.key,
-              var dump = dumps[dumpID], canRead(dump, as: me.id),
-              let index = dump.photos.firstIndex(where: { $0.id == photoID }) else { throw SundaeError.notFound }
-        var photo = dump.photos[index]
-        photo.cherriedBy.removeAll { $0.id == me.id }
-        if cherried { photo.cherriedBy.append(me) }
-        photo.cherryCount = photo.cherriedBy.count
-        photo.cherriedByMe = cherried
-        dump.photos[index] = photo
-        dumps[dumpID] = dump
-        return photo
-    }
-
     func comments(dumpID: ID) async throws -> [Comment] {
         let me = try requireSignedIn()
         try requireSunday()
