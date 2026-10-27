@@ -76,7 +76,8 @@ struct WeekdayView: View {
             Color.clear.frame(width: 40, height: 40)
 
             Spacer()
-            TiltingCherry(size: 64).wobbleOnTap()
+            // Big enough to want to tap; smaller when a phone on its side has little height to spare.
+            TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96).wobbleOnTap()
             Spacer()
 
             IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
