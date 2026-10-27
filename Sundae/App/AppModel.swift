@@ -54,7 +54,10 @@ final class AppModel {
         // A saved "Pretend it's Sunday" only counts for demo data or an admin.
         didSet {
             if !canChangeDay, debugDay != .real { setDebugDay(.real) }
-            if !canChangeDay { holidayPreview = nil }
+            if !canChangeDay {
+                holidayPreview = nil
+                birthdayWeekPreview = false
+            }
             // Saved ideas belong to whoever saved them. Set on sign-in and on a restored session alike.
             if let id = currentUser?.id, id != oldValue?.id { savedIdeas.signedIn(userID: id) }
         }
@@ -71,6 +74,8 @@ final class AppModel {
     private(set) var debugDay: DebugDay
     /// An admin's look at a holiday Sunday on any Sunday, until set back. Never saved.
     var holidayPreview: HolidaySunday?
+    /// An admin's look at their birthday week, until switched off. Never saved.
+    var birthdayWeekPreview = false
     /// Set by a view that wants the shell to switch tabs (the profile's "Post your week" card).
     var requestedTab: SundayTab?
     /// Goes up when the user removes a follower or follows or unfollows someone, so a profile
@@ -108,6 +113,10 @@ final class AppModel {
     }
 
     var isSunday: Bool { phase == .sunday }
+    /// The user's own birthday week, from the day and month kept on this phone, or an admin's preview.
+    var isBirthdayWeek: Bool {
+        (canChangeDay && birthdayWeekPreview) || MomentMemory.isBirthdayWeek(startingOn: currentWeekStart, calendar: clock.calendar)
+    }
     /// The holiday this Sunday dresses up as, if any: the real one, or an admin's preview.
     var holidayToday: HolidaySunday? {
         guard isSunday else { return nil }

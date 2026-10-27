@@ -219,6 +219,11 @@ struct SundayPromptStep: View {
     @State private var preparing = false
 
     private var holiday: HolidaySunday? { model.holidayToday }
+    /// Your birthday week first, then a holiday, then any Sunday.
+    private var greeting: String {
+        if model.isBirthdayWeek { return "Happy birthday week." }
+        return holiday?.greeting ?? "It's Sunday."
+    }
     private var compose: ComposeStore { model.compose }
     /// Photos kept with this week's saved ideas, ready to start the post.
     private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost() }
@@ -227,7 +232,9 @@ struct SundayPromptStep: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                if let holiday {
+                if model.isBirthdayWeek {
+                    CherryMark(size: 34, image: CherryMark.birthday)
+                } else if let holiday {
                     HolidayPiece(holiday: holiday, size: 34)
                 } else {
                     CherryMark(size: 30)
@@ -246,7 +253,7 @@ struct SundayPromptStep: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.8)
-                Text("\(holiday?.greeting ?? "It's Sunday.")\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
+                Text("\(greeting)\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
                     .font(Theme.display(44))
                     .lineSpacing(2)
                 Text(compose.hasPosted

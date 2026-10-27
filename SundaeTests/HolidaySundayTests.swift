@@ -47,4 +47,16 @@ struct HolidaySundayTests {
     func everyHolidayHasItsFeltPiece(_ holiday: HolidaySunday) {
         #expect(UIImage(named: holiday.image, in: .main, compatibleWith: nil) != nil, "\(holiday.image) is missing from Assets.xcassets")
     }
+
+    @Test func theBirthdaySundaeShips() {
+        #expect(UIImage(named: "BirthdaySundae", in: .main, compatibleWith: nil) != nil)
+    }
+
+    @Test func aBirthdayWeekRunsMondayToSunday() {
+        let monday = date(2026, 10, 19)
+        #expect(MomentMemory.birthday("10-25", fallsInWeekStarting: monday, calendar: calendar), "the Sunday")
+        #expect(MomentMemory.birthday("10-19", fallsInWeekStarting: monday, calendar: calendar), "the Monday")
+        #expect(!MomentMemory.birthday("10-26", fallsInWeekStarting: monday, calendar: calendar), "the next Monday")
+        #expect(!MomentMemory.birthday(nil, fallsInWeekStarting: monday, calendar: calendar))
+    }
 }

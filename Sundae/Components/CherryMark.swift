@@ -8,9 +8,13 @@ import UIKit
 /// wool texture; the image is square with the cherry centered, so any size frames it the same.
 struct CherryMark: View {
     var size: CGFloat = 32
+    /// The cherry, or the felt birthday sundae that stands in for it all through your birthday week.
+    var image = "Cherry"
+
+    static let birthday = "BirthdaySundae"
 
     var body: some View {
-        Image("Cherry")
+        Image(image)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
@@ -22,13 +26,14 @@ struct CherryMark: View {
 /// you are holding. Still with Reduce Motion on.
 struct TiltingCherry: View {
     var size: CGFloat
+    var image = "Cherry"
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var tilt = DeviceTilt()
 
     var body: some View {
         let lean = reduceMotion ? 0 : tilt.lean
-        CherryMark(size: size)
+        CherryMark(size: size, image: image)
             .rotationEffect(.degrees(lean * 16), anchor: .bottom)
             .offset(x: CGFloat(lean) * size * 0.14)
             // A loose spring, so it settles with a little sway instead of tracking the sensor exactly.
