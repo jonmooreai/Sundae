@@ -117,15 +117,18 @@ makes new provisioning profiles, so there is nothing to tick in the developer po
 
 An admin can open the Sunday screens any day, to try things on the real server, and sees an
 Admin section in Settings with "Pretend it's Sunday". Nobody else sees the section, and the
-server keeps everyone else to Sunday. Admins live in the database's `admins` table, which the
-API never writes: add one from the Cloudflare side (the D1 console, or the command line) with
-the person's user id, once they have signed in:
+server keeps everyone else to Sunday. Admins live in the database's `admin_apple_ids` table,
+by the private id Sign in with Apple gives their Apple account, so admin follows the person
+through a new username, or an account deleted and made again, and never passes to whoever takes
+a username later. The API never writes the table: add one from the Cloudflare side (the D1
+console, or the command line) once they have signed in:
 
 ```sql
-INSERT INTO admins (user_id) SELECT id FROM users WHERE username = 'their-username';
+INSERT INTO admin_apple_ids (apple_sub) SELECT apple_sub FROM users WHERE username = 'their-username';
 ```
 
-Delete the row to take it away; their phone drops back to the real day on its next launch.
+Delete the row to take it away; their phone drops back to the real day on its next launch. The
+row stays when they delete their account, so they are an admin again if they come back.
 
 ## After deploying
 

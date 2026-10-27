@@ -210,8 +210,8 @@ function isParam(parts, i) {
 
 // MARK: - Auth
 
-// The user row, plus whether they are in the admins table, in one query.
-const USER_WITH_ADMIN = 'SELECT users.*, EXISTS (SELECT 1 FROM admins WHERE admins.user_id = users.id) AS is_admin FROM users';
+// The user row, plus whether their Apple id is an admin's, in one query.
+const USER_WITH_ADMIN = 'SELECT users.*, EXISTS (SELECT 1 FROM admin_apple_ids WHERE admin_apple_ids.apple_sub = users.apple_sub) AS is_admin FROM users';
 
 async function auth(ctx) {
   const header = ctx.request.headers.get('authorization') || '';
@@ -487,7 +487,6 @@ async function deleteMe(ctx) {
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?1').bind(me),
     db.prepare("UPDATE uploads SET user_id = '', expires_at = 0 WHERE user_id = ?1").bind(me),
     db.prepare('DELETE FROM suggestions_done WHERE user_id = ?1').bind(me),
-    db.prepare('DELETE FROM admins WHERE user_id = ?1').bind(me),
     db.prepare('DELETE FROM users WHERE id = ?1').bind(me),
   ]);
   try {
