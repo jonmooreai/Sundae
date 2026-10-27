@@ -2,6 +2,13 @@ import SwiftUI
 
 // The pieces every settings screen is built from: a page, grouped cards with hairlines between
 // rows, and rows that are switches, radios, links, values or actions. Few words, clear states.
+// Every row is the same height, a title with or without one short line under it.
+
+enum SettingsRow {
+    /// With 6 points above and below, every row is 60 tall, with a detail line or without.
+    static let minHeight: CGFloat = 48
+    static let verticalPadding: CGFloat = 6
+}
 
 /// A settings page: cream paper, a scroll of groups, the title in the bar.
 struct SettingsScreen<Content: View>: View {
@@ -46,7 +53,7 @@ struct SettingsGroup<Content: View>: View {
                     Group(subviews: content) { rows in
                         ForEach(rows) { row in
                             if row.id != rows.first?.id {
-                                Rectangle().fill(Theme.hairline).frame(height: 0.5).padding(.leading, 16)
+                                Rectangle().fill(Theme.hairline).frame(height: 0.5)
                             }
                             row
                         }
@@ -79,9 +86,9 @@ private struct SettingsRowStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: SettingsRow.minHeight, alignment: .leading)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 6)
+                .padding(.vertical, SettingsRow.verticalPadding)
                 .contentShape(Rectangle())
                 .background(configuration.isPressed ? Color.primary.opacity(0.06) : .clear)
                 .opacity(isEnabled ? 1 : 0.45)
@@ -271,9 +278,9 @@ struct SettingsValueRow: View {
             Spacer(minLength: 8)
             Text(value).font(.body).foregroundStyle(.secondary).lineLimit(1)
         }
-        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: SettingsRow.minHeight, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.vertical, SettingsRow.verticalPadding)
         .accessibilityElement(children: .combine)
     }
 }
@@ -320,8 +327,8 @@ struct SettingsFieldRow: View {
             }
         }
         .font(.body)
-        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: SettingsRow.minHeight, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.vertical, SettingsRow.verticalPadding)
     }
 }
