@@ -20,7 +20,8 @@ struct FeedScreen: View {
                     .navigationSplitViewColumnWidth(min: 380, ideal: 460, max: 560)
             } detail: {
                 if let selection {
-                    RouteStack(root: selection).id(selection)
+                    // A tap on Feed brings the open post back from anything opened from it.
+                    RouteStack(root: selection, reselects: reselects).id(selection)
                 } else {
                     ContentUnavailableView("Pick a post", systemImage: "photo.on.rectangle", description: Text("Tap a photo or a name on the left."))
                 }

@@ -273,12 +273,16 @@ struct RouteView: View {
 /// A navigation stack rooted at one route, for the detail column of a split view.
 struct RouteStack: View {
     let root: Route
+    /// Taps on the tab: back to `root` from anything opened from it.
+    var reselects = 0
+    @State private var path: [Route] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             RouteView(route: root)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                 .swipeBackEnabled()
         }
+        .onChange(of: reselects) { _, _ in path.removeAll() }
     }
 }
