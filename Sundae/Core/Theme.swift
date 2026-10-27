@@ -64,6 +64,13 @@ enum Appearance: String, CaseIterable, Identifiable {
         case .dark: .dark
         }
     }
+    var interfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: .unspecified
+        case .light: .light
+        case .dark: .dark
+        }
+    }
 }
 
 // MARK: - Buttons

@@ -432,6 +432,21 @@ final class AppModel {
     func setAppearance(_ value: Appearance) {
         appearance = value
         UserDefaults.standard.set(value.rawValue, forKey: Keys.appearance)
+        applyAppearance()
+    }
+
+    /// Light, dark or the system's, on every window at once, so a sheet already open (Settings,
+    /// where it is changed) changes with everything else. SwiftUI's preferred color scheme alone
+    /// reaches a sheet only the next time it opens. Only on a change: at launch the root's
+    /// preference is enough, and the intro film's light one is left alone.
+    private func applyAppearance() {
+        let style = appearance.interfaceStyle
+        for scene in UIApplication.shared.connectedScenes {
+            guard let scene = scene as? UIWindowScene else { continue }
+            for window in scene.windows where window.overrideUserInterfaceStyle != style {
+                window.overrideUserInterfaceStyle = style
+            }
+        }
     }
 
     func setDebugDay(_ value: DebugDay) {
