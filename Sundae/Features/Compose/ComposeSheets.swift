@@ -28,36 +28,42 @@ struct TagPickerSheet: View {
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
                 }
-                Section {
-                    if users.isEmpty {
-                        Text("You can tag people you follow or who follow you. Find your friends in Search first.")
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(results) { user in
-                        let isOn = selected.contains { $0.id == user.id }
-                        Button {
-                            if isOn {
-                                selected.removeAll { $0.id == user.id }
-                            } else if selected.count < DumpDraft.maxTagsPerPhoto {
-                                selected.append(user)
-                            }
-                        } label: {
-                            HStack {
-                                UserRow(user: user, subtitle: MomentMemory.birthday(user.birthday, fallsInWeekStarting: model.currentWeekStart, calendar: model.clock.calendar) ? "Birthday this week" : nil)
-                                ZStack {
-                                    Circle().strokeBorder(isOn ? Color.accentColor : Theme.hairline, lineWidth: 1.5)
-                                    if isOn {
-                                        Circle().fill(Color.accentColor)
-                                        Icon(Glyph.done, weight: .bold, size: 14).foregroundStyle(.white)
-                                    }
+                if !users.isEmpty {
+                    Section {
+                        ForEach(results) { user in
+                            let isOn = selected.contains { $0.id == user.id }
+                            Button {
+                                if isOn {
+                                    selected.removeAll { $0.id == user.id }
+                                } else if selected.count < DumpDraft.maxTagsPerPhoto {
+                                    selected.append(user)
                                 }
-                                .frame(width: 26, height: 26)
+                            } label: {
+                                HStack {
+                                    UserRow(user: user, subtitle: MomentMemory.birthday(user.birthday, fallsInWeekStarting: model.currentWeekStart, calendar: model.clock.calendar) ? "Birthday this week" : nil)
+                                    ZStack {
+                                        Circle().strokeBorder(isOn ? Color.accentColor : Theme.hairline, lineWidth: 1.5)
+                                        if isOn {
+                                            Circle().fill(Color.accentColor)
+                                            Icon(Glyph.done, weight: .bold, size: 14).foregroundStyle(.white)
+                                        }
+                                    }
+                                    .frame(width: 26, height: 26)
+                                }
                             }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                    } header: {
+                        Text(selected.isEmpty ? "Who was there?" : "\(selected.count) of \(DumpDraft.maxTagsPerPhoto) tagged")
                     }
-                } header: {
-                    Text(selected.isEmpty ? "Who was there?" : "\(selected.count) of \(DumpDraft.maxTagsPerPhoto) tagged")
+                }
+            }
+            .overlay {
+                if users.isEmpty {
+                    // In the middle of the space under the photo.
+                    EmptyState(glyph: Glyph.tag,
+                               message: "You can tag people you follow or who follow you. Find your friends in Search first.")
+                        .padding(.top, 200)
                 }
             }
             .searchable(text: $query, prompt: "Name or username")

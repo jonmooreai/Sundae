@@ -41,11 +41,14 @@ struct PeopleListView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 6)
             List {
-                content
+                ForEach(shown ?? []) { person in
+                    row(person)
+                }
             }
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 70)
+            .overlay { emptyState }
             .refreshable { await load() }
         }
         .background(Theme.background)
@@ -84,7 +87,8 @@ struct PeopleListView: View {
             tab(.following, title: following.map { "\($0.count) following" } ?? "Following")
         }
         .padding(.horizontal, Theme.pagePadding)
-        .overlay(alignment: .bottom) { Hairline() }
+        // Under the tabs, so the line under the chosen tab sits on it.
+        .background(alignment: .bottom) { Hairline() }
     }
 
     private func tab(_ which: PeopleList, title: String) -> some View {
@@ -92,7 +96,7 @@ struct PeopleListView: View {
         return Button {
             withAnimation(reduceMotion ? nil : .snappy(duration: 0.25)) { list = which }
         } label: {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 Text(title)
                     .font(.subheadline.weight(isOn ? .semibold : .regular))
                     .foregroundStyle(isOn ? .primary : .secondary)
@@ -110,8 +114,7 @@ struct PeopleListView: View {
                     }
                 }
             }
-            .padding(.top, 6)
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .bottom)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -120,32 +123,21 @@ struct PeopleListView: View {
 
     // MARK: - Rows
 
+    /// Over the list while it has nobody in it, in the middle of the space under the search.
     @ViewBuilder
-    private var content: some View {
+    private var emptyState: some View {
         if let people = shown {
             if people.isEmpty {
-                Text(emptyText)
-                    .foregroundStyle(.secondary)
-                    .listRowInsets(rowInsets)
-                    .listRowSeparator(.hidden)
-            }
-            ForEach(people) { person in
-                row(person)
+                EmptyState(glyph: query.trimmingCharacters(in: .whitespaces).isEmpty ? Glyph.person : Glyph.search,
+                           message: emptyText)
             }
         } else if loadFailed {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Couldn't load them. Check your connection.")
-                    .foregroundStyle(.secondary)
+            EmptyState(message: "Couldn't load them. Check your connection.") {
                 Button("Try again") { Task { await load() } }
                     .buttonStyle(.pill(.secondary, size: .small))
             }
-            .listRowInsets(rowInsets)
-            .listRowSeparator(.hidden)
         } else {
-            ProgressView()
-                .frame(maxWidth: .infinity)
-                .padding(.top, 30)
-                .listRowSeparator(.hidden)
+            LoadingState()
         }
     }
 
@@ -194,6 +186,7 @@ struct PeopleListView: View {
         .background { NavigationLink(value: Route.profile(person.id)) { EmptyView() }.opacity(0) }
         .listRowInsets(rowInsets)
         .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
 
     private var rowInsets: EdgeInsets {

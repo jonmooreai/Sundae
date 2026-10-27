@@ -41,46 +41,63 @@ struct ProfileView: View {
     private var isOwn: Bool { userID == model.currentUser?.id }
 
     var body: some View {
+        let items = profile.map { ProfileRowItem.build(from: $0.weeks, currentWeekStart: model.currentWeekStart) } ?? []
+        let showsWeeks = profile.map { !isLocked($0) && !items.isEmpty } ?? false
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                ScreenHeader(title: profile?.user.username ?? "", showsBack: !isRoot) {
-                    if isOwn {
-                        IconButton(glyph: Glyph.settings, label: "Settings", size: 24) { showSettings = true }
-                            .accessibilityIdentifier("profile-settings")
-                    } else if let profile {
-                        Menu {
-                            Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
-                            Button(role: .destructive) {
-                                Task {
-                                    try? await model.api.block(userID: userID)
-                                    await load()
+            VStack(spacing: 20) {
+                LazyVStack(alignment: .leading, spacing: 20) {
+                    ScreenHeader(title: profile?.user.username ?? "", showsBack: !isRoot) {
+                        if isOwn {
+                            IconButton(glyph: Glyph.settings, label: "Settings", size: 24) { showSettings = true }
+                                .accessibilityIdentifier("profile-settings")
+                        } else if let profile {
+                            Menu {
+                                Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
+                                Button(role: .destructive) {
+                                    Task {
+                                        try? await model.api.block(userID: userID)
+                                        await load()
+                                    }
+                                } label: {
+                                    Label { Text("Block \(profile.user.firstName)") } icon: { Glyph.block.regular }
                                 }
                             } label: {
-                                Label { Text("Block \(profile.user.firstName)") } icon: { Glyph.block.regular }
+                                Icon(Glyph.more, weight: .bold, size: 24)
+                                    .foregroundStyle(.primary)
+                                    .frame(width: 40, height: 40)
+                                    .contentShape(Rectangle())
                             }
-                        } label: {
-                            Icon(Glyph.more, weight: .bold, size: 24)
-                                .foregroundStyle(.primary)
-                                .frame(width: 40, height: 40)
-                                .contentShape(Rectangle())
+                            .accessibilityLabel("More")
                         }
-                        .accessibilityLabel("More")
+                    }
+                    .id(ScrollTop.id)
+                    if let profile {
+                        ProfileHeader(profile: profile, onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
+                            .padding(.horizontal, Theme.pagePadding)
+                        if showsWeeks { weekRows(items) }
+                    } else if let errorMessage {
+                        ErrorBanner(message: errorMessage).padding(.horizontal, Theme.pagePadding)
                     }
                 }
-                .id(ScrollTop.id)
                 if let profile {
-                    ProfileHeader(profile: profile, onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
-                        .padding(.horizontal, Theme.pagePadding)
-                    weekRows(for: profile)
-                } else if let errorMessage {
-                    ErrorBanner(message: errorMessage).padding(.horizontal, Theme.pagePadding)
-                } else {
-                    ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
+                    if isLocked(profile) {
+                        EmptyState("Private account", glyph: Glyph.lock,
+                                   message: profile.relationship == .requested
+                                   ? "Your request is waiting on \(profile.user.firstName)."
+                                   : "Follow \(profile.user.firstName) to see their weeks.")
+                    } else if items.isEmpty {
+                        EmptyState("Nothing here yet", glyph: Glyph.calendar,
+                                   message: isOwn ? "Your weeks will stack up here." : "No weeks posted yet.")
+                    }
+                } else if errorMessage == nil {
+                    LoadingState()
                 }
             }
             .padding(.vertical, 12)
             .frame(maxWidth: 720)
             .frame(maxWidth: .infinity)
+            // Loading or empty: the state sits in the middle of the space under the header.
+            .fillsVisibleHeight(!showsWeeks && (profile != nil || errorMessage == nil))
         }
         .scrollsToTopOnTabTap()
         .background(Theme.background)
@@ -100,47 +117,30 @@ struct ProfileView: View {
         .onChange(of: model.followsChanged) { _, _ in Task { await load() } }
     }
 
-    @ViewBuilder
-    private func weekRows(for profile: Profile) -> some View {
-        let items = ProfileRowItem.build(from: profile.weeks, currentWeekStart: model.currentWeekStart)
-        if profile.relationship == .notFollowing || profile.relationship == .requested, !profile.user.isPublic {
-            emptyState(Glyph.lock, "Private account",
-                       profile.relationship == .requested
-                       ? "Your request is waiting on \(profile.user.firstName)."
-                       : "Follow \(profile.user.firstName) to see their weeks.")
-        } else if items.isEmpty {
-            emptyState(Glyph.calendar, "Nothing here yet", isOwn ? "Your weeks will stack up here." : "No weeks posted yet.")
-        } else {
-            ForEach(items) { item in
-                switch item {
-                case .week(let week):
-                    WeekRow(week: week, isOwn: isOwn, isCurrent: week.weekStart == model.currentWeekStart,
-                            onRemoveTagged: { tagged in
-                                Task {
-                                    try? await model.api.removeTaggedPhoto(tagID: tagged.tag.id)
-                                    await load()
-                                }
-                            })
-                case .gap(let count, let newest):
-                    Text(count == 1 ? "\(model.clock.rangeLabel(weekStart: newest)) was a quiet one" : "\(count) quiet weeks")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, Theme.pagePadding)
-                        .padding(.vertical, 2)
-                }
-            }
-        }
+    /// A private account you don't follow: its weeks stay hidden.
+    private func isLocked(_ profile: Profile) -> Bool {
+        (profile.relationship == .notFollowing || profile.relationship == .requested) && !profile.user.isPublic
     }
 
-    private func emptyState(_ glyph: Ph, _ title: String, _ text: String) -> some View {
-        VStack(spacing: 10) {
-            Icon(glyph, size: 36).foregroundStyle(.secondary)
-            Text(title).font(Theme.display(24))
-            Text(text).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+    private func weekRows(_ items: [ProfileRowItem]) -> some View {
+        ForEach(items) { item in
+            switch item {
+            case .week(let week):
+                WeekRow(week: week, isOwn: isOwn, isCurrent: week.weekStart == model.currentWeekStart,
+                        onRemoveTagged: { tagged in
+                            Task {
+                                try? await model.api.removeTaggedPhoto(tagID: tagged.tag.id)
+                                await load()
+                            }
+                        })
+            case .gap(let count, let newest):
+                Text(count == 1 ? "\(model.clock.rangeLabel(weekStart: newest)) was a quiet one" : "\(count) quiet weeks")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, Theme.pagePadding)
+                    .padding(.vertical, 2)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(32)
-        .padding(.top, 20)
     }
 
     private func load() async {

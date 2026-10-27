@@ -80,41 +80,45 @@ struct PickPhotosStep: View {
 
     // MARK: - Grid
 
+    @ViewBuilder
     private var grid: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                if library.assets.isEmpty {
-                    VStack(spacing: 12) {
-                        Text(scope == .week ? "No photos from this week yet." : "No photos in your library.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        if scope == .week {
-                            Button("Show all photos") { scope = .all }
-                                .buttonStyle(.pill(.secondary, size: .small))
-                        }
+        if library.assets.isEmpty {
+            EmptyState(glyph: Glyph.photos, message: scope == .week ? "No photos from this week yet." : "No photos in your library.") {
+                VStack(spacing: 4) {
+                    if scope == .week {
+                        Button("Show all photos") { scope = .all }
+                            .buttonStyle(.pill(.secondary, size: .small))
                     }
-                    .padding(.vertical, 48)
-                } else {
+                    otherAlbum
+                }
+            }
+        } else {
+            ScrollView {
+                VStack(spacing: 10) {
                     LazyVGrid(columns: columns, spacing: 2) {
                         ForEach(library.assets, id: \.localIdentifier) { asset in
                             cell(asset)
                         }
                     }
+                    otherAlbum
                 }
-
-                PhotosPicker(selection: $pickerItems, maxSelectionCount: remaining, selectionBehavior: .ordered,
-                             matching: .images, photoLibrary: .shared()) {
-                    HStack(spacing: 8) {
-                        Icon(Glyph.photos, size: 18)
-                        Text("Choose from another album")
-                    }
-                    .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.pill(.quiet))
-                .disabled(remaining == 0)
-                .padding(.vertical, 12)
             }
         }
+    }
+
+    /// The Photos picker, for anything the grid cannot show.
+    private var otherAlbum: some View {
+        PhotosPicker(selection: $pickerItems, maxSelectionCount: remaining, selectionBehavior: .ordered,
+                     matching: .images, photoLibrary: .shared()) {
+            HStack(spacing: 8) {
+                Icon(Glyph.photos, size: 18)
+                Text("Choose from another album")
+            }
+            .font(.subheadline.weight(.semibold))
+        }
+        .buttonStyle(.pill(.quiet))
+        .disabled(remaining == 0)
+        .padding(.vertical, 12)
     }
 
     private func cell(_ asset: PHAsset) -> some View {
