@@ -86,7 +86,7 @@ struct ArrangeStep: View {
         .sheet(isPresented: $showReorder) {
             ReorderSheet()
         }
-        .confirmationDialog("Delete this week's dump?", isPresented: $confirmDelete, titleVisibility: .visible) {
+        .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Task {
                     if let id = await compose.delete() { model.feed.remove(dumpID: id) }

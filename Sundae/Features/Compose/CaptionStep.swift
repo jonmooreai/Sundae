@@ -49,7 +49,7 @@ struct CaptionStep: View {
                     ErrorBanner(message: message)
                 }
 
-                Text("Your dump goes to the top of your friends' feeds and into this week on your profile. Tagged friends get a request to approve.")
+                Text("Your post goes to the top of your friends' feeds and into this week on your profile. Tagged friends get a request to approve.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }

@@ -20,7 +20,7 @@ struct FeedScreen: View {
                 if let selection {
                     RouteStack(root: selection).id(selection)
                 } else {
-                    ContentUnavailableView("Pick a dump", systemImage: "photo.on.rectangle", description: Text("Tap a photo or a name on the left."))
+                    ContentUnavailableView("Pick a post", systemImage: "photo.on.rectangle", description: Text("Tap a photo or a name on the left."))
                 }
             }
         } else {
