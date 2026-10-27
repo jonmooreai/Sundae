@@ -241,7 +241,8 @@ actor MockSundaeAPI: SundaeAPI {
             }
             return Photo(id: draftPhoto.id, dumpID: dumpID, order: index, source: draftPhoto.source,
                          width: draftPhoto.width, height: draftPhoto.height,
-                         altText: draftPhoto.altText.isEmpty ? nil : draftPhoto.altText, tags: tags)
+                         altText: draftPhoto.altText.isEmpty ? nil : draftPhoto.altText,
+                         caption: draftPhoto.caption.isEmpty ? nil : draftPhoto.caption, tags: tags)
         }
 
         let dump = Dump(id: dumpID, author: me, weekStart: weekStart, caption: draft.caption,

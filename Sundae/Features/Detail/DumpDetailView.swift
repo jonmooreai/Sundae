@@ -115,6 +115,9 @@ struct DumpDetailView: View {
             .onKeyPress(.space) { showFullScreen = true; return .handled }
             .onLongPressGesture { showFullScreen = true }
 
+        PhotoCaptionLine(photos: dump.photos, page: page)
+            .padding(.horizontal, Theme.pagePadding)
+
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 LikeButton(liked: dump.likedByMe, celebrates: dump.likedBy.count >= 10) {

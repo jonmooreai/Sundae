@@ -88,10 +88,37 @@ struct PhotoCarousel: View {
 
     private func accessibilityLabel(for photo: Photo, position: Int) -> String {
         var parts: [String] = ["Photo \(position + 1) of \(photos.count)"]
+        if let caption = photo.caption, !caption.isEmpty { parts.append(caption) }
         if let alt = photo.altText, !alt.isEmpty { parts.append(alt) }
         let names = photo.visibleTags.map(\.taggedUser.displayName)
         if !names.isEmpty { parts.append("with " + ListFormatter.localizedString(byJoining: names)) }
         return parts.joined(separator: ". ")
+    }
+}
+
+/// The caption of the photo being looked at, under the photos. It changes as they are swiped,
+/// and takes no room when a photo has none.
+struct PhotoCaptionLine: View {
+    let photos: [Photo]
+    let page: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let caption = photos.indices.contains(page) ? (photos[page].caption ?? "") : ""
+        Group {
+            if !caption.isEmpty {
+                Text(caption)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .id(caption)
+                    .transition(.opacity)
+                    // Read with the photo itself, so VoiceOver does not say it twice.
+                    .accessibilityHidden(true)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: caption)
     }
 }
 

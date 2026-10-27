@@ -20,6 +20,8 @@ const REFRESH_GRACE_SECONDS = 60;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_UPLOADS_PER_DAY = 150;
 const MAX_PHOTOS = 15;
+// A line or two under one photo, and the same under each photo of one idea.
+const MAX_PHOTO_CAPTION = 200;
 const MAX_TAGS = 10;
 const MAX_CAPTION = 300;
 const MAX_COMMENT = 1000;
@@ -737,7 +739,8 @@ async function photosJSON(ctx, photos) {
     }
     out.set(photo.id, {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
-      width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null, tags: photoTags,
+      width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null,
+      caption: photo.caption || null, tags: photoTags,
     });
   }
   return out;
@@ -856,6 +859,7 @@ async function saveDump(ctx, week) {
     const width = pixels(photo.width);
     const height = pixels(photo.height);
     const alt = photo.alt_text ? clean(photo.alt_text, 500) : null;
+    const caption = photo.caption ? clean(photo.caption, MAX_PHOTO_CAPTION) || null : null;
     let row = (photo.id && existing.find((p) => p.id === photo.id)) || null;
     if (!row && photo.upload_id) {
       const uploadId = String(photo.upload_id);
@@ -865,16 +869,17 @@ async function saveDump(ctx, week) {
         if (!upload) fail(400, 'invalid_photo', 'That photo did not finish uploading.');
         if (claimed.some((c) => c.upload_id === uploadId && c.dump_id !== dumpId)) fail(400, 'invalid_photo', 'That photo is already in another week.');
         row = { id: newId('p'), object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
-        writes.push(db.prepare(`INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?)`)
-          .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId));
+        writes.push(db.prepare(`INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?)`)
+          .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption));
         existing.push(row);
       }
     }
     if (!row || kept.includes(row.id)) continue;
     kept.push(row.id);
     if (!row.isNew) {
-      writes.push(db.prepare('UPDATE photos SET ord = ?, alt_text = ?, width = ?, height = ? WHERE id = ?')
-        .bind(index, alt, width || row.width, height || row.height, row.id));
+      // A build without captions sends none: it keeps what the photo has rather than clearing it.
+      writes.push(db.prepare(`UPDATE photos SET ord = ?, alt_text = ?, width = ?, height = ?${'caption' in photo ? ', caption = ?' : ''} WHERE id = ?`)
+        .bind(...[index, alt, width || row.width, height || row.height, ...('caption' in photo ? [caption] : []), row.id]));
     }
     writes.push(...tagWrites(ctx, row.id, currentTags.filter((t) => t.photo_id === row.id), photo.tagged_user_ids, allowed));
   }

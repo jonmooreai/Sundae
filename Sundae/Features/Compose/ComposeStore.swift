@@ -196,6 +196,11 @@ final class ComposeStore {
         draft.photos[index].altText = text
     }
 
+    func setPhotoCaption(for id: ID, text: String) {
+        guard let index = draft.photos.firstIndex(where: { $0.id == id }) else { return }
+        draft.photos[index].caption = String(text.prefix(DumpDraft.maxPhotoCaptionLength))
+    }
+
     func setCaption(_ text: String) {
         draft.caption = String(text.prefix(DumpDraft.maxCaptionLength))
     }
@@ -261,7 +266,8 @@ extension DumpDraft {
     init(from dump: Dump) {
         photos = dump.photos.sorted { $0.order < $1.order }.map { photo in
             DraftPhoto(id: photo.id, source: photo.source, width: photo.width, height: photo.height,
-                       taggedUsers: photo.visibleTags.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil)
+                       taggedUsers: photo.visibleTags.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil,
+                       caption: photo.caption ?? "")
         }
         caption = dump.caption
         commentsEnabled = dump.commentsEnabled

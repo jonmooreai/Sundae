@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { server, r2, jpeg, frame, friends, refresh, uploadPhoto, SUNDAY, WEDNESDAY, NEXT_SUNDAY } from './harness.mjs';
 import { cleanUp } from '../src/worker.js';
+import { resetSchemaCache } from '../src/schema.js';
 
 /** A Sign in with Apple request the way the app sends it: a fresh nonce, signed into the token. */
 async function appleSignIn(s, sub, { nonce = `nonce-${Math.random()}-${Date.now()}`, sent = nonce, timezone = 'UTC', ...claims } = {}) {
@@ -872,4 +873,66 @@ test('the privacy page says exactly what the app says, from the one shared file'
   const text = JSON.stringify(policy);
   assert.doesNotMatch(text, /—/, 'no em-dashes');
   assert.match(policy.updated, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('each photo can carry its own caption, kept tidy, and older builds never wipe one', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const up1 = await uploadPhoto(s, jon);
+  const up2 = await uploadPhoto(s, jon);
+  const up3 = await uploadPhoto(s, jon);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: {
+    caption: '', comments_enabled: true,
+    photos: [
+      { upload_id: up1, width: 2048, height: 1536, caption: 'Bread at Juniper Bakery.', tagged_user_ids: [] },
+      { upload_id: up2, width: 2048, height: 1536, caption: 'Bread at Juniper Bakery.', tagged_user_ids: [] },
+      { upload_id: up3, width: 2048, height: 1536, caption: `  tab\there ${'x'.repeat(300)}`, tagged_user_ids: [] },
+    ],
+  } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.equal(saved.body.photos[0].caption, 'Bread at Juniper Bakery.');
+  assert.equal(saved.body.photos[1].caption, 'Bread at Juniper Bakery.', 'the same caption on each photo of one idea');
+  assert.ok(!saved.body.photos[2].caption.includes('\t'), 'control characters are cleaned');
+  assert.equal(saved.body.photos[2].caption.length, 200, 'and it is cut to 200');
+
+  const feed = await s.call('GET', 'v1/feed?limit=10', { token: maya.token });
+  assert.equal(feed.body[0].photos[0].caption, 'Bread at Juniper Bakery.', 'friends see it');
+
+  // An older build sends no caption at all: what the photo has stays.
+  const ids = saved.body.photos.map((p) => p.id);
+  const old = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: {
+    caption: 'Edited', photos: ids.map((id) => ({ id, width: 2048, height: 1536, tagged_user_ids: [] })),
+  } });
+  assert.equal(old.body.photos[0].caption, 'Bread at Juniper Bakery.');
+
+  // This build always sends one: empty clears it.
+  const cleared = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: {
+    caption: 'Edited', photos: ids.map((id, i) => ({ id, width: 2048, height: 1536, caption: i === 0 ? '' : 'Still here.', tagged_user_ids: [] })),
+  } });
+  assert.equal(cleared.body.photos[0].caption, null);
+  assert.equal(cleared.body.photos[1].caption, 'Still here.');
+});
+
+test('a database from before photo captions gets the column once, and starting again is harmless', async () => {
+  const s = await server();
+  const db = s.env.DB.sqlite;
+  db.exec(`CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  db.exec(`INSERT INTO config (key, value) VALUES ('schema_version', '2')`);
+  db.exec(`CREATE TABLE photos (id TEXT PRIMARY KEY, dump_id TEXT NOT NULL, ord INTEGER NOT NULL, object_key TEXT NOT NULL,
+    width INTEGER NOT NULL, height INTEGER NOT NULL, alt_text TEXT, upload_id TEXT UNIQUE)`);
+  db.exec(`INSERT INTO photos (id, dump_id, ord, object_key, width, height) VALUES ('p_old', 'd_old', 0, 'k', 10, 10)`);
+  const columns = () => db.prepare('PRAGMA table_info(photos)').all().map((c) => c.name);
+  assert.ok(!columns().includes('caption'));
+
+  await s.call('GET', 'v1/me');
+  assert.ok(columns().includes('caption'));
+  assert.equal(db.prepare(`SELECT value FROM config WHERE key = 'schema_version'`).get().value, '3');
+  assert.equal(db.prepare(`SELECT id FROM photos`).get().id, 'p_old', 'existing photos are untouched');
+
+  // Starting again, even with the version set back, never tries to add the column twice.
+  db.exec(`UPDATE config SET value = '2' WHERE key = 'schema_version'`);
+  resetSchemaCache();
+  const again = await s.call('GET', 'v1/me');
+  assert.equal(again.status, 401, 'requests still work');
+  assert.equal(columns().filter((c) => c === 'caption').length, 1);
 });

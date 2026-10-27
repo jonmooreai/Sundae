@@ -28,6 +28,9 @@ struct DumpCard: View {
                 open(.profile(user.id))
             })
 
+            PhotoCaptionLine(photos: dump.photos, page: page)
+                .padding(.horizontal, Theme.pagePadding)
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
                     LikeButton(liked: dump.likedByMe, celebrates: dump.likedBy.count >= 10, action: onLike)
