@@ -1,9 +1,8 @@
 import SwiftUI
 
 /// Sundae's one costume of the year: the Sunday nearest Halloween dresses up. A jack-o'-lantern
-/// for the cherry, candy corn in the paper, a ghost or two, and a hello in the feed. Never
-/// announced ahead, gone by Monday. Read from the app's clock, so "Pretend it's Sunday" in Halloween
-/// week shows it.
+/// for the cherry and a hello at the top of the feed. Never announced ahead, gone by Monday. Read
+/// from the app's clock, so "Pretend it's Sunday" in Halloween week shows it.
 enum Halloween {
     /// The Sunday from October 28 to November 3: whichever falls closest to the 31st.
     static func isHalloweenSunday(_ date: Date, calendar: Calendar) -> Bool {
@@ -64,69 +63,5 @@ struct PumpkinCherry: View {
         }
         .frame(width: size, height: size)
         .accessibilityLabel("Jack-o'-lantern")
-    }
-}
-
-/// One candy corn: yellow at the base, orange in the middle, white at the tip.
-private struct CandyCorn: View {
-    var body: some View {
-        Canvas { context, canvas in
-            let w = canvas.width
-            let h = canvas.height
-            var kernel = Path()
-            kernel.move(to: CGPoint(x: w / 2, y: 0))
-            kernel.addLine(to: CGPoint(x: w, y: h))
-            kernel.addLine(to: CGPoint(x: 0, y: h))
-            kernel.closeSubpath()
-            context.clip(to: kernel)
-            context.fill(Path(CGRect(x: 0, y: 0, width: w, height: h)), with: .color(Halloween.colors[2]))
-            context.fill(Path(CGRect(x: 0, y: h * 0.32, width: w, height: h)), with: .color(Halloween.colors[0]))
-            context.fill(Path(CGRect(x: 0, y: h * 0.68, width: w, height: h)), with: .color(Halloween.colors[1]))
-        }
-    }
-}
-
-/// Candy corn scattered in the paper and a few ghosts drifting, faint, on Halloween Sunday only.
-private struct HalloweenNight: ViewModifier {
-    let date: Date
-    let calendar: Calendar
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var drift = false
-
-    func body(content: Content) -> some View {
-        content.overlay {
-            if Halloween.isHalloweenSunday(date, calendar: calendar) {
-                GeometryReader { geo in
-                    ForEach(0..<36, id: \.self) { i in
-                        CandyCorn()
-                            .frame(width: 7, height: 9)
-                            .rotationEffect(.degrees(SeedColor.hue(i * 5 + 1) * 360))
-                            .position(x: SeedColor.hue(i * 11 + 7) * geo.size.width,
-                                      y: SeedColor.hue(i * 17 + 2) * geo.size.height)
-                    }
-                    .opacity(0.28)
-                    ForEach(0..<4, id: \.self) { i in
-                        Icon(Glyph.ghost, weight: .fill, size: 22 + CGFloat(i % 2) * 6)
-                            .foregroundStyle(Color.primary.opacity(0.07))
-                            .offset(y: drift ? -6 : 6)
-                            .position(x: SeedColor.hue(i * 23 + 9) * geo.size.width,
-                                      y: SeedColor.hue(i * 29 + 4) * geo.size.height)
-                    }
-                }
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-                .onAppear {
-                    guard !reduceMotion else { return }
-                    withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) { drift = true }
-                }
-            }
-        }
-    }
-}
-
-extension View {
-    /// Halloween in the paper, when the app's clock says it is Halloween Sunday.
-    func halloweenNight(date: Date, calendar: Calendar) -> some View {
-        modifier(HalloweenNight(date: date, calendar: calendar))
     }
 }
