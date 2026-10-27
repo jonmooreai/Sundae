@@ -218,7 +218,7 @@ struct SundayPromptStep: View {
     @State private var previews: [UIImage] = []
     @State private var preparing = false
 
-    private var isHalloween: Bool { Halloween.isHalloweenSunday(model.clock.now(), calendar: model.clock.calendar) }
+    private var holiday: HolidaySunday? { HolidaySunday.on(model.clock.now(), calendar: model.clock.calendar) }
     private var compose: ComposeStore { model.compose }
     /// Photos kept with this week's saved ideas, ready to start the post.
     private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost() }
@@ -227,8 +227,8 @@ struct SundayPromptStep: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                if isHalloween {
-                    JackOLantern(size: 34)
+                if let holiday {
+                    HolidayPiece(holiday: holiday, size: 34)
                 } else {
                     CherryMark(size: 30)
                 }
@@ -246,7 +246,7 @@ struct SundayPromptStep: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.8)
-                Text("\(isHalloween ? "Happy Halloween Sunday." : "It's Sunday.")\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
+                Text("\(holiday?.greeting ?? "It's Sunday.")\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
                     .font(Theme.display(44))
                     .lineSpacing(2)
                 Text(compose.hasPosted
