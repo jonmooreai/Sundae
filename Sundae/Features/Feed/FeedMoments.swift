@@ -123,10 +123,17 @@ struct HolidayCard: View {
     let holiday: HolidaySunday
     let onDismiss: () -> Void
 
+    /// The felt piece on top, so the words get the card's full width.
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            HolidayPiece(holiday: holiday, size: 44)
-                .modifier(RiseIn(delay: 0.1))
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                HolidayPiece(holiday: holiday, size: 52)
+                    .modifier(RiseIn(delay: 0.1))
+                Spacer(minLength: 0)
+                IconButton(glyph: Glyph.close, label: "Dismiss", size: 18, action: onDismiss)
+                    .padding(.trailing, -10)
+                    .padding(.top, -8)
+            }
             VStack(alignment: .leading, spacing: 4) {
                 Text(holiday.greeting).font(Theme.display(22))
                 Text(holiday.note)
@@ -134,10 +141,6 @@ struct HolidayCard: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
-            IconButton(glyph: Glyph.close, label: "Dismiss", size: 18, action: onDismiss)
-                .padding(.trailing, -10)
-                .padding(.top, -8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 16)
