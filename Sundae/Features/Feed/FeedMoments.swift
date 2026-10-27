@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The small cards that sometimes sit above the feed: a year ago today, a friend's first Sunday,
-/// and the Sunday wrap after dark. Each shows once and goes away on its own.
+/// The small cards that sometimes sit above the feed: a holiday's hello, a year ago today, a
+/// friend's first Sunday, and the Sunday wrap after dark. Each shows once and goes away on its own.
 struct FeedMoments: View {
     @Environment(AppModel.self) private var model
     let open: (Route) -> Void
@@ -10,20 +10,20 @@ struct FeedMoments: View {
     @State private var dismissedAnniversary = false
     @State private var dismissedFirst: Set<ID> = []
     @State private var dismissedWrap = false
-    @State private var dismissedHalloween = false
+    @State private var dismissedHoliday = false
 
     private var feed: FeedStore { model.feed }
 
     var body: some View {
         let firsts = firstSundays
         let wrap = wrapSummary
-        let halloween = showsHalloween
-        if anniversary != nil && !dismissedAnniversary || !firsts.isEmpty || wrap != nil || halloween {
+        let holiday = holidayToday
+        if anniversary != nil && !dismissedAnniversary || !firsts.isEmpty || wrap != nil || holiday != nil {
             VStack(spacing: 12) {
-                if halloween {
-                    HalloweenCard {
-                        MomentMemory.halloweenShownWeekStart = model.currentWeekStart
-                        withAnimation { dismissedHalloween = true }
+                if let holiday {
+                    HolidayCard(holiday: holiday) {
+                        MomentMemory.holidayShownWeekStart = model.currentWeekStart
+                        withAnimation { dismissedHoliday = true }
                     }
                 }
                 if let anniversary, !dismissedAnniversary {
@@ -57,11 +57,10 @@ struct FeedMoments: View {
         }
     }
 
-    /// Halloween Sunday's hello, until it is waved away.
-    private var showsHalloween: Bool {
-        guard model.isSunday, !dismissedHalloween else { return false }
-        return Halloween.isHalloweenSunday(model.clock.now(), calendar: model.clock.calendar)
-            && MomentMemory.halloweenShownWeekStart != model.currentWeekStart
+    /// A holiday Sunday's hello, until it is waved away.
+    private var holidayToday: HolidaySunday? {
+        guard model.isSunday, !dismissedHoliday, MomentMemory.holidayShownWeekStart != model.currentWeekStart else { return nil }
+        return HolidaySunday.on(model.clock.now(), calendar: model.clock.calendar)
     }
 
     /// Friends whose first week ever is in the feed, until you have seen the card.
@@ -118,17 +117,18 @@ struct WrapSummary: Equatable {
     }
 }
 
-/// "Happy Halloween Sunday." with the jack-o'-lantern, once.
-struct HalloweenCard: View {
+/// "Happy Halloween Sunday." with the jack-o'-lantern, or the day's own hello and felt piece, once.
+struct HolidayCard: View {
+    let holiday: HolidaySunday
     let onDismiss: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            JackOLantern(size: 44)
+            HolidayPiece(holiday: holiday, size: 44)
                 .modifier(RiseIn(delay: 0.1))
             VStack(alignment: .leading, spacing: 4) {
-                Text("Happy Halloween Sunday.").font(Theme.display(22))
-                Text("Costumes, candy hauls and carved pumpkins: the spooky bits of your week belong here.")
+                Text(holiday.greeting).font(Theme.display(22))
+                Text(holiday.note)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

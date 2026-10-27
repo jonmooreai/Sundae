@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "FeltHeart.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
