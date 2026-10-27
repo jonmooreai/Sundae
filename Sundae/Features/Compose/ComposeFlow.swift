@@ -53,10 +53,9 @@ struct ComposeFlow: View {
 /// A handful of sprinkles that scatter from the check when the week goes up.
 struct Sprinkles: View {
     let fired: Bool
-    /// Candy corn on Halloween Sunday, the usual sprinkles every other day.
-    var colors: [Color] = Sprinkles.everyday
-    static let everyday: [Color] = [Theme.cherry, Color.accentColor, Color(red: 0.93, green: 0.76, blue: 0.40), Color(red: 0.62, green: 0.74, blue: 0.86)]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let colors: [Color] = [Theme.cherry, Color.accentColor, Color(red: 0.93, green: 0.76, blue: 0.40), Color(red: 0.62, green: 0.74, blue: 0.86)]
 
     var body: some View {
         ZStack {
@@ -350,11 +349,7 @@ struct PostedStep: View {
                 .foregroundStyle(Color.accentColor)
                 .scaleEffect(appeared ? 1 : 0.6)
                 .animation(.bouncy(duration: 0.5), value: appeared)
-                .background {
-                    Sprinkles(fired: appeared,
-                              colors: Halloween.isHalloweenSunday(model.clock.now(), calendar: model.clock.calendar)
-                                ? Halloween.colors : Sprinkles.everyday)
-                }
+                .background { Sprinkles(fired: appeared) }
             Text(compose.queuedOffline ? "Saved for when you're back online." : "Your week is up.")
                 .font(Theme.display(36))
                 .multilineTextAlignment(.center)

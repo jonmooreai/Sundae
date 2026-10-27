@@ -11,14 +11,6 @@ enum Halloween {
         let day = calendar.component(.day, from: date)
         return (month == 10 && day >= 28) || (month == 11 && day <= 3)
     }
-
-    /// Candy corn, and a little twilight.
-    static let colors: [Color] = [
-        Color(red: 0.95, green: 0.52, blue: 0.13),
-        Color(red: 0.98, green: 0.80, blue: 0.25),
-        Color(red: 0.99, green: 0.96, blue: 0.89),
-        Color(red: 0.49, green: 0.33, blue: 0.62),
-    ]
 }
 
 /// The cherry in costume: a little carved pumpkin with a cherry's stem.
