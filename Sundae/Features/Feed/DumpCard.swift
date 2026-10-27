@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// One feed item is one dump. Same anatomy as a carousel post so the muscle memory transfers:
 /// author header, paged photos, actions, caption, tagged names, likes, comments.
@@ -27,6 +26,9 @@ struct DumpCard: View {
             }, onTapTag: { user in
                 open(.profile(user.id))
             })
+
+            PhotoCaptionLine(photos: dump.photos, page: page)
+                .padding(.horizontal, Theme.pagePadding)
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {

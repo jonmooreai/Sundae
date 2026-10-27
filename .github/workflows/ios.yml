@@ -88,6 +88,7 @@ jobs:
             -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
             $DT_OVERRIDE \
             2>&1 | tee build.log | grep -E "error:|warning: .*(never|unused)|BUILD (SUCCEEDED|FAILED)|Compiling|Linking" || true
           grep -q "BUILD SUCCEEDED" build.log

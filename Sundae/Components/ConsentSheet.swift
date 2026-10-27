@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// A plain-words permission screen: what is about to happen, in a few points, then two buttons.
 /// It always comes before the system prompt, so iOS never asks first.

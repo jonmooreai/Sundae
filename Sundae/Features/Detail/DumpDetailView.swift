@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// Full dump: photos, caption, tags, likes, and the one conversation per dump.
 struct DumpDetailView: View {
@@ -114,6 +113,9 @@ struct DumpDetailView: View {
             .onKeyPress(.rightArrow) { page = min(dump.photos.count - 1, page + 1); return .handled }
             .onKeyPress(.space) { showFullScreen = true; return .handled }
             .onLongPressGesture { showFullScreen = true }
+
+        PhotoCaptionLine(photos: dump.photos, page: page)
+            .padding(.horizontal, Theme.pagePadding)
 
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {

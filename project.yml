@@ -7,12 +7,6 @@ options:
   xcodeVersion: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
-packages:
-  # Pinned to one commit (the 2.1.0 tag) so a new or moved upstream tag never reaches the app or
-  # CI unseen. To update, read the new release and put its commit here.
-  PhosphorSwift:
-    url: https://github.com/phosphor-icons/swift
-    revision: 9a9467181782bbe319ad4935d0993c77cd8a5fbc
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -71,7 +65,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
-        NSPhotoLibraryUsageDescription: Sundae uses your library to show this week's photos first when you post on Sunday. Photos stay on your device until you choose to post them.
+        NSPhotoLibraryUsageDescription: Sundae uses your library to show this week's photos first when you post on Sunday, and to find the photos you take at places you saved. Photos stay on your device until you choose to post them.
         NSFaceIDUsageDescription: Sundae asks for Face ID before sensitive changes like deleting your account.
         NSLocationWhenInUseUsageDescription: Sundae uses your location only Monday to Saturday, to pick today's idea near you. Never on Sunday, never on your photos, never shown to anyone.
         UIBackgroundModes:
@@ -91,7 +85,6 @@ targets:
     dependencies:
       - target: SundaeWidget
         embed: true
-      - package: PhosphorSwift
   SundaeWidget:
     type: app-extension
     platform: iOS

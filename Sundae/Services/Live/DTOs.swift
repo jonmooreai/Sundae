@@ -60,15 +60,16 @@ enum DTO {
         let width: Int
         let height: Int
         let altText: String?
+        let caption: String?
         let tags: [Tag]
 
         private enum CodingKeys: String, CodingKey {
-            case id, dumpId, order, url, width, height, altText, tags
+            case id, dumpId, order, url, width, height, altText, caption, tags
         }
 
         var model: Sundae.Photo {
             Sundae.Photo(id: id, dumpID: dumpId, order: order, source: .remote(url), width: width, height: height,
-                         altText: altText, tags: tags.map(\.model))
+                         altText: altText, caption: caption, tags: tags.map(\.model))
         }
 
         /// Width and height only shape the frame, so an odd value (a fraction, a huge number,
@@ -364,6 +365,8 @@ enum DTO {
         let width: Int
         let height: Int
         let altText: String?
+        /// Always sent, empty for none, so clearing a caption clears it on the server.
+        let caption: String
         let taggedUserIds: [String]
     }
 
@@ -411,6 +414,7 @@ extension DTO.Photo {
         width = Self.dimension(try? container.decodeIfPresent(Double.self, forKey: .width))
         height = Self.dimension(try? container.decodeIfPresent(Double.self, forKey: .height))
         altText = try container.decodeIfPresent(String.self, forKey: .altText)
+        caption = try? container.decodeIfPresent(String.self, forKey: .caption)
         tags = try container.decode([DTO.Tag].self, forKey: .tags)
     }
 }

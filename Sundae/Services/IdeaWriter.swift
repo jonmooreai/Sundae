@@ -59,8 +59,8 @@ enum IdeaWriter {
             children, danger, or being out alone at night.
 
             The idea is one sentence of at most 70 characters. The why is one sentence of at most \
-            90 characters, or empty when none is given. No emoji, exclamation marks, quotation \
-            marks or dashes.
+            90 characters, or left empty when there is no why to reword. No emoji, exclamation \
+            marks, quotation marks or dashes.
             """
         let shown = Self.examples.map { example in
             let why = Self.split(example.brief.reason).why
@@ -110,9 +110,9 @@ enum IdeaWriter {
             if parts.why.isEmpty {
                 reason = parts.ask
             } else {
+                // A why that is not a real sentence keeps the hand-written one.
                 let why = tidy(response.content.why)
-                guard !why.isEmpty, why.count <= 100 else { return nil }
-                reason = "\(why) \(parts.ask)"
+                reason = "\(isSentence(why) ? why : parts.why) \(parts.ask)"
             }
             return accepts(text: text, reason: reason, for: brief) ? (text, reason) : nil
         } catch {
@@ -159,8 +159,18 @@ enum IdeaWriter {
         if let minutes = brief.walkMinutes { lines.append("Getting there: a \(minutes) minute walk") }
         if brief.isRaining { lines.append("Weather: rain") }
         lines.append("Idea to reword: \(brief.text)")
-        lines.append(why.isEmpty ? "Why to reword: none, so leave the why empty" : "Why to reword: \(why)")
+        // With no why there is no line for it, so there is nothing to copy back.
+        if !why.isEmpty { lines.append("Why to reword: \(why)") }
         return lines.joined(separator: "\n")
+    }
+
+    /// A real short sentence, not a placeholder such as "none": three words or more, starting
+    /// with a capital, at most 100 characters.
+    static func isSentence(_ text: String) -> Bool {
+        let words = text.split(whereSeparator: { $0 == " " })
+        guard words.count >= 3, text.count <= 100, text.first?.isUppercase == true else { return false }
+        let start = text.lowercased()
+        return !["none", "n/a", "empty", "no why"].contains { start.hasPrefix($0) }
     }
 
     /// One line of plain text, ending in a full stop.

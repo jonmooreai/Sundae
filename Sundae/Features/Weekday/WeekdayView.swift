@@ -1,6 +1,6 @@
+import Photos
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 /// The screen people see most. One suggestion, large type, nowhere else to go.
 /// It should look like a nice postcard, not an error state.
@@ -11,11 +11,16 @@ struct WeekdayView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
     @State private var showLocationConsent = false
+    @State private var showWeek = false
+    @State private var showPhotoAccess = false
+    /// True for a moment after Save, for the line that says what happens next.
+    @State private var justSaved = false
     /// The screen's height, so the place card leaves out its picture where there is no room.
     @State private var height: CGFloat = 852
 
     private var store: WeekdayStore { model.weekday }
     private var nearby: LocalIdeasStore { model.localIdeas }
+    private var saved: SavedIdeasStore { model.savedIdeas }
 
     var body: some View {
         ZStack {
@@ -36,7 +41,9 @@ struct WeekdayView: View {
                 actions
                     .frame(maxWidth: 560)
             }
-            .padding(24)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+            .padding(.top, 12)
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .goldenHour(calendar: model.clock.calendar)
@@ -66,29 +73,68 @@ struct WeekdayView: View {
             // Coming back later in the day, maybe somewhere else.
             if phase == .active { Task { await nearby.refresh(clock: model.clock) } }
         }
+        .onChange(of: store.current?.id) { _, _ in justSaved = false }
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
         }
         .sheet(isPresented: $showLocationConsent) {
             LocationConsentSheet { nearby.enable() }
         }
+        .sheet(isPresented: $showWeek) {
+            YourWeekView()
+        }
+        .sheet(isPresented: $showPhotoAccess) {
+            PhotoAccessSheet {
+                Task { await saved.findPhotos(clock: model.clock) }
+            }
+        }
     }
 
     // MARK: - Pieces
 
+    /// The cherry in the middle; Your week and Settings up in the corner, out of its way.
     private var topBar: some View {
-        HStack {
-            // Approvals wait for Sunday's bar; weekdays stay quiet. This keeps the mark centered.
-            Color.clear.frame(width: 40, height: 40)
-
-            Spacer()
+        ZStack(alignment: .topTrailing) {
             // Big enough to want to tap; smaller when a phone on its side has little height to spare.
             TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96).wobbleOnTap()
-            Spacer()
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity)
 
-            IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
+            HStack(spacing: 8) {
+                IconButton(glyph: Glyph.saved, label: weekLabel, filled: true) { showWeek = true }
+                    .overlay(alignment: .topTrailing) { savedBadge }
+                    .accessibilityIdentifier("your-week")
+                IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
+            }
+            .padding(.trailing, -6)
         }
         .foregroundStyle(.primary)
+    }
+
+    /// How many ideas are saved, on the Your week button.
+    @ViewBuilder
+    private var savedBadge: some View {
+        let count = saved.ideas.count
+        if count > 0 {
+            Text("\(count)")
+                .font(.caption2.weight(.bold))
+                .monospacedDigit()
+                .foregroundStyle(.white)
+                .frame(minWidth: 18, minHeight: 18)
+                .padding(.horizontal, count > 9 ? 3 : 0)
+                .background(Color.accentColor, in: Capsule())
+                .offset(x: 4, y: -2)
+                .transition(.scale.combined(with: .opacity))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var weekLabel: String {
+        switch saved.ideas.count {
+        case 0: "Your week"
+        case 1: "Your week, 1 saved idea"
+        case let count: "Your week, \(count) saved ideas"
+        }
     }
 
     @ViewBuilder
@@ -97,14 +143,15 @@ struct WeekdayView: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 6) {
-                        if store.justMarkedDone {
-                            Icon(Glyph.approvals, weight: .fill, size: 18)
+                        if store.isCurrentSaved {
+                            Icon(Glyph.saved, weight: .fill, size: 16)
                                 .foregroundStyle(Color.accentColor)
                                 .transition(.scale.combined(with: .opacity))
                         }
-                        Text(store.justMarkedDone ? "That's one for Sunday" : dayLine(nearby: suggestion.isNearby))
+                        Text(store.isCurrentSaved ? "Saved for this week" : dayLine(nearby: suggestion.isNearby))
                             .textCase(.uppercase)
                             .tracking(0.8)
+                            .contentTransition(.opacity)
                     }
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -112,22 +159,20 @@ struct WeekdayView: View {
                         .font(Theme.display(verticalSizeClass == .compact ? 30 : 40))
                         .lineSpacing(2)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(store.justMarkedDone ? .secondary : .primary)
-                        .strikethrough(store.justMarkedDone, color: .secondary)
-                    Text(store.justMarkedDone ? "Take the photos. Sunday will remind you." : suggestion.reason)
+                    Text(suggestion.reason)
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
                 // The words read as one; the card's buttons stay buttons of their own.
                 .accessibilityElement(children: .combine)
-                if let place = suggestion.place, !store.justMarkedDone {
+                if let place = suggestion.place {
                     PlaceCard(place: place, distance: distanceLine(place),
                               showsPicture: verticalSizeClass != .compact && height >= 740)
                         .padding(.top, 6)
                         .transition(.opacity)
                 }
             }
-            .animation(.default, value: store.justMarkedDone)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: store.isCurrentSaved)
             .id(suggestion.id)
             .transition(reduceMotion ? .opacity : .asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -159,30 +204,65 @@ struct WeekdayView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Icon(Glyph.shuffle, weight: .bold, size: 18)
-                        Text(store.justMarkedDone ? "Another idea" : "Shuffle")
+                        Text("Shuffle")
                     }
                 }
                 .buttonStyle(.pill(.secondary, fullWidth: true))
 
-                if !store.justMarkedDone {
+                if store.isCurrentSaved {
+                    // Saved already: this opens the week, where it can be taken off again.
                     Button {
-                        Task { await store.markDone(clock: model.clock) }
+                        showWeek = true
                     } label: {
                         HStack(spacing: 8) {
-                            Icon(Glyph.done, weight: .bold, size: 18)
-                            Text("Done")
+                            Icon(Glyph.saved, weight: .fill, size: 18)
+                            Text("Saved")
+                        }
+                    }
+                    .buttonStyle(.pill(.secondary, fullWidth: true))
+                    .accessibilityHint("Opens your week")
+                } else {
+                    Button {
+                        save()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Icon(Glyph.saved, weight: .bold, size: 18)
+                            Text("Save")
                         }
                     }
                     .buttonStyle(.pill(.primary, fullWidth: true))
-                    .disabled(store.isCurrentDone || store.isResting)
+                    .disabled(!store.canSaveCurrent)
                 }
             }
-            Text(countdown)
+            Text(justSaved ? savedLine : countdown)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .contentTransition(.opacity)
             nearbyFooter
         }
         .animation(.default, value: nearby.status)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: store.isCurrentSaved)
+        .animation(.default, value: justSaved)
+    }
+
+    /// Keeps the idea for the week. The first time, Sundae offers to find its photos for you.
+    private func save() {
+        store.saveCurrent(clock: model.clock)
+        justSaved = true
+        if !saved.askedForPhotos, PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined {
+            showPhotoAccess = true
+        } else {
+            Task { await saved.findPhotos(clock: model.clock) }
+        }
+    }
+
+    /// What happens to a saved idea, said once, just after saving it.
+    private var savedLine: String {
+        if store.current?.place != nil, PhotoFinder.isAuthorized {
+            return "Take photos there and they wait for Sunday in Your week."
+        }
+        return "It waits in Your week, up top. Add its photos when you have them."
     }
 
     /// One quiet line about ideas near you: the offer when it is off, the state when it is on.
@@ -252,7 +332,7 @@ struct WeekdayView: View {
     }
 
     private var countdown: String {
-        if store.isResting { return "Done comes back in a minute. So do you." }
+        if store.isResting { return "Save comes back in a minute. So do you." }
         switch model.phase {
         case .sunday: return "It's Sunday."
         case .weekday(let days):

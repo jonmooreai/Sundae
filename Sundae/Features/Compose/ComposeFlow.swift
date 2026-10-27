@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 enum ComposeStep: Hashable {
     case pick, arrange, caption, posted
@@ -217,8 +216,12 @@ struct SundayPromptStep: View {
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
     @State private var previews: [UIImage] = []
+    @State private var preparing = false
 
     private var compose: ComposeStore { model.compose }
+    /// Photos kept with this week's saved ideas, ready to start the post.
+    private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost() }
+    private var startsFromSaved: Bool { !compose.hasPosted && compose.draft.isEmpty && !savedPhotos.isEmpty }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -243,6 +246,7 @@ struct SundayPromptStep: View {
                     .lineSpacing(2)
                 Text(compose.hasPosted
                      ? "Add a photo, fix the caption, or tag someone you missed. You have until midnight."
+                     : startsFromSaved ? savedLine
                      : "Pick the photos, tag who was there, and say how it went. You have until midnight.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
@@ -262,11 +266,14 @@ struct SundayPromptStep: View {
 
             Spacer(minLength: 20)
 
-            PrimaryButton(title: compose.hasPosted ? "Edit your week" : "Pick your photos") {
+            PrimaryButton(title: compose.hasPosted ? "Edit your week" : startsFromSaved ? "Start with your saved photos" : "Pick your photos",
+                          isLoading: preparing) {
                 Haptics.light()
                 if compose.hasPosted {
                     compose.entry = .arrange
                     path = []
+                } else if startsFromSaved {
+                    Task { await startFromSaved() }
                 } else {
                     path.append(.pick)
                 }
@@ -285,17 +292,36 @@ struct SundayPromptStep: View {
         model.clock.now().formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 
+    private var savedLine: String {
+        let count = savedPhotos.count
+        let photos = count == 1 ? "1 photo" : "\(count) photos"
+        return "Your saved ideas start it with \(photos). Add more, tag who was there, and say how it went. You have until midnight."
+    }
+
+    /// Fills the draft from saved ideas and opens it ready to arrange. If none of their photos
+    /// could be read (Photos access taken away, photos deleted), the grid instead.
+    private func startFromSaved() async {
+        preparing = true
+        await compose.startFromSaved(savedPhotos, library: library)
+        preparing = false
+        path.append(compose.draft.isEmpty ? .pick : .arrange)
+    }
+
     private func notNow() {
         compose.dismissPrompt(for: model.currentWeekStart)
         compose.dismiss()
     }
 
-    /// Real photos from this week when the library is already allowed. Never asks here.
+    /// Real photos from this week when the library is already allowed, saved ideas' first.
+    /// Never asks here.
     private func loadPreviews() async {
         guard library.isAuthorized else { return }
         library.loadAssets(from: model.currentWeekStart, to: model.clock.weekEnd(containing: model.currentWeekStart))
+        let saved = PhotoFinder.assets(savedPhotos.map(\.assetID))
+        let fromSaved = savedPhotos.compactMap { saved[$0.assetID] }
+        let picks = fromSaved.isEmpty ? Array(library.assets.suffix(3)) : Array(fromSaved.prefix(3))
         var images: [UIImage] = []
-        for asset in library.assets.suffix(3) {
+        for asset in picks {
             if let image = await library.thumbnail(for: asset, side: 300) { images.append(image) }
         }
         previews = images

@@ -1,7 +1,7 @@
 {
   "title": "Privacy",
   "summary": "Sundae is a photo dump for a small group of friends and family. Here is what it uses to work, what it never asks for, and who sees what.",
-  "updated": "2026-10-26",
+  "updated": "2026-10-27",
   "sections": [
     {
       "title": "What Sundae uses",
@@ -9,7 +9,7 @@
         "A private ID from Sign in with Apple, so you can sign back in. Never your email.",
         "Your name, username, bio and profile photo, if you add them.",
         "The photos you post, with their captions and tags, so the people you choose can see them.",
-        "Who you follow, your likes and comments, and the ideas you mark done.",
+        "Who you follow, your likes and comments, and which ideas you did, once one has photos.",
         "Your settings, your time zone so Sunday starts at your midnight, and any reports you send."
       ]
     },
@@ -18,6 +18,7 @@
       "items": [
         "Your location. Ideas near you are picked and written on your phone. Map and weather lookups use only a rough area with nothing that identifies you, and where you are never reaches Sundae.",
         "Where your photos were taken. Location and camera details are removed before a photo leaves your phone, and again when it arrives.",
+        "The ideas you save and the photos you keep with them. Sundae matches photos to the places you saved by where they were taken, on your phone, and all of it stays there until you post on Sunday.",
         "Your contacts. Sundae never asks for them.",
         "Anything for ads or tracking. No ads, no analytics, no trackers."
       ]

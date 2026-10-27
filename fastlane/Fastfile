@@ -161,7 +161,8 @@ platform :ios do
       configuration: "Release",
       export_method: "app-store",
       output_directory: "build/testflight",
-      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
+      # No index for an editor that will never open this build: it only costs minutes.
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} COMPILER_INDEX_STORE_ENABLE=NO",
       export_options: {
         provisioningProfiles: {
           bundle_id => "match AppStore #{bundle_id}",

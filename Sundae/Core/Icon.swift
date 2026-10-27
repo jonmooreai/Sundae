@@ -1,5 +1,53 @@
-import PhosphorSwift
 import SwiftUI
+
+/// The Phosphor icons the app uses (phosphoricons.com, MIT license, see THIRD_PARTY_NOTICES.md),
+/// copied from PhosphorSwift 2.1.0 into Assets.xcassets/Icons in regular, bold and fill. Only
+/// these ship: the package's 9,108 icon files were processed on every build, which made each one
+/// minutes slower and the app bigger. To add one, copy its three imagesets from that release and
+/// add a case; a test checks every case has all three.
+enum Ph: String, CaseIterable, Sendable {
+    case arrowUp = "arrow-up"
+    case arrowsDownUp = "arrows-down-up"
+    case bell
+    case bookmarkSimple = "bookmark-simple"
+    case calendarBlank = "calendar-blank"
+    case caretLeft = "caret-left"
+    case caretRight = "caret-right"
+    case chatCircle = "chat-circle"
+    case check
+    case checkCircle = "check-circle"
+    case dotsThree = "dots-three"
+    case export
+    case flag
+    case gearSix = "gear-six"
+    case handPalm = "hand-palm"
+    case heart
+    case house
+    case images
+    case lockSimple = "lock-simple"
+    case magnifyingGlass = "magnifying-glass"
+    case mapPin = "map-pin"
+    case moon
+    case plus
+    case plusSquare = "plus-square"
+    case shuffle
+    case sun
+    case tag
+    case textAa = "text-aa"
+    case trash
+    case user
+    case userCircle = "user-circle"
+    case userPlus = "user-plus"
+    case x
+
+    var regular: Image { Self.icon(rawValue) }
+    var bold: Image { Self.icon("\(rawValue)-bold") }
+    var fill: Image { Self.icon("\(rawValue)-fill") }
+
+    private static func icon(_ name: String) -> Image {
+        Image(name).interpolation(.medium).resizable()
+    }
+}
 
 /// Phosphor Icons, the one icon set. Semantic names live here so no screen picks a glyph itself.
 /// Regular weight in chrome, fill when selected, bold for small emphatic marks.
@@ -12,6 +60,7 @@ enum Glyph {
     static var settings: Ph { .gearSix }
     static var shuffle: Ph { .shuffle }
     static var done: Ph { .check }
+    static var saved: Ph { .bookmarkSimple }
     static var heart: Ph { .heart }
     static var comment: Ph { .chatCircle }
     static var tag: Ph { .tag }

@@ -73,7 +73,7 @@ docs/API.md              The REST contract the live client expects
 
 **Offline compose.** Saving a dump while offline writes the draft to Application Support and shows "will post when you're back online". `NetworkMonitor` watches the path; when it returns on the same Sunday the queued post goes up and lands at the top of the feed. If Sunday ended first the queue is dropped, because a missed week stays empty by design.
 
-**Icons.** Phosphor Icons, from the PhosphorSwift package. `Core/Icon.swift` is the single place icon names live. project.yml pins the package to one commit, so a new upstream release reaches the app only when someone reads it and moves the pin.
+**Icons.** Phosphor Icons (MIT, THIRD_PARTY_NOTICES.md), only the ones in use, copied into `Assets.xcassets/Icons` in regular, bold and fill. `Core/Icon.swift` is the single place icon names live. The PhosphorSwift package used to bring all 9,108 icon files into every build, which cost minutes each time; to add an icon, copy its three imagesets from that release and add a case to `Ph`.
 
 ## What is in this scaffold and what is not
 
@@ -103,5 +103,4 @@ Not yet:
 - A real backend. `docs/API.md` is the contract the client speaks.
 - Passkeys (WebAuthn), App Attest. Sign in with Apple is wired through the UI to `auth/apple`.
 - Live Activity, StandBy, Share Sheet extension
-- Phosphor icon package
 - App icon artwork

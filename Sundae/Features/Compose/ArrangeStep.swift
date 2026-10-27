@@ -1,7 +1,6 @@
 import SwiftUI
-import PhosphorSwift
 
-/// Step two: see each photo large, tag the friends who were there, fix the order.
+/// Step two: see each photo large, give it a caption, tag the friends who were there, fix the order.
 struct ArrangeStep: View {
     @Environment(AppModel.self) private var model
     let library: PhotoLibrary
@@ -26,6 +25,12 @@ struct ArrangeStep: View {
     private var compose: ComposeStore { model.compose }
     private var photos: [DraftPhoto] { compose.draft.photos }
     private var current: DraftPhoto? { photos.indices.contains(page) ? photos[page] : nil }
+
+    /// The caption of the photo on screen. Photos from one saved idea arrive with the same one.
+    private var captionBinding: Binding<String> {
+        Binding(get: { current?.caption ?? "" },
+                set: { text in if let current { compose.setPhotoCaption(for: current.id, text: text) } })
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -146,6 +151,17 @@ struct ArrangeStep: View {
                 }
             }
             .padding(.horizontal, Theme.pagePadding)
+
+            TextField("Add a caption (optional)", text: captionBinding, axis: .vertical)
+                .lineLimit(1...3)
+                .font(.subheadline)
+                .submitLabel(.done)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
+                .padding(.horizontal, Theme.pagePadding)
+                .id(current?.id)
+                .accessibilityLabel("Caption for photo \(page + 1)")
 
             HStack(spacing: 10) {
                 action(current?.taggedUsers.isEmpty == false ? "Tagged \(current?.taggedUsers.count ?? 0)" : "Tag friends", Glyph.tag) {

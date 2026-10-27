@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import PhosphorSwift
 
 /// Cream paper, warm grays, a sage accent, serif display type, pill buttons. Photos carry
 /// the color; the chrome stays quiet in either theme. Nothing here is a stock iOS control.
@@ -60,6 +59,13 @@ enum Appearance: String, CaseIterable, Identifiable {
     var colorScheme: ColorScheme? {
         switch self {
         case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+    var interfaceStyle: UIUserInterfaceStyle {
+        switch self {
+        case .system: .unspecified
         case .light: .light
         case .dark: .dark
         }

@@ -1,5 +1,4 @@
 import SwiftUI
-import PhosphorSwift
 
 /// Sunday's home. Compact width is a plain stack; regular width (iPad) is two columns with the
 /// feed on the left and the open dump or profile on the right.

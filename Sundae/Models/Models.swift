@@ -66,6 +66,8 @@ struct Photo: Identifiable, Hashable, Codable, Sendable {
     var width: Int
     var height: Int
     var altText: String?
+    /// A line or two under this photo. One idea's photos carry the same one.
+    var caption: String? = nil
     var tags: [Tag]
 
     var aspectRatio: CGFloat { height == 0 ? 1 : CGFloat(width) / CGFloat(height) }
@@ -194,12 +196,29 @@ struct DraftPhoto: Identifiable, Hashable, Codable, Sendable {
     var taggedUsers: [User] = []
     var altText: String = ""
     var takenAt: Date?
+    var caption: String = ""
+}
+
+extension DraftPhoto {
+    /// A draft saved before photos had captions (a post waiting for the network) still opens.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(ID.self, forKey: .id)
+        source = try container.decode(PhotoSource.self, forKey: .source)
+        width = try container.decode(Int.self, forKey: .width)
+        height = try container.decode(Int.self, forKey: .height)
+        taggedUsers = try container.decodeIfPresent([User].self, forKey: .taggedUsers) ?? []
+        altText = try container.decodeIfPresent(String.self, forKey: .altText) ?? ""
+        takenAt = try container.decodeIfPresent(Date.self, forKey: .takenAt)
+        caption = try container.decodeIfPresent(String.self, forKey: .caption) ?? ""
+    }
 }
 
 struct DumpDraft: Hashable, Codable, Sendable {
     static let maxPhotos = 15
     static let maxTagsPerPhoto = 10
     static let maxCaptionLength = 300
+    static let maxPhotoCaptionLength = 200
 
     var photos: [DraftPhoto] = []
     var caption: String = ""

@@ -103,4 +103,12 @@ struct IdeaWriterTests {
         #expect(!IdeaWriter.accepts(text: "Pat's Bakery is worth a visit.", reason: "Take a photo of it before the first bite.", for: bakery))
         #expect(IdeaWriter.accepts(text: "Visit Pat's Bakery this morning.", reason: "Take a photo of it before the first bite.", for: bakery))
     }
+
+    @Test func aPlaceholderWhyIsNeverShown() {
+        #expect(!IdeaWriter.isSentence("none."))
+        #expect(!IdeaWriter.isSentence("None, so leave it empty."))
+        #expect(!IdeaWriter.isSentence("Pick one."))
+        #expect(IdeaWriter.isSentence("Choose a book you would usually walk past."))
+        #expect(!IdeaWriter.prompt(for: bakery, why: "").contains("Why to reword"))
+    }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Photos
 import PhotosUI
 import SwiftUI
 
@@ -153,6 +154,21 @@ final class ComposeStore {
         draft.photos.append(photo)
     }
 
+    /// Sunday's head start: the photos kept with saved ideas, in the order taken, each starting
+    /// with its idea's caption. Only into an empty draft, so nothing anyone picked is replaced.
+    func startFromSaved(_ photos: [SavedPhotoForPost], library: PhotoLibrary) async {
+        guard draft.isEmpty, existingDump == nil else { return }
+        let assets = PhotoFinder.assets(photos.map(\.assetID))
+        for photo in photos {
+            guard let asset = assets[photo.assetID], let data = await library.imageData(for: asset) else { continue }
+            await importLibraryData(data, assetID: photo.assetID, takenAt: asset.creationDate ?? photo.takenAt)
+            if !photo.caption.isEmpty, let id = libraryPhotoIDs[photo.assetID] {
+                setPhotoCaption(for: id, text: photo.caption)
+            }
+        }
+        sortChronologically()
+    }
+
     func removeLibraryAsset(_ assetID: String) {
         guard let id = libraryPhotoIDs.removeValue(forKey: assetID) else { return }
         draft.photos.removeAll { $0.id == id }
@@ -194,6 +210,11 @@ final class ComposeStore {
     func setAltText(for id: ID, text: String) {
         guard let index = draft.photos.firstIndex(where: { $0.id == id }) else { return }
         draft.photos[index].altText = text
+    }
+
+    func setPhotoCaption(for id: ID, text: String) {
+        guard let index = draft.photos.firstIndex(where: { $0.id == id }) else { return }
+        draft.photos[index].caption = String(text.prefix(DumpDraft.maxPhotoCaptionLength))
     }
 
     func setCaption(_ text: String) {
@@ -261,7 +282,8 @@ extension DumpDraft {
     init(from dump: Dump) {
         photos = dump.photos.sorted { $0.order < $1.order }.map { photo in
             DraftPhoto(id: photo.id, source: photo.source, width: photo.width, height: photo.height,
-                       taggedUsers: photo.visibleTags.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil)
+                       taggedUsers: photo.visibleTags.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil,
+                       caption: photo.caption ?? "")
         }
         caption = dump.caption
         commentsEnabled = dump.commentsEnabled

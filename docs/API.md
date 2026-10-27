@@ -81,13 +81,13 @@ The client signs out after `DELETE me` only on a 2xx, or when the server says th
   "caption": "Bikes and a very long lunch.",
   "comments_enabled": true,
   "photos": [
-    {"id": "p_123", "order": 0, "width": 2048, "height": 1536, "alt_text": null, "tagged_user_ids": ["u_maya"]},
-    {"upload_id": "up_9f2", "order": 1, "width": 1536, "height": 2048, "alt_text": "Theo's bread", "tagged_user_ids": []}
+    {"id": "p_123", "order": 0, "width": 2048, "height": 1536, "alt_text": null, "caption": "", "tagged_user_ids": ["u_maya"]},
+    {"upload_id": "up_9f2", "order": 1, "width": 1536, "height": 2048, "alt_text": "Theo's bread", "caption": "Bread at Juniper Bakery.", "tagged_user_ids": []}
   ]
 }
 ```
 
-Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. `width` and `height` are whole pixels from 1 to 20000; anything else is ignored, and every photo in a response has whole, positive sizes. A save leaves the week with exactly the photos it lists, so saves sent together never add up to more than 15. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
+Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. Each photo may have its own `caption`, up to 200 characters; empty clears it, and a photo sent without the key keeps the caption it has, so builds from before photo captions never wipe one. `width` and `height` are whole pixels from 1 to 20000; anything else is ignored, and every photo in a response has whole, positive sizes. A save leaves the week with exactly the photos it lists, so saves sent together never add up to more than 15. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
 
 ### Uploads
 
@@ -122,7 +122,7 @@ user:     {id, username, name?, bio?, avatar_url?, is_public, timezone?,
            birthday?: "MM-DD" (friends only, never a year), invited_by_me?}
                                                    timezone only on the caller's own account (me, sign-in), null for anyone else
 tag:      {id, photo_id, tagger_id, tagged_user: user, status: pending|approved|declined|removed, responded_at?}
-photo:    {id, dump_id, order, url, width, height, alt_text?, tags: [tag]}
+photo:    {id, dump_id, order, url, width, height, alt_text?, caption?, tags: [tag]}
 dump:     {id, author: user, week_start, caption?, created_at, locked_at?, photos: [photo],
            comments_enabled, liked_by: [user], liked_by_me, comment_count, is_authors_first?}
 comment:  {id, dump_id, author: user, body, created_at, edited_at?, like_count, liked_by_me}
