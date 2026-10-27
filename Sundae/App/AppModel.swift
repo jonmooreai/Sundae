@@ -46,7 +46,11 @@ final class AppModel {
     private(set) var phase: DayPhase = .weekday(daysUntilSunday: 6)
     private(set) var currentUser: User? {
         // A saved "Pretend it's Sunday" only counts for demo data or an admin.
-        didSet { if !canChangeDay, debugDay != .real { setDebugDay(.real) } }
+        didSet {
+            if !canChangeDay, debugDay != .real { setDebugDay(.real) }
+            // Saved ideas belong to whoever saved them. Set on sign-in and on a restored session alike.
+            if let id = currentUser?.id, id != oldValue?.id { savedIdeas.signedIn(userID: id) }
+        }
     }
     private(set) var isRestoringSession = true
     /// Signed in, with onboarding's last steps (ideas near you, reminders, friends) still to go.
@@ -65,6 +69,7 @@ final class AppModel {
     let compose: ComposeStore
     let approvals: ApprovalsStore
     let weekday: WeekdayStore
+    let savedIdeas: SavedIdeasStore
     let localIdeas: LocalIdeasStore
     let network = NetworkMonitor()
 
@@ -123,7 +128,13 @@ final class AppModel {
         self.feed = FeedStore(api: api)
         self.compose = ComposeStore(api: api)
         self.approvals = ApprovalsStore(api: api)
-        self.weekday = WeekdayStore(api: api, catalog: catalog)
+        let savedIdeas = SavedIdeasStore()
+        let weekday = WeekdayStore(api: api, catalog: catalog, saved: savedIdeas)
+        savedIdeas.onFirstPhoto = { [weak weekday] suggestion, day in
+            Task { await weekday?.recordDone(suggestion, on: day) }
+        }
+        self.savedIdeas = savedIdeas
+        self.weekday = weekday
         // Ideas near you come from Apple Maps on the phone in every build: the friends and family
         // server has no ideas service (docs/SERVER.md), and this keeps location off it entirely.
         self.localIdeas = LocalIdeasStore(api: api, onDevice: true)
@@ -230,6 +241,11 @@ final class AppModel {
         if isSignedIn, accountSettings == nil { await loadAccountSettings() }
         // A week posted early skips its last call; a new week brings the weekly one back.
         if isSignedIn { scheduleReminders() }
+        // Photos taken at saved places since the last look, matched on the phone.
+        if isSignedIn {
+            savedIdeas.startWeek(currentWeekStart)
+            await savedIdeas.findPhotos(clock: clock)
+        }
         await refreshPendingCount()
     }
 
@@ -328,6 +344,7 @@ final class AppModel {
         defer { isSigningOut = false }
         localIdeas.signedOut(userID: currentUser?.id)
         MomentMemory.signedOut(userID: currentUser?.id)
+        savedIdeas.signedOut()
         NotificationScheduler.cancelAll()
         finishOnboarding()
         try? await api.signOut()
@@ -354,6 +371,7 @@ final class AppModel {
         await signOut()
         // Nothing of a deleted account waits on this phone for it to come back.
         MomentMemory.signedOut(userID: nil)
+        savedIdeas.forgetAll()
         return true
     }
 

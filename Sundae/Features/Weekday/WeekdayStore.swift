@@ -8,13 +8,14 @@ final class WeekdayStore {
     private let api: any SundaeAPI
     private let catalog: SuggestionCatalog
     private let shared = SharedDefaults()
+    /// Ideas kept for the week. Shuffle skips them; they wait in Your week.
+    let saved: SavedIdeasStore
 
     private(set) var current: Suggestion?
-    /// Suggestion id to the day it was marked done, this week only.
+    /// Suggestion id to the day it was done (it got its photos), this week only.
     private(set) var done: [String: Date] = [:]
     /// Today's ideas for the user's area, when they asked for them. Preferred over the catalog.
     private(set) var local: [Suggestion] = []
-    var justMarkedDone = false
     /// Set when the tenth shuffle in a row lands on the only idea that cannot be shuffled away.
     private(set) var restUntil: Date?
     private var shuffles = 0
@@ -35,14 +36,26 @@ final class WeekdayStore {
         restUntil = nil
     }
 
-    init(api: any SundaeAPI, catalog: SuggestionCatalog) {
+    init(api: any SundaeAPI, catalog: SuggestionCatalog, saved: SavedIdeasStore) {
         self.api = api
         self.catalog = catalog
+        self.saved = saved
     }
 
     var isCurrentDone: Bool {
         guard let current else { return false }
         return done[current.id] != nil
+    }
+
+    var isCurrentSaved: Bool {
+        guard let current else { return false }
+        return saved.isSaved(current)
+    }
+
+    /// The rest idea is not one to keep.
+    var canSaveCurrent: Bool {
+        guard let current else { return false }
+        return current.id != Self.rest.id && !isResting
     }
 
     func load(clock: SundayClock) {
@@ -63,7 +76,7 @@ final class WeekdayStore {
             if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
             WidgetCenter.shared.reloadAllTimelines()
         }
-        justMarkedDone = false
+        saved.startWeek(clock.weekStart())
     }
 
     /// Today's nearby ideas arrived or changed. They take over only from the automatic pick:
@@ -111,13 +124,17 @@ final class WeekdayStore {
             shuffles = 0
             current = Self.rest
             restUntil = Date().addingTimeInterval(60)
-            justMarkedDone = false
             Haptics.light()
             return
         }
         noteShown(current, on: now, calendar: clock.calendar)
         let slot = Suggestion.TimeOfDay.current(for: now, calendar: clock.calendar)
-        let fitting = local.filter { $0.timeOfDay == slot || $0.timeOfDay == .any }
+        // Saved ideas wait in Your week, and so do their places, whatever today's idea there says.
+        let savedPlaces = saved.savedPlaceNames
+        let fitting = local.filter { idea in
+            (idea.timeOfDay == slot || idea.timeOfDay == .any) && !saved.isSaved(idea)
+                && !(idea.place.map { savedPlaces.contains($0.name) } ?? false)
+        }
         var openLocal = fitting.filter { $0.id != current?.id && done[$0.id] == nil && !shown.contains($0.id) }
         if openLocal.isEmpty, fitting.count > 1 {
             // Every nearby idea for this part of the day has had its turn; let them come round again.
@@ -129,29 +146,32 @@ final class WeekdayStore {
         if let nearby = openLocal.randomElement(), Bool.random() {
             current = nearby
         } else {
-            current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: Set(done.keys).union(shown))
+            let skip = Set(done.keys).union(shown).union(saved.ideas.filter { !$0.suggestion.isNearby }.map(\.suggestion.id))
+            current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: skip)
         }
         noteShown(current, on: now, calendar: clock.calendar)
         if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
-        justMarkedDone = false
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    func markDone(clock: SundayClock) async {
-        guard let current else { return }
-        let now = clock.now()
-        done[current.id] = now
+    /// Keeps today's idea for the week, to do when there is time.
+    func saveCurrent(clock: SundayClock) {
+        guard let current, canSaveCurrent else { return }
+        saved.save(current, at: clock.now(), weekStart: clock.weekStart())
+        Haptics.light()
+    }
+
+    /// An idea got its photos, so it was done: Sunday's caption can name it, and Shuffle skips it.
+    func recordDone(_ suggestion: Suggestion, on day: Date) async {
+        done[suggestion.id] = day
         shared.setDoneSuggestions(done)
-        if current.isNearby {
-            var kept = shared.doneLocalSuggestions().filter { $0.id != current.id }
-            kept.append(current)
+        if suggestion.isNearby {
+            var kept = shared.doneLocalSuggestions().filter { $0.id != suggestion.id }
+            kept.append(suggestion)
             shared.setDoneLocalSuggestions(kept)
         }
-        justMarkedDone = true
-        Haptics.light()
         // A nearby idea's id names the day and a slot, nothing about where. Safe to send with the account.
-        try? await api.markSuggestionDone(id: current.id, on: now)
-        WidgetCenter.shared.reloadAllTimelines()
+        try? await api.markSuggestionDone(id: suggestion.id, on: day)
     }
 
     /// What the user did this week, oldest first, for the Sunday compose prompt.

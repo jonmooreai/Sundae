@@ -12,6 +12,7 @@ enum Glyph {
     static var settings: Ph { .gearSix }
     static var shuffle: Ph { .shuffle }
     static var done: Ph { .check }
+    static var saved: Ph { .bookmarkSimple }
     static var heart: Ph { .heart }
     static var comment: Ph { .chatCircle }
     static var tag: Ph { .tag }

@@ -83,7 +83,7 @@ struct CaptionStep: View {
                 Text(suggested)
                     .font(.subheadline.weight(.medium))
                 HStack {
-                    Text("From what you marked done this week.")
+                    Text("From the ideas you did this week.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Spacer()

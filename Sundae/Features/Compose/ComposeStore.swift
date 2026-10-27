@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import Photos
 import PhotosUI
 import SwiftUI
 
@@ -151,6 +152,21 @@ final class ComposeStore {
         let photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
         libraryPhotoIDs[assetID] = photo.id
         draft.photos.append(photo)
+    }
+
+    /// Sunday's head start: the photos kept with saved ideas, in the order taken, each starting
+    /// with its idea's caption. Only into an empty draft, so nothing anyone picked is replaced.
+    func startFromSaved(_ photos: [SavedPhotoForPost], library: PhotoLibrary) async {
+        guard draft.isEmpty, existingDump == nil else { return }
+        let assets = PhotoFinder.assets(photos.map(\.assetID))
+        for photo in photos {
+            guard let asset = assets[photo.assetID], let data = await library.imageData(for: asset) else { continue }
+            await importLibraryData(data, assetID: photo.assetID, takenAt: asset.creationDate ?? photo.takenAt)
+            if !photo.caption.isEmpty, let id = libraryPhotoIDs[photo.assetID] {
+                setPhotoCaption(for: id, text: photo.caption)
+            }
+        }
+        sortChronologically()
     }
 
     func removeLibraryAsset(_ assetID: String) {

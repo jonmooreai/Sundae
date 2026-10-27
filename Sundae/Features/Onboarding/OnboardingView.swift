@@ -361,7 +361,7 @@ struct OnboardingView: View {
     /// iOS asks straight away. Saying no changes nothing and costs nothing.
     private var ideas: some View {
         VStack(alignment: .leading, spacing: 20) {
-            heading("Ideas near you?", "Monday to Saturday, Sundae gives you one thing worth doing. With your location, it can be one thing nearby, or one worth the drive.")
+            heading("Ideas near you?", "Monday to Saturday, Sundae gives you one thing worth doing, and you can save the ones you like for later. With your location, it can be nearby, or worth the drive.")
 
             VStack(alignment: .leading, spacing: 16) {
                 valueRow(Glyph.calendar, "Weekdays only",

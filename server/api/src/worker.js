@@ -845,7 +845,8 @@ async function saveDump(ctx, week) {
   const [{ results: existing }, { results: uploads }, { results: claimed }, people] = await Promise.all([
     db.prepare('SELECT * FROM photos WHERE dump_id = ?').bind(dumpId).all(),
     db.prepare('SELECT * FROM uploads WHERE user_id = ? AND uploaded = 1 AND id IN (SELECT value FROM json_each(?))').bind(me.id, JSON.stringify(uploadIds)).all(),
-    db.prepare('SELECT upload_id, dump_id FROM photos WHERE upload_id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(uploadIds)).all(),
+    db.prepare(`SELECT photos.*, dumps.author_id AS claim_author, dumps.week_start AS claim_week FROM photos JOIN dumps ON dumps.id = photos.dump_id
+      WHERE photos.upload_id IN (SELECT value FROM json_each(?))`).bind(JSON.stringify(uploadIds)).all(),
     taggable(ctx),
   ]);
   const { results: currentTags } = existing.length
@@ -867,10 +868,19 @@ async function saveDump(ctx, week) {
       if (!row) {
         const upload = uploads.find((u) => u.id === uploadId);
         if (!upload) fail(400, 'invalid_photo', 'That photo did not finish uploading.');
-        if (claimed.some((c) => c.upload_id === uploadId && c.dump_id !== dumpId)) fail(400, 'invalid_photo', 'That photo is already in another week.');
-        row = { id: newId('p'), object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
-        writes.push(db.prepare(`INSERT INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?)`)
-          .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption));
+        const claim = claimed.find((c) => c.upload_id === uploadId);
+        if (claim && (claim.claim_author !== me.id || claim.claim_week !== week)) fail(400, 'invalid_photo', 'That photo is already in another week.');
+        if (claim) {
+          // A save sent at the same time made this week first and put the photo in it: this one
+          // was read before that week existed. The photo is already where it belongs.
+          row = claim;
+        } else {
+          // The photo's id comes from its upload's, so saves sent together that each add this
+          // upload add one photo, and none of them takes the others' away.
+          row = { id: `p_${uploadId.replace(/^up_/, '')}`, object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
+          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption));
+        }
         existing.push(row);
       }
     }

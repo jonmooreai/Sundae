@@ -71,7 +71,7 @@ targets:
           - UIInterfaceOrientationLandscapeRight
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: true
-        NSPhotoLibraryUsageDescription: Sundae uses your library to show this week's photos first when you post on Sunday. Photos stay on your device until you choose to post them.
+        NSPhotoLibraryUsageDescription: Sundae uses your library to show this week's photos first when you post on Sunday, and to find the photos you take at places you saved. Photos stay on your device until you choose to post them.
         NSFaceIDUsageDescription: Sundae asks for Face ID before sensitive changes like deleting your account.
         NSLocationWhenInUseUsageDescription: Sundae uses your location only Monday to Saturday, to pick today's idea near you. Never on Sunday, never on your photos, never shown to anyone.
         UIBackgroundModes:

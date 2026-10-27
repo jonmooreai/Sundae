@@ -80,8 +80,11 @@ final class ScreenshotTests: XCTestCase {
         let app = launch(day: "weekday")
         XCTAssertTrue(app.buttons["Shuffle"].waitForExistence(timeout: 15))
         snap(app, "01-weekday")
-        app.buttons["Done"].tap()
-        snap(app, "01-weekday-done", settle: 0.8)
+        app.buttons["Save"].tap()
+        // The first Save explains finding photos by place; the screenshot is of the saved idea.
+        let notNow = app.buttons["Not now"].firstMatch
+        if notNow.waitForExistence(timeout: 3) { notNow.tap() }
+        snap(app, "01-weekday-saved", settle: 0.8)
     }
 
     func testWeekdayDark() {
