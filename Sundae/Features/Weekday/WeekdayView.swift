@@ -11,6 +11,8 @@ struct WeekdayView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
     @State private var showLocationConsent = false
+    /// The screen's height, so the place card leaves out its picture where there is no room.
+    @State private var height: CGFloat = 852
 
     private var store: WeekdayStore { model.weekday }
     private var nearby: LocalIdeasStore { model.localIdeas }
@@ -33,6 +35,7 @@ struct WeekdayView: View {
             }
             .padding(24)
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .goldenHour(calendar: model.clock.calendar)
         .birthdayPaper(calendar: model.clock.calendar)
         .task {
@@ -89,29 +92,36 @@ struct WeekdayView: View {
     private var suggestionBlock: some View {
         if let suggestion = store.current {
             VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 6) {
-                    if store.justMarkedDone {
-                        Icon(Glyph.approvals, weight: .fill, size: 18)
-                            .foregroundStyle(Color.accentColor)
-                            .transition(.scale.combined(with: .opacity))
+                VStack(alignment: .leading, spacing: 18) {
+                    HStack(spacing: 6) {
+                        if store.justMarkedDone {
+                            Icon(Glyph.approvals, weight: .fill, size: 18)
+                                .foregroundStyle(Color.accentColor)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                        Text(store.justMarkedDone ? "That's one for Sunday" : dayLine(nearby: suggestion.isNearby))
+                            .textCase(.uppercase)
+                            .tracking(0.8)
                     }
-                    Text(store.justMarkedDone ? "That's one for Sunday" : dayLine(nearby: suggestion.isNearby))
-                        .textCase(.uppercase)
-                        .tracking(0.8)
-                }
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(.secondary)
-                Text(suggestion.text)
-                    .font(Theme.display(verticalSizeClass == .compact ? 30 : 40))
-                    .lineSpacing(2)
-                    .minimumScaleFactor(0.6)
-                    .foregroundStyle(store.justMarkedDone ? .secondary : .primary)
-                    .strikethrough(store.justMarkedDone, color: .secondary)
-                Text(store.justMarkedDone ? "Take the photos. Sunday will remind you." : suggestion.reason)
-                    .font(.title3)
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
+                    Text(suggestion.text)
+                        .font(Theme.display(verticalSizeClass == .compact ? 30 : 40))
+                        .lineSpacing(2)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(store.justMarkedDone ? .secondary : .primary)
+                        .strikethrough(store.justMarkedDone, color: .secondary)
+                    Text(store.justMarkedDone ? "Take the photos. Sunday will remind you." : suggestion.reason)
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                // The words read as one; the card's buttons stay buttons of their own.
+                .accessibilityElement(children: .combine)
                 if let place = suggestion.place, !store.justMarkedDone {
-                    placeLine(place)
+                    PlaceCard(place: place, distance: distanceLine(place),
+                              showsPicture: verticalSizeClass != .compact && height >= 740)
+                        .padding(.top, 6)
+                        .transition(.opacity)
                 }
             }
             .animation(.default, value: store.justMarkedDone)
@@ -120,43 +130,20 @@ struct WeekdayView: View {
                 insertion: .move(edge: .trailing).combined(with: .opacity),
                 removal: .opacity
             ))
-            .accessibilityElement(children: .combine)
         } else {
             Text("Go make something worth posting.")
                 .font(Theme.display(36))
         }
     }
 
-    /// The place behind a nearby idea: a pin, how far on foot, and a way to get there.
-    private func placeLine(_ place: Suggestion.Place) -> some View {
-        HStack(spacing: 8) {
-            Icon(Glyph.pin, weight: .fill, size: 15)
-                .foregroundStyle(Color.accentColor)
-            Text(walkLine(place))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if let url = place.mapsURL {
-                Link("Open in Maps", destination: url)
-                    .fontWeight(.medium)
-                    .fixedSize()
-            }
-        }
-        .font(.subheadline)
-        .transition(.opacity)
-    }
-
-    /// "Tartine · 8 min walk" close by, "Point Reyes · 32 mi" when it is worth the trip.
-    private func walkLine(_ place: Suggestion.Place) -> String {
-        if let minutes = place.walkMinutes {
-            return "\(place.name) · \(minutes) min walk"
-        }
+    /// "8 min walk" close by, "32 mi" when it is worth the trip.
+    private func distanceLine(_ place: Suggestion.Place) -> String? {
+        if let minutes = place.walkMinutes { return "\(minutes) min walk" }
         if let meters = place.distanceMeters {
-            let distance = Measurement(value: meters, unit: UnitLength.meters)
+            return Measurement(value: meters, unit: UnitLength.meters)
                 .formatted(.measurement(width: .abbreviated, usage: .road))
-            return "\(place.name) · \(distance)"
         }
-        return place.name
+        return nil
     }
 
     private var actions: some View {
