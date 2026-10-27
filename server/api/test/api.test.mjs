@@ -554,48 +554,24 @@ test('a reply goes under the comment it answers, one level deep, and goes with i
   assert.deepEqual(left, [], 'its replies went with it');
 });
 
-test('a cherry on a photo: given, counted, taken back, and gone with the photo, the account or a block', async () => {
+test('cherries given before they were taken out are deleted, table and all', async () => {
   const s = await server();
-  const { jon, maya } = await friends(s);
+  const db = s.env.DB.sqlite;
+  db.exec(`CREATE TABLE config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+  db.exec(`INSERT INTO config (key, value) VALUES ('schema_version', '5')`);
+  db.exec(`CREATE TABLE photo_cherries (photo_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (photo_id, user_id))`);
+  db.exec(`INSERT INTO photo_cherries VALUES ('p_old', 'u_old', '2026-10-25T12:00:00.000Z')`);
+  const hasCherries = () => !!db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'photo_cherries'`).get();
+  assert.ok(hasCherries());
+
+  await s.call('GET', 'v1/me');
+  assert.ok(!hasCherries());
+  assert.equal(db.prepare(`SELECT value FROM config WHERE key = 'schema_version'`).get().value, SCHEMA_VERSION);
+
+  const { jon } = await friends(s);
   const week = await postWeek(s, jon);
-  const photo = week.photos[0];
-  assert.equal(photo.cherry_count, 0);
-  const cherry = (who, cherried, id = photo.id) => s.call('PUT', `v1/photos/${id}/cherry`, { token: who.token, json: { cherried } });
-
-  const given = await cherry(maya, true);
-  assert.equal(given.status, 200);
-  assert.deepEqual([given.body.cherry_count, given.body.cherried_by_me, given.body.cherried_by.map((u) => u.username)], [1, true, ['maya']]);
-  assert.equal((await cherry(maya, true)).body.cherry_count, 1, 'one cherry each');
-  const seen = (await s.call('GET', `v1/dumps/${week.id}`, { token: jon.token })).body.photos[0];
-  assert.deepEqual([seen.cherry_count, seen.cherried_by_me], [1, false]);
-  assert.equal((await cherry(maya, false)).body.cherry_count, 0);
-
-  const stranger = await s.signUp('apple-sam', 'sam', 'Sam Doe');
-  assert.equal((await cherry(stranger, true)).status, 404, 'only someone who can open the week');
-  assert.equal((await cherry(maya, true, 'p_nothing')).status, 404);
-
-  s.setNow(WEDNESDAY);
-  await refresh(s, maya);
-  assert.equal((await cherry(maya, true)).status, 423, 'Sunday only');
-  s.setNow(SUNDAY);
-  await refresh(s, maya);
-  await refresh(s, jon);
-
-  await cherry(maya, true);
-  await s.call('POST', `v1/users/${maya.user.id}/block`, { token: jon.token });
-  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM photo_cherries').get().n, 0, 'a block takes it away');
-
-  const pat = await s.signUp('apple-pat', 'pat', 'Pat Doe');
-  await s.call('PUT', 'v1/me/settings', { token: jon.token, json: { is_public: true } });
-  await cherry(pat, true);
-  assert.equal((await s.call('DELETE', 'v1/me', { token: pat.token })).status, 204);
-  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM photo_cherries').get().n, 0, 'deleting the account takes theirs');
-
-  const sam2 = await s.signUp('apple-sam2', 'sam2', 'Sam Two');
-  await cherry(sam2, true);
-  const replaced = await uploadPhoto(s, jon);
-  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: replaced }] } });
-  assert.equal(s.env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM photo_cherries').get().n, 0, 'a photo taken out of the week takes its cherries');
+  assert.equal(week.photos[0].cherry_count, undefined, 'photos carry no cherries');
+  assert.equal((await s.call('PUT', `v1/photos/${week.photos[0].id}/cherry`, { token: jon.token, json: { cherried: true } })).status, 404);
 });
 
 test('blocking takes away comments, likes and tags between the two, for everyone', async () => {

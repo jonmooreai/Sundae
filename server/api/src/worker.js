@@ -185,7 +185,6 @@ async function route(ctx, method, parts) {
     case 'GET me/dumps/:': return myDump(ctx, c);
     case 'PUT me/dumps/:': return saveDump(ctx, c);
     case 'PUT dumps/:/like': return likeDump(ctx, b);
-    case 'PUT photos/:/cherry': return cherryPhoto(ctx, b);
     case 'GET dumps/:/comments': return listComments(ctx, b);
     case 'POST dumps/:/comments': return addComment(ctx, b);
     case 'PATCH comments/:': return editComment(ctx, b);
@@ -486,7 +485,6 @@ async function deleteMe(ctx) {
     db.prepare(`DELETE FROM comment_likes WHERE user_id = ?1 OR comment_id IN (SELECT id FROM comments WHERE author_id = ?1 OR dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM comments WHERE author_id = ?1 OR dump_id IN ${mine}`).bind(me),
     db.prepare(`DELETE FROM likes WHERE user_id = ?1 OR dump_id IN ${mine}`).bind(me),
-    db.prepare(`DELETE FROM photo_cherries WHERE user_id = ?1 OR photo_id IN (SELECT id FROM photos WHERE dump_id IN ${mine})`).bind(me),
     db.prepare(`DELETE FROM photos WHERE dump_id IN ${mine}`).bind(me),
     db.prepare('DELETE FROM dumps WHERE author_id = ?1').bind(me),
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
@@ -629,9 +627,6 @@ async function block(ctx, userId) {
       OR (user_id = ?1 AND comment_id IN (SELECT id FROM comments WHERE author_id = ?2))`).bind(ctx.me.id, userId),
     db.prepare(`DELETE FROM comments WHERE id IN (${comments})`).bind(ctx.me.id, userId),
     db.prepare(`DELETE FROM likes WHERE ${onEachOthers('user_id')}`).bind(ctx.me.id, userId),
-    db.prepare(`DELETE FROM photo_cherries WHERE
-      (user_id = ?2 AND photo_id IN (SELECT id FROM photos WHERE dump_id IN (SELECT id FROM dumps WHERE author_id = ?1)))
-      OR (user_id = ?1 AND photo_id IN (SELECT id FROM photos WHERE dump_id IN (SELECT id FROM dumps WHERE author_id = ?2)))`).bind(ctx.me.id, userId),
   ]);
   return empty();
 }
@@ -741,15 +736,13 @@ function lockedAt(dump, author, now) {
 /** Photos with their visible tags, keyed by photo id. Nobody blocked either way shows up tagged. */
 async function photosJSON(ctx, photos) {
   if (!photos.length) return new Map();
-  const ids = JSON.stringify(photos.map((p) => p.id));
-  const [{ results: tags }, { results: cherries }, blocked] = await Promise.all([
+  const [{ results: tags }, blocked] = await Promise.all([
     ctx.db.prepare(`
       SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
-      .bind(ids).all(),
-    ctx.db.prepare('SELECT photo_id, user_id FROM photo_cherries WHERE photo_id IN (SELECT value FROM json_each(?)) ORDER BY created_at').bind(ids).all(),
+      .bind(JSON.stringify(photos.map((p) => p.id))).all(),
     blockedIds(ctx),
   ]);
-  const people = await usersById(ctx, [...tags.map((t) => t.tagged_user_id), ...cherries.map((c) => c.user_id)]);
+  const people = await usersById(ctx, tags.map((t) => t.tagged_user_id));
   const out = new Map();
   for (const photo of photos) {
     const photoTags = [];
@@ -757,14 +750,10 @@ async function photosJSON(ctx, photos) {
       const tagged = !blocked.has(tag.tagged_user_id) && people.get(tag.tagged_user_id);
       if (tagged) photoTags.push(await tagJSON(ctx, tag, tagged));
     }
-    // Cherries from anyone the viewer can still see, oldest first.
-    const givers = cherries.filter((c) => c.photo_id === photo.id && !blocked.has(c.user_id)).map((c) => people.get(c.user_id)).filter(Boolean);
     out.set(photo.id, {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
       width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null,
       caption: photo.caption || null, tags: photoTags,
-      cherry_count: givers.length, cherried_by_me: givers.some((g) => g.id === ctx.me.id),
-      cherried_by: await usersJSON(ctx, givers),
     });
   }
   return out;
@@ -929,7 +918,6 @@ async function saveDump(ctx, week) {
     db.prepare('INSERT OR IGNORE INTO dumps (id, author_id, week_start, caption, comments_enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(dumpId, me.id, week, caption, commentsEnabled, nowIso, nowIso),
     db.prepare(`DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?)))`).bind(me.id, week, keptIds),
-    db.prepare(`DELETE FROM photo_cherries WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?)))`).bind(me.id, week, keptIds),
     db.prepare(`DELETE FROM photos WHERE dump_id = ${weekDump} AND id NOT IN (SELECT value FROM json_each(?))`).bind(me.id, week, keptIds),
     ...writes,
     db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE author_id = ? AND week_start = ?').bind(caption, commentsEnabled, nowIso, me.id, week),
@@ -965,7 +953,6 @@ async function deleteDump(ctx, id) {
   const { results: photos } = await db.prepare('SELECT object_key FROM photos WHERE dump_id = ?').bind(id).all();
   await db.batch([
     db.prepare('DELETE FROM tags WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ?)').bind(id),
-    db.prepare('DELETE FROM photo_cherries WHERE photo_id IN (SELECT id FROM photos WHERE dump_id = ?)').bind(id),
     db.prepare('DELETE FROM photos WHERE dump_id = ?').bind(id),
     db.prepare('DELETE FROM comment_likes WHERE comment_id IN (SELECT id FROM comments WHERE dump_id = ?)').bind(id),
     db.prepare('DELETE FROM comments WHERE dump_id = ?').bind(id),
@@ -985,19 +972,6 @@ async function likeDump(ctx, id) {
     await ctx.db.prepare('DELETE FROM likes WHERE dump_id = ? AND user_id = ?').bind(dump.id, ctx.me.id).run();
   }
   return json(await dumpJSON(ctx, dump));
-}
-
-/** Gives one photo the caller's cherry, or takes it back. For anyone who can open the week. */
-async function cherryPhoto(ctx, photoId) {
-  const photo = await ctx.db.prepare('SELECT * FROM photos WHERE id = ?').bind(photoId).first();
-  if (!photo) fail(404, 'not_found');
-  await readableDump(ctx, photo.dump_id);
-  if ((await body(ctx.request)).cherried) {
-    await ctx.db.prepare('INSERT OR IGNORE INTO photo_cherries (photo_id, user_id, created_at) VALUES (?, ?, ?)').bind(photo.id, ctx.me.id, ctx.now.toISOString()).run();
-  } else {
-    await ctx.db.prepare('DELETE FROM photo_cherries WHERE photo_id = ? AND user_id = ?').bind(photo.id, ctx.me.id).run();
-  }
-  return json((await photosJSON(ctx, [photo])).get(photo.id));
 }
 
 // MARK: - Comments

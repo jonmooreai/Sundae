@@ -22,6 +22,13 @@ struct SettingsView: View {
     @State private var confirmDelete = false
     @State private var deleting = false
     @State private var deleteFailed = false
+
+    /// The admin's holiday preview: the real date, or one holiday on any Sunday.
+    private var holidayOptions: [(HolidaySunday?, String)] {
+        var options: [(HolidaySunday?, String)] = [(nil, "Real date")]
+        for holiday in HolidaySunday.allCases { options.append((holiday, holiday.name)) }
+        return options
+    }
     @State private var confirmSignOut = false
     @State private var signOutFailed = false
     @State private var showLocationConsent = false
@@ -113,12 +120,17 @@ struct SettingsView: View {
                 SettingsGroup(title: model.isUsingMock ? "Demo" : "Admin",
                               footer: model.isUsingMock
                                 ? "Built-in demo data. Move the clock to see Sunday any day."
-                                : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday.") {
+                                : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday. Holiday shows Sunday as Valentine's Day, Halloween or Christmas.") {
                     SegmentedChoice(options: DebugDay.allCases.map { ($0, $0.shortLabel) },
                                     selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) }))
                         // As tall as every other row.
                         .padding(.horizontal, 10)
                         .padding(.vertical, 9)
+                    SettingsMenuRow(title: "Holiday", options: holidayOptions,
+                                    selection: Binding(get: { model.holidayPreview }, set: { holiday in
+                                        model.holidayPreview = holiday
+                                        if holiday != nil, !model.isSunday { model.setDebugDay(.sunday) }
+                                    }))
                     SettingsToggle(title: "Always open on the post screen",
                                    isOn: Binding(get: { model.compose.alwaysShowPrompt }, set: { model.compose.alwaysShowPrompt = $0 }))
                 }

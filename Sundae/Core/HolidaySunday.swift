@@ -35,6 +35,15 @@ enum HolidaySunday: CaseIterable {
         }
     }
 
+    /// What the admin preview calls it.
+    var name: String {
+        switch self {
+        case .valentines: "Valentine's Day"
+        case .halloween: "Halloween"
+        case .winter: "Christmas"
+        }
+    }
+
     /// The felt piece in the asset catalog.
     var image: String {
         switch self {

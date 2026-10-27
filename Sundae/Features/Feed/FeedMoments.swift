@@ -10,7 +10,7 @@ struct FeedMoments: View {
     @State private var dismissedAnniversary = false
     @State private var dismissedFirst: Set<ID> = []
     @State private var dismissedWrap = false
-    @State private var dismissedHoliday = false
+    @State private var dismissedHoliday: HolidaySunday?
 
     private var feed: FeedStore { model.feed }
 
@@ -22,8 +22,8 @@ struct FeedMoments: View {
             VStack(spacing: 12) {
                 if let holiday {
                     HolidayCard(holiday: holiday) {
-                        MomentMemory.holidayShownWeekStart = model.currentWeekStart
-                        withAnimation { dismissedHoliday = true }
+                        if model.holidayPreview == nil { MomentMemory.holidayShownWeekStart = model.currentWeekStart }
+                        withAnimation { dismissedHoliday = holiday }
                     }
                 }
                 if let anniversary, !dismissedAnniversary {
@@ -57,10 +57,11 @@ struct FeedMoments: View {
         }
     }
 
-    /// A holiday Sunday's hello, until it is waved away.
+    /// A holiday Sunday's hello, until it is waved away. An admin's preview skips the once-a-week memory.
     private var holidayToday: HolidaySunday? {
-        guard model.isSunday, !dismissedHoliday, MomentMemory.holidayShownWeekStart != model.currentWeekStart else { return nil }
-        return HolidaySunday.on(model.clock.now(), calendar: model.clock.calendar)
+        guard let holiday = model.holidayToday, holiday != dismissedHoliday else { return nil }
+        if model.holidayPreview == nil, MomentMemory.holidayShownWeekStart == model.currentWeekStart { return nil }
+        return holiday
     }
 
     /// Friends whose first week ever is in the feed, until you have seen the card.

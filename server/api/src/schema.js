@@ -1,11 +1,12 @@
-// The whole database. Applied on first use (every statement is IF NOT EXISTS), so a fresh
+// The whole database. Applied on first use (every statement is safe to run again), so a fresh
 // D1 database needs no separate migration step. Bump SCHEMA_VERSION when adding statements.
 
 // 2: the admins and used_nonces tables.
 // 3: a caption on each photo (COLUMNS).
 // 4: admins by the Apple id they sign in with (admin_apple_ids), not by account.
 // 5: replies to comments (parent_id, COLUMNS) and cherries on photos (photo_cherries).
-export const SCHEMA_VERSION = '5';
+// 6: cherries taken out again, with every one given (photo_cherries dropped).
+export const SCHEMA_VERSION = '6';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -53,9 +54,8 @@ export const SCHEMA = [
      created_at TEXT NOT NULL, edited_at TEXT, parent_id TEXT)`,
   `CREATE INDEX IF NOT EXISTS comments_dump ON comments (dump_id, created_at)`,
   `CREATE TABLE IF NOT EXISTS comment_likes (comment_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (comment_id, user_id))`,
-  // A cherry someone gave one photo: a reaction lighter than a comment.
-  `CREATE TABLE IF NOT EXISTS photo_cherries (
-     photo_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (photo_id, user_id))`,
+  // Cherries on photos came and went; none are kept.
+  `DROP TABLE IF EXISTS photo_cherries`,
   `CREATE TABLE IF NOT EXISTS suggestions_done (
      user_id TEXT NOT NULL, suggestion_id TEXT NOT NULL, done_on TEXT NOT NULL, PRIMARY KEY (user_id, suggestion_id))`,
   `CREATE TABLE IF NOT EXISTS reports (
