@@ -44,6 +44,7 @@ struct YourWeekView: View {
                 .padding(.bottom, 32)
                 .frame(maxWidth: 640)
                 .frame(maxWidth: .infinity)
+                .fillsVisibleHeight(saved.ideas.isEmpty)
                 .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: saved.ideas)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -118,19 +119,8 @@ struct YourWeekView: View {
     }
 
     private var empty: some View {
-        VStack(spacing: 12) {
-            Icon(Glyph.saved, size: 40)
-                .foregroundStyle(Color.accentColor)
-            Text("Nothing saved yet")
-                .font(.title3.weight(.semibold))
-            Text("Tap Save on an idea you like. It waits here for the week, and on Sunday its photos start your post.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 48)
-        .padding(.horizontal, 16)
+        EmptyState("Nothing saved yet", glyph: Glyph.saved,
+                   message: "Tap Save on an idea you like. It waits here for the week, and on Sunday its photos start your post.")
     }
 
     private func captionBinding(for id: String) -> Binding<String> {
@@ -337,14 +327,12 @@ struct IdeaPhotoPicker: View {
         }
     }
 
+    @ViewBuilder
     private var grid: some View {
-        ScrollView {
-            if library.assets.isEmpty {
-                Text("No photos from this week yet.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.vertical, 48)
-            } else {
+        if library.assets.isEmpty {
+            EmptyState(glyph: Glyph.photos, message: "No photos from this week yet.")
+        } else {
+            ScrollView {
                 LazyVGrid(columns: columns, spacing: 2) {
                     ForEach(Array(library.assets.reversed()), id: \.localIdentifier) { asset in
                         cell(asset)

@@ -53,47 +53,49 @@ struct FeedList: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
-                ScrollTop()
-                ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) { EmptyView() }
-                .accessibilityElement(children: .contain)
+            VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
+                    ScrollTop()
+                    ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) { EmptyView() }
+                    .accessibilityElement(children: .contain)
 
-                PostYourWeekRow(onPost: onPost)
-                FeedMoments(open: open)
+                    PostYourWeekRow(onPost: onPost)
+                    FeedMoments(open: open)
 
-                if let message = feed.errorMessage {
-                    ErrorBanner(message: message).padding(Theme.pagePadding)
-                }
-
-                ForEach(feed.dumps) { dump in
-                    DumpCard(
-                        dump: dump,
-                        open: open,
-                        onLike: { Task { await feed.toggleLike(dump, me: model.currentUser) } }
-                    )
-                    .padding(.top, 18)
-                    .padding(.bottom, 10)
-                    .transition(.opacity)
-                    .task { await feed.loadMoreIfNeeded(current: dump) }
-                }
-
-                if feed.isLoading {
-                    ProgressView().padding(32)
-                } else if feed.hasLoaded && feed.dumps.isEmpty {
-                    VStack(spacing: 10) {
-                        Icon(Glyph.sun, size: 36).foregroundStyle(.secondary)
-                        Text("Quiet Sunday").font(Theme.display(24))
-                        Text("Nobody you follow has posted yet. Post your week, or find your friends in Search.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
+                    if let message = feed.errorMessage {
+                        ErrorBanner(message: message).padding(Theme.pagePadding)
                     }
-                    .padding(32)
+
+                    ForEach(feed.dumps) { dump in
+                        DumpCard(
+                            dump: dump,
+                            open: open,
+                            onLike: { Task { await feed.toggleLike(dump, me: model.currentUser) } }
+                        )
+                        .padding(.top, 18)
+                        .padding(.bottom, 10)
+                        .transition(.opacity)
+                        .task { await feed.loadMoreIfNeeded(current: dump) }
+                    }
+
+                    if feed.isLoading && !feed.dumps.isEmpty {
+                        ProgressView().padding(32)
+                    }
+                }
+                if feed.dumps.isEmpty {
+                    if feed.isLoading {
+                        LoadingState()
+                    } else if feed.hasLoaded {
+                        EmptyState("Quiet Sunday", glyph: Glyph.sun,
+                                   message: "Nobody you follow has posted yet. Post your week, or find your friends in Search.")
+                    }
                 }
             }
             .padding(.bottom, 24)
             .frame(maxWidth: 640)
             .frame(maxWidth: .infinity)
+            // Nothing posted yet: the spinner or the quiet Sunday sits in the middle of the space left.
+            .fillsVisibleHeight(feed.dumps.isEmpty)
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
         }
         .scrollsToTopOnTabTap()

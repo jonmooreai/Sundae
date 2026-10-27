@@ -96,18 +96,6 @@ struct CommentsSheet: View {
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }
-                if hasLoaded && comments.isEmpty && errorMessage == nil {
-                    VStack(spacing: 6) {
-                        Text("Nothing here yet.").font(Theme.display(22))
-                        Text("Say something nice about their week.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 36)
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                }
                 ForEach(threaded) { item in
                     let comment = item.comment
                     let isMine = comment.author.id == meID
@@ -154,6 +142,11 @@ struct CommentsSheet: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .scrollDismissesKeyboard(.interactively)
+            .overlay {
+                if hasLoaded && comments.isEmpty && errorMessage == nil {
+                    EmptyState("Nothing here yet", glyph: Glyph.comment, message: "Say something nice about their week.")
+                }
+            }
             .onChange(of: comments.last?.id) { _, last in
                 guard let last, composing || isSending else { return }
                 withAnimation(reduceMotion ? nil : .snappy(duration: 0.35)) { proxy.scrollTo(last, anchor: .bottom) }

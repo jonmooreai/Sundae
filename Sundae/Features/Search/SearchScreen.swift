@@ -68,6 +68,7 @@ struct SearchView: View {
                             .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
                             .listRowInsets(rowInsets)
                             .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                             .transition(.asymmetric(insertion: .opacity,
                                                     removal: .move(edge: .trailing).combined(with: .opacity)))
                         }
@@ -91,15 +92,10 @@ struct SearchView: View {
                         .foregroundStyle(.primary)
                         .listRowInsets(rowInsets)
                         .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                     }
                 } else {
                     Section {
-                        if results.isEmpty && !isSearching {
-                            Text("Nobody by that name yet.")
-                                .foregroundStyle(.secondary)
-                                .listRowInsets(rowInsets)
-                                .listRowSeparator(.hidden)
-                        }
                         ForEach(results) { user in row(user) }
                     }
                 }
@@ -107,6 +103,11 @@ struct SearchView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 70)
+            .overlay {
+                if !query.isEmpty && results.isEmpty && !isSearching {
+                    EmptyState(glyph: Glyph.search, message: "Nobody by that name yet.")
+                }
+            }
             // The tab tapped again: a fresh search, from the top.
             .onChange(of: scrollToTop) { _, _ in
                 query = ""
@@ -168,6 +169,7 @@ struct SearchView: View {
         .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
         .listRowInsets(rowInsets)
         .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
     }
 
     private func loadInitial() async {

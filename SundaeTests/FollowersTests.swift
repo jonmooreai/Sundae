@@ -43,7 +43,7 @@ struct FollowersTests {
     @Test func listsShowHowYouStandWithEachPerson() async throws {
         let api = try await signedInAPI(at: date(2026, 10, 25))
         let mine = try await api.followList(of: "u_me", .followers)
-        #expect(mine.allSatisfy(\.followsYou))
+        #expect(mine.allSatisfy { $0.followsYou })
         let count = try await api.profile(userID: "u_me").followerCount ?? -1
         #expect(mine.count == count)
         let following = try await api.followList(of: "u_me", .following)
