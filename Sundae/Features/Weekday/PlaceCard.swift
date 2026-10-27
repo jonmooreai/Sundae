@@ -2,9 +2,9 @@ import MapKit
 import SwiftUI
 
 /// The place behind a nearby idea, as a little card: the street outside it from Apple's Look
-/// Around where Apple has it, how far it is, Apple Maps' own place card for its photos and hours,
-/// and the way there. Everything here is looked up by the
-/// place's public id or position, never by where the person is.
+/// Around where Apple has it, or else a small map with the place pinned, how far it is, Apple
+/// Maps' own place card for its photos and hours, and the way there. Everything here is looked up
+/// by the place's public id or position, never by where the person is.
 struct PlaceCard: View {
     let place: Suggestion.Place
     /// "6 min walk", "12 mi".
@@ -13,6 +13,7 @@ struct PlaceCard: View {
     var showsPicture = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
     @State private var lookup: PlaceLookup?
     @State private var placeCard: MKMapItem?
 
@@ -25,6 +26,13 @@ struct PlaceCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding([.top, .horizontal], 8)
                     .accessibilityLabel("Look Around at \(place.name)")
+                    .transition(.opacity)
+            } else if showsPicture, lookup != nil, let coordinate {
+                // Apple has no street view here: the place on a map instead, once that is known.
+                map(of: coordinate)
+                    .frame(height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding([.top, .horizontal], 8)
                     .transition(.opacity)
             }
 
@@ -76,12 +84,42 @@ struct PlaceCard: View {
         .background(Theme.surfaceRaised, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup?.scene != nil)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup != nil)
         .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: lookup?.mapItem != nil)
         .mapItemDetailSheet(item: $placeCard)
         .task(id: place) {
             lookup = nil
             lookup = await PlaceLookup.find(place)
         }
+    }
+}
+
+extension PlaceCard {
+    private var coordinate: CLLocationCoordinate2D? {
+        guard let latitude = place.latitude, let longitude = place.longitude else { return nil }
+        return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    /// The streets around the place with a pin on it. It stays still, so the screen scrolls past
+    /// it; a tap opens Apple's place card, or Maps.
+    private func map(of coordinate: CLLocationCoordinate2D) -> some View {
+        Map(initialPosition: .region(MKCoordinateRegion(center: coordinate, latitudinalMeters: 600, longitudinalMeters: 600)),
+            interactionModes: []) {
+            Marker(place.name, coordinate: coordinate)
+                .tint(Color.accentColor)
+        }
+        .mapStyle(.standard(pointsOfInterest: .excludingAll))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let item = lookup?.mapItem {
+                placeCard = item
+            } else if let url = place.mapsURL {
+                openURL(url)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("Map showing \(place.name)")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
