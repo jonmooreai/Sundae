@@ -204,8 +204,8 @@ enum NearbyIdeas {
         var usedThemes = Set<Theme>()
         var ideas: [Pick] = []
         let slots: [Suggestion.TimeOfDay] = [.morning, .afternoon, .evening]
-        // Eight ideas: three for the parts of the day, five more so Shuffle has somewhere to go.
-        for index in 0..<8 {
+        // Eighteen ideas, six for each part of the day, so Shuffle has plenty of places to go.
+        for index in 0..<18 {
             let slot = slots[index % slots.count]
             if usedThemes.count == Theme.allCases.count { usedThemes.removeAll() }
             var candidates = nearby.filter { !usedPlaces.contains($0.place.id) && !(lines[$0.place.theme]?[slot] ?? []).isEmpty }
@@ -215,11 +215,13 @@ enum NearbyIdeas {
                 if !dry.isEmpty { candidates = dry }
             }
             guard !candidates.isEmpty else { continue }
-            // A theme not used yet today, then chance. The morning idea stays close to home;
-            // the afternoon and evening may be worth the drive.
+            // A theme not used yet today, then chance across every place found, so the same few
+            // do not come round day after day. Mornings lean close to home when there is enough
+            // close by; the afternoon and evening may be worth the drive.
             let fresh = candidates.filter { !usedThemes.contains($0.place.theme) }
             let ranked = fresh.isEmpty ? candidates : fresh
-            let pool = index == 0 ? Array(ranked.prefix(8)) : ranked
+            let close = ranked.filter { $0.meters <= 2_000 }
+            let pool = slot == .morning && close.count >= 3 ? close : ranked
             let choice = pool[Int(random.next() % UInt64(pool.count))]
             guard let variants = lines[choice.place.theme]?[slot], !variants.isEmpty else { continue }
             var line = variants[Int(random.next() % UInt64(variants.count))]

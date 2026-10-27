@@ -97,4 +97,10 @@ struct IdeaWriterTests {
         #expect(IdeaWriter.instructions.contains("idea: Watch the day wind down at Riverside Park."))
         #expect(!IdeaWriter.instructions.contains("\u{2014}"))
     }
+
+    @Test func thePlaceNameAloneIsNotAnIdea() {
+        #expect(!IdeaWriter.accepts(text: "Pat's Bakery.", reason: "Take a photo of it before the first bite.", for: bakery))
+        #expect(!IdeaWriter.accepts(text: "Pat's Bakery is worth a visit.", reason: "Take a photo of it before the first bite.", for: bakery))
+        #expect(IdeaWriter.accepts(text: "Visit Pat's Bakery this morning.", reason: "Take a photo of it before the first bite.", for: bakery))
+    }
 }

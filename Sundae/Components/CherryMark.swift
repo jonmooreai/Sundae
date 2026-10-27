@@ -82,21 +82,23 @@ final class DeviceTilt {
 }
 
 /// The cherry's little boing, its pitch bending with each swing of the wobble (CherryBoing.m4a,
-/// made for Sundae). It follows the ring switch, like keyboard clicks, and mixes with anything
-/// already playing.
+/// made for Sundae). It plays even with the ring switch on silent, softly, and mixes with anything
+/// already playing instead of stopping it.
 @MainActor
 enum CherrySound {
     private static let player: AVAudioPlayer? = {
         guard let url = Bundle.main.url(forResource: "CherryBoing", withExtension: "m4a"),
               let player = try? AVAudioPlayer(contentsOf: url) else { return nil }
-        player.volume = 0.7
+        player.volume = 0.5
         player.prepareToPlay()
         return player
     }()
 
     static func play() {
         let session = AVAudioSession.sharedInstance()
-        if session.category != .ambient { try? session.setCategory(.ambient, mode: .default) }
+        if session.category != .playback || !session.categoryOptions.contains(.mixWithOthers) {
+            try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+        }
         guard let player else { return }
         player.currentTime = 0
         player.play()

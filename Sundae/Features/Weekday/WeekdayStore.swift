@@ -86,6 +86,17 @@ final class WeekdayStore {
             }
             return
         }
+        if current.isNearby, !isCurrentDone {
+            // Looked up again: today's wording of the same idea, or another nearby one if it is gone.
+            if let same = ideas.first(where: { $0.id == current.id }) {
+                if same != current { self.current = same }
+            } else if let nearby = preferredLocal(for: now, calendar: clock.calendar) {
+                self.current = nearby
+                shared.setCurrentSuggestion(id: nearby.id, on: now)
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            return
+        }
         guard !current.isNearby, !isCurrentDone, current.id == automatic?.id,
               let nearby = preferredLocal(for: now, calendar: clock.calendar) else { return }
         self.current = nearby

@@ -28,7 +28,10 @@ struct WeekdayView: View {
                 }
                 .frame(maxWidth: 560, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // Clipped so a shuffle slides in tidily, with room around it for the card's shadow.
+                .padding(20)
                 .clipped()
+                .padding(-20)
                 Spacer(minLength: 24)
                 actions
                     .frame(maxWidth: 560)
