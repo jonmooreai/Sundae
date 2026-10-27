@@ -42,6 +42,11 @@ enum MomentMemory {
         return monthDay(date, calendar: calendar) == stored
     }
 
+    /// True all through the week, Monday to Sunday, that holds the user's own birthday.
+    static func isBirthdayWeek(startingOn weekStart: Date, calendar: Calendar) -> Bool {
+        birthday(birthdayMonthDay, fallsInWeekStarting: weekStart, calendar: calendar)
+    }
+
     /// "MM-DD" for a date, matching the format friends' birthdays arrive in.
     static func monthDay(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.month, .day], from: date)

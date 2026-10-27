@@ -120,7 +120,7 @@ struct SettingsView: View {
                 SettingsGroup(title: model.isUsingMock ? "Demo" : "Admin",
                               footer: model.isUsingMock
                                 ? "Built-in demo data. Move the clock to see Sunday any day."
-                                : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday. Holiday shows Sunday as Valentine's Day, Halloween or Christmas.") {
+                                : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday. Holiday shows Sunday as Valentine's Day, Halloween or Christmas; Birthday week brings out the birthday sundae.") {
                     SegmentedChoice(options: DebugDay.allCases.map { ($0, $0.shortLabel) },
                                     selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) }))
                         // As tall as every other row.
@@ -131,6 +131,8 @@ struct SettingsView: View {
                                         model.holidayPreview = holiday
                                         if holiday != nil, !model.isSunday { model.setDebugDay(.sunday) }
                                     }))
+                    SettingsToggle(title: "Birthday week",
+                                   isOn: Binding(get: { model.birthdayWeekPreview }, set: { model.birthdayWeekPreview = $0 }))
                     SettingsToggle(title: "Always open on the post screen",
                                    isOn: Binding(get: { model.compose.alwaysShowPrompt }, set: { model.compose.alwaysShowPrompt = $0 }))
                 }

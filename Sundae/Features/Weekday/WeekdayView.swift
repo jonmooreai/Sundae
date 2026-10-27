@@ -95,7 +95,8 @@ struct WeekdayView: View {
     private var topBar: some View {
         ZStack(alignment: .top) {
             // Big enough to want to tap; smaller when a phone on its side has little height to spare.
-            TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96).wobbleOnTap()
+            TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96,
+                          image: model.isBirthdayWeek ? CherryMark.birthday : "Cherry").wobbleOnTap()
                 .padding(.top, 12)
                 .frame(maxWidth: .infinity)
 
