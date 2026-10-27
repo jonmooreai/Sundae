@@ -36,27 +36,64 @@ enum IdeaWriter {
     /// True on an iPhone with Apple Intelligence turned on and the model ready.
     static var isAvailable: Bool { SystemLanguageModel.default.isAvailable }
 
-    static let instructions = """
-        You reword the daily idea in Sundae, a photo app for a small group of friends. Each idea \
-        sends someone to one real place near them.
+    /// The rules, most important first, then worked examples: a small model copies examples far
+    /// more faithfully than it follows rules. Every example passes `accepts` (a test checks).
+    static let instructions: String = {
+        let rules = """
+            You reword one daily idea for Sundae, a photo app for a small group of friends. Each \
+            idea sends someone to one real place near them.
 
-        Rewrite the idea, and the why when one is given, in fresh, warm, plain words, like a \
-        friend suggesting it. Keep the same place and the same activity, and keep it something a \
-        person can really do at that kind of place. Write the place name exactly as given.
+            Change the words, not the meaning. Keep the same place, the same activity and the same \
+            part of the day. Write the place name exactly as given. If you cannot make it better, \
+            stay close to the original.
 
-        The app adds the photo to take on its own, so never mention photos, pictures or cameras.
+            Write like a friend suggesting it: warm, plain and short. Start the idea with a verb, \
+            the way the original does.
 
-        You know nothing about the place beyond its name and its kind. Never describe it or say \
-        what it has: name no particular food, drink or dish, and no menus, prices, hours, staff, \
-        seating, views or events.
+            The app adds the photo to take on its own, so never mention photos, pictures or cameras.
 
-        Mention the walk or the rain only when given. Never mention alcohol, strangers, children, \
-        danger, or being out alone at night.
+            You know nothing about the place beyond its name and its kind. Never say what it has: \
+            no food, drink or dish by name, no menus, prices, hours, staff, seating, views or events.
 
-        The idea is one sentence of at most 70 characters. The why is one sentence of at most 90 \
-        characters, or empty when none is given. No emoji, exclamation marks, quotation marks or \
-        dashes.
-        """
+            Mention the walk or the rain only when given. Never mention alcohol, strangers, \
+            children, danger, or being out alone at night.
+
+            The idea is one sentence of at most 70 characters. The why is one sentence of at most \
+            90 characters, or empty when none is given. No emoji, exclamation marks, quotation \
+            marks or dashes.
+            """
+        let shown = Self.examples.map { example in
+            let why = Self.split(example.brief.reason).why
+            return "Example:\n\(Self.prompt(for: example.brief, why: why))\nidea: \(example.idea)\nwhy: \(example.why)"
+        }
+        return ([rules] + shown).joined(separator: "\n\n")
+    }()
+
+    /// A good rewrite, shown to the model.
+    struct Example: Sendable {
+        let brief: Brief
+        let idea: String
+        let why: String
+    }
+
+    static let examples: [Example] = [
+        Example(brief: Brief(place: "Juniper Bakery", kind: "bakery", isBusiness: true, timeOfDay: .morning,
+                             walkMinutes: 6, isRaining: false,
+                             text: "Pick something you've never tried at Juniper Bakery.",
+                             reason: "Take a photo of it before the first bite."),
+                idea: "Try something new at Juniper Bakery, a 6 minute walk away.", why: ""),
+        Example(brief: Brief(place: "Riverside Park", kind: "park", isBusiness: false, timeOfDay: .evening,
+                             walkMinutes: nil, isRaining: false,
+                             text: "Catch the last light at Riverside Park.",
+                             reason: "Bring a friend and take photos of the sky as it changes."),
+                idea: "Watch the day wind down at Riverside Park.", why: ""),
+        Example(brief: Brief(place: "Maple Street Library", kind: "library", isBusiness: true, timeOfDay: .afternoon,
+                             walkMinutes: 12, isRaining: true,
+                             text: "Spend a rainy hour at Maple Street Library.",
+                             reason: "Pick a book you'd never choose. Take a photo of the cover."),
+                idea: "Give Maple Street Library a rainy hour this afternoon.",
+                why: "Choose a book you would usually walk past."),
+    ]
 
     /// The idea in fresh words, or nil to keep the hand-written line. Never throws.
     static func reword(_ brief: Brief) async -> (text: String, reason: String)? {

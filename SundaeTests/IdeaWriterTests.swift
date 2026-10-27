@@ -87,4 +87,14 @@ struct IdeaWriterTests {
         #expect(!IdeaWriter.accepts(text: "Try something new at Pat's Bakery.",
                                     reason: "Great for pictures. Take a photo of it before the first bite.", for: bakery))
     }
+
+    @Test func theExamplesShownToTheModelPassEveryCheck() {
+        for example in IdeaWriter.examples {
+            let ask = IdeaWriter.split(example.brief.reason).ask
+            let reason = example.why.isEmpty ? ask : "\(example.why) \(ask)"
+            #expect(IdeaWriter.accepts(text: example.idea, reason: reason, for: example.brief), "\(example.idea)")
+        }
+        #expect(IdeaWriter.instructions.contains("idea: Watch the day wind down at Riverside Park."))
+        #expect(!IdeaWriter.instructions.contains("\u{2014}"))
+    }
 }
