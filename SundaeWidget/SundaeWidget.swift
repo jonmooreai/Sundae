@@ -20,7 +20,8 @@ struct SundaeProvider: TimelineProvider {
 
     func getSnapshot(in context: Context, completion: @escaping (SundaeEntry) -> Void) {
         let now = Date()
-        completion(entry(at: now, photos: weekPhotos(until: now)))
+        // The widget gallery's preview stays light: it reads no photos.
+        completion(entry(at: now, photos: context.isPreview ? ([], 0) : weekPhotos(until: now, family: context.family)))
     }
 
     /// Weekdays: an entry at midnight, noon and five each day until Sunday begins, then a fresh
@@ -29,7 +30,7 @@ struct SundaeProvider: TimelineProvider {
         let clock = SundayClock()
         let calendar = clock.calendar
         let now = clock.now()
-        let photos = weekPhotos(until: now)
+        let photos = weekPhotos(until: now, family: context.family)
 
         var dates: [Date] = [now]
         let boundary = clock.nextBoundary(after: now)
@@ -56,9 +57,13 @@ struct SundaeProvider: TimelineProvider {
             at: date, catalog: catalog, shared: shared, photos: photos))
     }
 
-    private func weekPhotos(until date: Date) -> (thumbnails: [Data], count: Int) {
+    /// This week's photos, read only on Sunday, when they show, and only as many as the size
+    /// shows. A widget gets very little memory, and going over it on a resize (to large, say)
+    /// gets the widget stopped and put back the way it was, so the weekdays leave the library alone.
+    private func weekPhotos(until date: Date, family: WidgetFamily) -> (thumbnails: [Data], count: Int) {
         let clock = SundayClock(now: { date })
-        return WidgetPhotos.thisWeek(weekStart: clock.weekStart(), until: date)
+        guard clock.isSunday(), family != .accessoryInline, family != .accessoryRectangular else { return ([], 0) }
+        return WidgetPhotos.thisWeek(weekStart: clock.weekStart(), until: date, limit: family == .systemSmall ? 1 : 3)
     }
 }
 
