@@ -232,4 +232,5 @@ Read the one you need when you reach it; none is needed up front.
 The template is meant to stay generic and always compile. After changing anything under
 `assets/template`, generate a sample into the scratchpad, run its server tests, and push it to
 a temporary branch of a public repository so its own workflow compiles and tests it on macOS.
-Delete the branch once it is green.
+Delete the branch once it is green (the session's git proxy may refuse deletions; if so, ask the
+owner to delete it from the repository's Branches page).
