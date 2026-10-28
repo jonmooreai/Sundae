@@ -1,0 +1,97 @@
+# XcodeGen spec. Run `xcodegen generate` to produce Tally.xcodeproj; CI does this on every
+# build, so the .xcodeproj is never committed. Info.plist and the entitlements file are written
+# from here too: change them here, not in the generated files.
+name: Tally
+options:
+  bundleIdPrefix: com.jonmooreai
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    TARGETED_DEVICE_FAMILY: "1,2"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SUPPORTS_MACCATALYST: NO
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  Tally:
+    type: application
+    platform: iOS
+    sources:
+      - path: Tally
+        excludes:
+          - Info.plist
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jonmooreai.tally
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: Tally/Info.plist
+      properties:
+        CFBundleDisplayName: Tally
+        CFBundleName: Tally
+        # XcodeGen would write literal 1 / 1.0 here; these follow the build settings instead,
+        # so CI can stamp each TestFlight build with its run number.
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        # The server (docs/SERVER.md). Empty means built-in demo data (MockAPI), with a "Try the
+        # demo" button on the sign-in screen. Set it to https://tally-api.sundae-fam.workers.dev once that answers.
+        APIBaseURL: ""
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        # Only HTTPS and Apple's own crypto: no export compliance paperwork for each build.
+        ITSAppUsesNonExemptEncryption: false
+    # Sign in with Apple is turned on for the App ID by the TestFlight lane itself.
+    entitlements:
+      path: Tally/Tally.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+  TallyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TallyTests
+    dependencies:
+      - target: Tally
+  TallyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: TallyUITests
+    dependencies:
+      - target: Tally
+schemes:
+  Tally:
+    build:
+      targets:
+        Tally: all
+        TallyTests: [test]
+        TallyUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - TallyTests
+        - TallyUITests

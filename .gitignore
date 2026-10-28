@@ -1,0 +1,38 @@
+# Xcode
+*.xcodeproj
+*.xcworkspace
+!*.xcodeproj/project.xcworkspace
+xcuserdata/
+DerivedData/
+build/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+.build/
+.swiftpm/
+Package.resolved
+
+# CI scratch
+/screenshots/
+/results/
+/exported/
+
+# macOS
+.DS_Store
+
+# Secrets never live in the repo
+*.env
+*.p8
+*.p12
+*.mobileprovision
+
+# Wrangler scratch
+.wrangler/
+
+# Written by XcodeGen from project.yml
+/Tally/Info.plist
+/Tally/Tally.entitlements
+
+# Node
+node_modules/

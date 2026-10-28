@@ -1,0 +1,10 @@
+{
+  "name": "tally-api",
+  "private": true,
+  "type": "module",
+  "description": "Tally's server: one Cloudflare Worker and one D1 database, on the free plan.",
+  "scripts": {
+    "test": "node --test --no-warnings",
+    "deploy": "cd ../.. && npx wrangler deploy"
+  }
+}

@@ -1,0 +1,73 @@
+name: TestFlight
+
+# Builds a signed Release and uploads it to TestFlight. Runs when started by hand, on any push
+# to the "testflight" branch, or on a push to a work branch whose commit message contains
+# [testflight]. Never on an ordinary push. The testflight branch only moves forward, so shipping
+# is a commit on top of it carrying the work branch's files (CLAUDE.md, "Shipping").
+# Costs about 15 minutes of macOS runner time per build, free only while the repository is public.
+# Rotating the signing certificate is only ever a box ticked when starting the workflow by hand,
+# never anything in a commit message.
+on:
+  workflow_dispatch:
+    inputs:
+      rotate_signing:
+        description: Revoke every distribution certificate on the Apple team and make new ones (docs/SETUP.md)
+        type: boolean
+        default: false
+  push:
+    branches: ["claude/**", "testflight"]
+
+# The signing certificate lives in a separate private repository (MATCH_GIT_URL), reached with
+# MATCH_GIT_TOKEN, so this repository can be public.
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    name: Build and upload
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/testflight' || contains(github.event.head_commit.message, '[testflight]') }}
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_GIT_TOKEN: ${{ secrets.MATCH_GIT_TOKEN }}
+      ROTATE_SIGNING: ${{ github.event_name == 'workflow_dispatch' && inputs.rotate_signing }}
+      FASTLANE_SKIP_UPDATE_CHECK: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check secrets
+        run: |
+          set -euo pipefail
+          missing=0
+          for v in APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_CONTENT MATCH_PASSWORD MATCH_GIT_URL MATCH_GIT_TOKEN; do
+            if [ -z "${!v:-}" ]; then echo "::error::Missing secret $v (see docs/SETUP.md)"; missing=1; fi
+          done
+          [ "$missing" = 0 ]
+
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Generate the Xcode project
+        run: |
+          set -euo pipefail
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build, sign and upload
+        run: fastlane ios beta

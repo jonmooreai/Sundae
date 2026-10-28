@@ -1,0 +1,176 @@
+name: iOS
+
+# Builds the app and runs its unit tests on every push to a work branch. The UI test run that
+# saves a screenshot of each screen to docs/screenshots happens when the commit message contains
+# [screenshots] or the workflow is started by hand.
+#
+# Minutes matter: macOS runners are free only while the repository is public. Once it is private,
+# a push runs this only when its message contains [ios] or [screenshots].
+# main is not listed: it is always fast-forwarded to the work branch, so it would run twice.
+on:
+  push:
+    branches: ["claude/**"]
+    # Nothing here affects the app binary.
+    paths-ignore:
+      - "docs/**"
+      - "server/**"
+      - "fastlane/**"
+      - "wrangler.jsonc"
+      - ".github/workflows/testflight.yml"
+      - ".github/workflows/server.yml"
+      - "README.md"
+      - "CLAUDE.md"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the UI tests and save screenshots
+        type: boolean
+        default: true
+
+env:
+  FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.full || contains(github.event.head_commit.message, '[screenshots]') }}
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+# Read-only for everything that builds or runs the app. The one write is the small Linux job at
+# the end, which runs none of the project's code.
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test
+    # A [testflight] push runs the TestFlight workflow instead; no need to build twice.
+    # And while the repository is private, only when asked: [ios], [screenshots], or by hand.
+    if: ${{ !contains(github.event.head_commit.message, '[testflight]') && (!github.event.repository.private || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ios]') || contains(github.event.head_commit.message, '[screenshots]')) }}
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Nothing in this job pushes, so the token is not left in .git/config for the build to read.
+          persist-credentials: false
+
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Generate project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Pick simulators
+        run: |
+          set -euo pipefail
+          xcrun simctl list devices available -j > devices.json
+          python3 scripts/pick_simulators.py devices.json >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+
+      - name: Build for testing
+        run: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project Tally.xcodeproj -scheme Tally \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee build.log | grep -E "error:|warning: .*(never|unused)|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          xcrun simctl boot "$IPHONE_UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$IPHONE_UDID" -b || true
+          xcodebuild test-without-building \
+            -project Tally.xcodeproj -scheme Tally \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath build \
+            -only-testing:TallyTests \
+            2>&1 | tee test-unit.log | grep -E "error:|failed|passed|recorded an issue|TEST .*(SUCCEEDED|FAILED)" || true
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-unit.log
+
+      - name: UI tests and screenshots
+        if: env.FULL == 'true'
+        run: |
+          set -o pipefail
+          mkdir -p screenshots
+          xcodebuild test-without-building \
+            -project Tally.xcodeproj -scheme Tally \
+            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+            -derivedDataPath build \
+            -only-testing:TallyUITests \
+            -resultBundlePath results/iphone.xcresult \
+            SCREENSHOT_DIR="$PWD/screenshots" \
+            2>&1 | tee test-ui.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-ui.log
+
+      - name: Export screenshots from result bundles
+        if: always() && env.FULL == 'true'
+        run: |
+          set -euo pipefail
+          for bundle in results/*.xcresult; do
+            [ -d "$bundle" ] || continue
+            out="exported/$(basename "$bundle" .xcresult)"
+            mkdir -p "$out"
+            xcrun xcresulttool export attachments --path "$bundle" --output-path "$out" || true
+          done
+          python3 scripts/collect_screenshots.py exported screenshots docs/screenshots
+          ls -la docs/screenshots || true
+
+      - name: Upload logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-${{ github.run_number }}
+          path: |
+            docs/screenshots
+            build.log
+            test-*.log
+          if-no-files-found: ignore
+
+  commit-screenshots:
+    name: Commit screenshots
+    needs: build-and-test
+    # The same test as FULL above; a job's condition cannot read env.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full || contains(github.event.head_commit.message, '[screenshots]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job that can write. It runs git and GitHub's own actions, nothing from the project,
+    # and takes only the screenshot PNGs from the build job's artifact.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ios-${{ github.run_number }}
+          path: ${{ runner.temp }}/artifact
+
+      - name: Commit screenshots to the branch
+        run: |
+          set -euo pipefail
+          shots="$RUNNER_TEMP/artifact"
+          if [ -z "$(find "$shots" -maxdepth 3 -type f -name '*.png' 2>/dev/null)" ]; then
+            echo "No screenshots to commit"; exit 0
+          fi
+          mkdir -p docs/screenshots
+          find "$shots" -maxdepth 3 -type f -name '*.png' -exec cp {} docs/screenshots/ \;
+          git config user.name "tally-ci"
+          git config user.email "tally-ci@users.noreply.github.com"
+          git add docs/screenshots
+          if git diff --cached --quiet; then echo "Screenshots unchanged"; exit 0; fi
+          git commit -m "Update simulator screenshots [skip ci]"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

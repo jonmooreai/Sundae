@@ -1,0 +1,37 @@
+{
+  "app": "Tally",
+  "title": "Privacy",
+  "summary": "Tally keeps only what it needs to work. Here is what it uses, what it never collects, and how to delete it all.",
+  "updated": "2026-10-28",
+  "sections": [
+    {
+      "title": "What Tally uses",
+      "items": [
+        "A private ID from Sign in with Apple, so you can sign back in. Never your email.",
+        "The username and name you choose.",
+        "The notes you write, so they are there on your next visit.",
+        "Your time zone, so dates read the way you expect."
+      ]
+    },
+    {
+      "title": "What Tally never collects",
+      "items": [
+        "Your location, your contacts or your photos.",
+        "Anything for ads or tracking. No ads, no analytics, no third-party code that reports on you.",
+        "Request logs. The server keeps no record of who asked for what."
+      ]
+    },
+    {
+      "title": "Who sees what",
+      "items": [
+        "Your notes are yours alone. Nobody else can read them."
+      ]
+    },
+    {
+      "title": "Deleting",
+      "items": [
+        "Settings, then Delete account, removes your account and everything in it right away. Backups of the database roll past it within 7 days."
+      ]
+    }
+  ]
+}
