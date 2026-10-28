@@ -20,6 +20,8 @@ struct OnboardingIntro: View {
     /// it carries on.
     static let feltTop = Color(red: 233 / 255, green: 223 / 255, blue: 210 / 255)
     static let feltBottom = Color(red: 228 / 255, green: 218 / 255, blue: 206 / 255)
+    /// The words on the felt: a warm near-black, the same in any appearance.
+    private static let ink = Color(red: 38 / 255, green: 33 / 255, blue: 29 / 255)
     /// Where the finished sundae sits in the film, as fractions of its height: the tip of the
     /// cherry's stem to the bowl's foot. And how much of the film's width the bowl takes.
     private static let sundaeTop: CGFloat = 0.24
@@ -41,7 +43,11 @@ struct OnboardingIntro: View {
                 words
             }
         }
-        // Felt is cream in any light; the words on it stay dark.
+        // Felt is cream in any light, so the words on it stay dark. Asking for light alone is not
+        // enough: the app's own appearance setting, applied above this screen, wins, and on a phone
+        // in dark mode the title and line came out pale on the felt. So the screen draws in light
+        // whatever the setting, and the status bar follows.
+        .environment(\.colorScheme, .light)
         .preferredColorScheme(.light)
         .onAppear(perform: start)
         .onDisappear(perform: stop)
@@ -57,12 +63,13 @@ struct OnboardingIntro: View {
         VStack(spacing: 0) {
             Text("Sundae")
                 .font(Theme.display(44))
+                .foregroundStyle(Self.ink)
                 .padding(.top, 6)
             Spacer(minLength: 0)
             VStack(spacing: 14) {
-                Text("Six days to live it. One day to share it.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                Text("Sundays only. Social media should be a treat.")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(Self.ink.opacity(0.78))
                     .multilineTextAlignment(.center)
                 PrimaryButton(title: "Begin", action: onBegin)
                     .frame(maxWidth: 320)
