@@ -1162,5 +1162,1900 @@
       "local"
     ],
     "timeOfDay": "any"
+  },
+  {
+    "id": "s123",
+    "text": "Eat breakfast somewhere you've never eaten breakfast.",
+    "reason": "The front step, a park bench, a lookout with a view.",
+    "categories": [
+      "food",
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s124",
+    "text": "Watch your street wake up from a window.",
+    "reason": "Ten quiet minutes before anyone needs you.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s125",
+    "text": "Walk to get your coffee instead of making it.",
+    "reason": "The walk is the part you'll remember.",
+    "categories": [
+      "local",
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s126",
+    "text": "Find dew on a spiderweb.",
+    "reason": "Low sun and a little patience. Take a photo up close.",
+    "categories": [
+      "outdoors",
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s127",
+    "text": "Make a breakfast that looks like a hotel's.",
+    "reason": "Fold the napkin. Use the good plate.",
+    "categories": [
+      "food",
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s128",
+    "text": "Take a walk before you look at your phone.",
+    "reason": "The first hour of the day, all yours.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s129",
+    "text": "Find exactly where the sun comes up from your street.",
+    "reason": "It moves a little every week.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s130",
+    "text": "Have your coffee or tea outside, even if it's chilly.",
+    "reason": "Wrap both hands around the cup.",
+    "categories": [
+      "food",
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s131",
+    "text": "Get to the farmers market right when it opens.",
+    "reason": "First pick of everything, and every stall still looks perfect.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s132",
+    "text": "Cook eggs a way you never have.",
+    "reason": "Poached, scrambled low and slow, folded like an omelet.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s133",
+    "text": "Ride your bike while the streets are still empty.",
+    "reason": "Before eight on a weekend, the roads feel like yours.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s134",
+    "text": "Watch birds for ten minutes and count the kinds.",
+    "reason": "A feeder, a park, a tree outside the window.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s135",
+    "text": "Squeeze fresh orange juice by hand.",
+    "reason": "It takes more oranges than you'd think.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s136",
+    "text": "Find the room in your home with the best morning light.",
+    "reason": "Every room has its ten good minutes. Take a photo of it.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s137",
+    "text": "Stretch outside for ten minutes.",
+    "reason": "A park, a balcony, a patch of grass.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s138",
+    "text": "Try an early class you've never taken.",
+    "reason": "Yoga, spin, pottery. Ask about a first-time pass.",
+    "categories": [
+      "local",
+      "people"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s139",
+    "text": "Make oatmeal with a toppings bar for everyone home.",
+    "reason": "A row of little bowls turns a weekday into an occasion.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s140",
+    "text": "Bring breakfast to someone's door.",
+    "reason": "A bag of pastries is the best kind of surprise.",
+    "categories": [
+      "people",
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s141",
+    "text": "Read something on paper over a slow breakfast.",
+    "reason": "A magazine, a newspaper, a library book.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s142",
+    "text": "Look for frost patterns on a leaf or a car window.",
+    "reason": "Cold mornings make the best ones. Get close.",
+    "categories": [
+      "outdoors",
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s143",
+    "text": "Ride the first bus or train of the day somewhere.",
+    "reason": "Empty seats and a city just starting.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s144",
+    "text": "Blend a smoothie the color of something you love.",
+    "reason": "Berries for red, spinach for green, mango for gold.",
+    "categories": [
+      "food",
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s145",
+    "text": "Have breakfast with no screens at all.",
+    "reason": "Notice what the table looks like.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s146",
+    "text": "Make cinnamon toast the old-fashioned way.",
+    "reason": "Butter all the way to the edges.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s147",
+    "text": "Try a pastry from a tradition you don't know well.",
+    "reason": "Concha, kouign-amann, ensaimada. Ask what it's called.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s148",
+    "text": "Hang laundry outside to dry.",
+    "reason": "Sun-dried sheets smell like nothing else.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s149",
+    "text": "Pick up flowers for your own table.",
+    "reason": "A grocery bunch counts. So does a friend's garden, with permission.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s150",
+    "text": "Write three pages before you do anything else.",
+    "reason": "Whatever comes out. Nobody has to read it.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s151",
+    "text": "Go for an early swim.",
+    "reason": "The pool is quietest right when it opens.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s152",
+    "text": "Find the best breakfast sandwich in town.",
+    "reason": "Three contenders, one winner, a lot of napkins.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s153",
+    "text": "Make coffee the slow way.",
+    "reason": "Pour-over, a French press or a stovetop pot.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s154",
+    "text": "Visit a garden center first thing.",
+    "reason": "Rows of plants and almost nobody else.",
+    "categories": [
+      "local",
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s155",
+    "text": "Do a crossword with someone over breakfast.",
+    "reason": "Pen if you're brave, pencil if you're honest.",
+    "categories": [
+      "people",
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s156",
+    "text": "Have pancakes at a diner.",
+    "reason": "Order the short stack and one side you've never tried.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s157",
+    "text": "Bike somewhere for breakfast.",
+    "reason": "Earn the pancakes.",
+    "categories": [
+      "outdoors",
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s158",
+    "text": "Walk the whole length of your street.",
+    "reason": "Both directions, both sides. Look up as you go.",
+    "categories": [
+      "local",
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s159",
+    "text": "Paddle a kayak or a canoe on calm water.",
+    "reason": "Mornings are the calmest. Wear the life jacket.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s160",
+    "text": "Make a breakfast board for friends.",
+    "reason": "Fruit, toast, jam, and whatever else is in the fridge.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s161",
+    "text": "Close your eyes and listen to the birds for five minutes.",
+    "reason": "Then try to find the loudest one.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s162",
+    "text": "Bake muffins and leave a few on a neighbor's step.",
+    "reason": "Knock, then walk away. Or stay and chat.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s163",
+    "text": "Walk somewhere new while the light is still low.",
+    "reason": "Long shadows make plain streets look like a film.",
+    "categories": [
+      "outdoors",
+      "creative"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s164",
+    "text": "Make granola.",
+    "reason": "Your kitchen will smell incredible all day.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s165",
+    "text": "Visit a farm stand.",
+    "reason": "Buy whatever was picked this morning.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s166",
+    "text": "Join a free bird walk.",
+    "reason": "Groups meet early in a lot of parks, and they love beginners.",
+    "categories": [
+      "outdoors",
+      "people"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s167",
+    "text": "Draw your breakfast before you eat it.",
+    "reason": "A coffee cup is harder than it looks.",
+    "categories": [
+      "creative",
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s168",
+    "text": "Find the best donut in town.",
+    "reason": "Go early. The good ones go first.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s169",
+    "text": "Look for mushrooms on a walk in the woods.",
+    "reason": "Look, don't eat. Take a photo of the strangest one.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s170",
+    "text": "Look for footprints in mud, sand or snow.",
+    "reason": "Guess who made them.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s171",
+    "text": "Make a pot of tea properly.",
+    "reason": "Warm the pot, time the steep, use the nice cups.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s172",
+    "text": "Spend the first hour of a day off outside.",
+    "reason": "Whatever you do after will feel like a bonus.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "morning"
+  },
+  {
+    "id": "s173",
+    "text": "Find the shadiest tree in town and sit under it.",
+    "reason": "On a hot day it's the best seat around.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s174",
+    "text": "Play mini golf.",
+    "reason": "Keep score. Lose graciously.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s175",
+    "text": "Walk through a community garden.",
+    "reason": "Gardeners love to explain what's growing.",
+    "categories": [
+      "local",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s176",
+    "text": "Walk every aisle of a hardware store.",
+    "reason": "You'll find a tool you didn't know existed.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s177",
+    "text": "Play chess or checkers in a park.",
+    "reason": "Bring the board. Stay for a rematch.",
+    "categories": [
+      "people",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s178",
+    "text": "Have a tea party, properly.",
+    "reason": "Real cups, small sandwiches, cake on a stand.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s179",
+    "text": "Explore a grocery store from another country.",
+    "reason": "A Korean market, a Mexican mercado, a Polish deli. Buy one thing you can't read.",
+    "categories": [
+      "food",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s180",
+    "text": "Walk around a college campus.",
+    "reason": "Old buildings, big lawns, and a bulletin board full of things to do.",
+    "categories": [
+      "local",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s181",
+    "text": "Lie in the grass and watch the clouds.",
+    "reason": "Name the shapes out loud.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s182",
+    "text": "Find a swing and swing on it.",
+    "reason": "Grown-ups are allowed. Go as high as feels fun.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s183",
+    "text": "Make popsicles from juice.",
+    "reason": "Freeze them in paper cups with a spoon in the middle.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s184",
+    "text": "Visit a pet store and look at the fish.",
+    "reason": "The quietest aisle in any town.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s185",
+    "text": "Buy a book for its cover alone.",
+    "reason": "Read the first page on the way home.",
+    "categories": [
+      "local",
+      "creative"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s186",
+    "text": "Go to the beach out of season.",
+    "reason": "Empty sand and the whole sky.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s187",
+    "text": "Rent a rowboat for an hour.",
+    "reason": "One person rows, one person steers, both people laugh.",
+    "categories": [
+      "outdoors",
+      "people"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s188",
+    "text": "Go to a street fair or a festival.",
+    "reason": "Eat one thing on a stick.",
+    "categories": [
+      "local",
+      "people"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s189",
+    "text": "Watch the trains from a station platform.",
+    "reason": "Pick the one you'd ride to the end of the line.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s190",
+    "text": "Have a water balloon toss with friends.",
+    "reason": "Last pair with a whole balloon wins.",
+    "categories": [
+      "people",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s191",
+    "text": "Paint outside with watercolors.",
+    "reason": "A small set and a jar of water is all it takes.",
+    "categories": [
+      "creative",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s192",
+    "text": "Find the biggest flower you can.",
+    "reason": "Sunflowers, peonies, whatever's in season.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s193",
+    "text": "Take a nap in a hammock.",
+    "reason": "Borrow one if you have to. Twenty minutes is plenty.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s194",
+    "text": "Visit an aquarium.",
+    "reason": "The jellyfish room is worth the ticket.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s195",
+    "text": "Visit a zoo and pick a favorite animal.",
+    "reason": "Stay with it until it does something.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s196",
+    "text": "Fold paper boats and float them.",
+    "reason": "A pond, a fountain, a slow creek.",
+    "categories": [
+      "creative",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s197",
+    "text": "Roll down a grassy hill.",
+    "reason": "You're never too old. Check for rocks first.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s198",
+    "text": "Go to a car show, an air show or a dog show.",
+    "reason": "Whatever's on this weekend.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s199",
+    "text": "Build a sundae with every topping in the house.",
+    "reason": "We had to.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s200",
+    "text": "Wash a car, a bike or a dog.",
+    "reason": "Get the hose involved.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s201",
+    "text": "Visit a pumpkin patch, a sunflower field or a tulip farm.",
+    "reason": "Whatever the season is growing.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s202",
+    "text": "Have a bake-off with a friend.",
+    "reason": "Same recipe, two kitchens, one honest judge.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s203",
+    "text": "Find the oddest object in an antique store.",
+    "reason": "Ask what it was for.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s204",
+    "text": "Walk through a sculpture garden.",
+    "reason": "Walk all the way around each one. The back is often better.",
+    "categories": [
+      "local",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s205",
+    "text": "Make a sidewalk chalk drawing.",
+    "reason": "Big enough to see from a window.",
+    "categories": [
+      "creative",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s206",
+    "text": "Walk across a bridge on foot.",
+    "reason": "Bridges look different at walking speed.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s207",
+    "text": "Find a waterfall, any size.",
+    "reason": "Small ones count. Follow the sound.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s208",
+    "text": "Visit a place you loved when you were younger.",
+    "reason": "A park, a corner store, an old street.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s209",
+    "text": "Make a time-lapse of the clouds.",
+    "reason": "Prop your phone up and leave it for ten minutes.",
+    "categories": [
+      "creative",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s210",
+    "text": "Ride a carousel.",
+    "reason": "Pick the strangest animal.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s211",
+    "text": "Try a batting cage.",
+    "reason": "Choose the slowest pitch. Swing anyway.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s212",
+    "text": "Try a climbing gym.",
+    "reason": "Most offer an intro session, and the easy walls are easy.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s213",
+    "text": "Visit an artist's open studio.",
+    "reason": "Ask what they're working on.",
+    "categories": [
+      "local",
+      "creative"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s214",
+    "text": "Go to a craft fair.",
+    "reason": "Buy one thing from the person who made it.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s215",
+    "text": "Play a game of HORSE with a friend.",
+    "reason": "One basket, any court, all afternoon.",
+    "categories": [
+      "people",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s216",
+    "text": "Wade in a creek.",
+    "reason": "Roll up your jeans. Watch for slippery stones.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s217",
+    "text": "Find the windiest spot in town.",
+    "reason": "Hold your arms out.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s218",
+    "text": "Climb a hill you see every day.",
+    "reason": "The view back toward home is the reward.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s219",
+    "text": "Tour a historic house.",
+    "reason": "Ask about the strangest thing in it.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s220",
+    "text": "Make jam from fruit in season.",
+    "reason": "Strawberries in June, plums in September.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s221",
+    "text": "Decorate a cake badly on purpose.",
+    "reason": "The worse it looks, the better the photo.",
+    "categories": [
+      "food",
+      "creative"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s222",
+    "text": "Take your lunch to the nearest water.",
+    "reason": "A river, a lake, a fountain. Sit where you can hear it.",
+    "categories": [
+      "food",
+      "outdoors"
+    ],
+    "timeOfDay": "afternoon"
+  },
+  {
+    "id": "s223",
+    "text": "Cook something on a grill.",
+    "reason": "A park grill, a balcony grill, a friend's backyard.",
+    "categories": [
+      "food",
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s224",
+    "text": "Eat dinner in a park instead of at home.",
+    "reason": "Takeout tastes better on a blanket.",
+    "categories": [
+      "food",
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s225",
+    "text": "Make pizza at home and let everyone pick toppings.",
+    "reason": "One rule: no complaining about anyone else's slice.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s226",
+    "text": "Watch a movie outdoors.",
+    "reason": "Parks and lawns show them on summer nights.",
+    "categories": [
+      "local",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s227",
+    "text": "See a community theater show.",
+    "reason": "The tickets are cheap and the effort is huge.",
+    "categories": [
+      "local",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s228",
+    "text": "Light candles and turn off every screen for an hour.",
+    "reason": "Talk, read, or just sit.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s229",
+    "text": "Have a friend teach you their family's best dish.",
+    "reason": "Take notes. Ask for the secret.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s230",
+    "text": "Play cards on the porch.",
+    "reason": "Teach a game nobody else knows.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s231",
+    "text": "Find the best view of your town's lights.",
+    "reason": "A hill or a top-floor window. Bring someone.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s232",
+    "text": "Go to an open mic and just listen.",
+    "reason": "Clap loudest for the nervous ones.",
+    "categories": [
+      "local",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s233",
+    "text": "Have a themed dinner.",
+    "reason": "A color, a country, a decade. Dress for it.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s234",
+    "text": "Make dumplings from scratch.",
+    "reason": "Lumpy dumplings taste exactly as good.",
+    "categories": [
+      "food",
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s235",
+    "text": "Host a potluck.",
+    "reason": "Everyone brings one dish and the story behind it.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s236",
+    "text": "Watch the bats come out at dusk.",
+    "reason": "Near water, right after sunset.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s237",
+    "text": "Catch a firefly, then let it go.",
+    "reason": "Warm nights, tall grass, a little patience.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s238",
+    "text": "Take photos of lit windows on an evening walk.",
+    "reason": "Every one is a little stage.",
+    "categories": [
+      "creative",
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s239",
+    "text": "Go to a trivia night at a library or café.",
+    "reason": "Pick a team name you'd be proud of.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s240",
+    "text": "Cook a family recipe and write it down.",
+    "reason": "Some recipes only live in one person's head.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s241",
+    "text": "Watch the sunset with your back to it.",
+    "reason": "Look at what the light does to everything else.",
+    "categories": [
+      "outdoors",
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s242",
+    "text": "Camp out in the backyard or on the balcony.",
+    "reason": "Sleeping bags, a lamp, the sky.",
+    "categories": [
+      "outdoors",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s243",
+    "text": "Bake cookies and deliver them while they're warm.",
+    "reason": "Nobody has ever been sad to see a plate of cookies.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s244",
+    "text": "Play a video game with someone you haven't played with in years.",
+    "reason": "Same couch rules as before.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s245",
+    "text": "Have a photo night with friends.",
+    "reason": "Everyone shows five pictures from their week. The stories are the best part.",
+    "categories": [
+      "people",
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s246",
+    "text": "Go to a free concert in a park.",
+    "reason": "Bring a blanket and sit on the grass.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s247",
+    "text": "Have breakfast for dinner.",
+    "reason": "Pancakes taste better after dark.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s248",
+    "text": "Learn one magic trick and perform it at dinner.",
+    "reason": "One trick, practiced well, beats ten done badly.",
+    "categories": [
+      "creative",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s249",
+    "text": "Read a book aloud with someone.",
+    "reason": "One chapter a night.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s250",
+    "text": "Make tacos with every topping you can find.",
+    "reason": "The toppings table is the meal.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s251",
+    "text": "Look at the moon through binoculars.",
+    "reason": "The craters are clearer than you'd expect.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s252",
+    "text": "Find the brightest planet in the sky.",
+    "reason": "A free stargazing app will point right to it.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s253",
+    "text": "Dress up for dinner at home.",
+    "reason": "Same kitchen, better outfits.",
+    "categories": [
+      "people",
+      "food"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s254",
+    "text": "Bake a pie.",
+    "reason": "Store-bought crust is fine. Nobody will tell.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s255",
+    "text": "Sit outside until the first star comes out.",
+    "reason": "Then make the wish.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s256",
+    "text": "Make a pot of soup big enough to share.",
+    "reason": "Leave a jar at a neighbor's door.",
+    "categories": [
+      "food",
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s257",
+    "text": "Write down three good things from today.",
+    "reason": "Small counts. Then take a photo of the page.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s258",
+    "text": "Watch an old movie you've always meant to see.",
+    "reason": "The classics are classics for a reason.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s259",
+    "text": "Eat dinner somewhere other than the table.",
+    "reason": "The floor, the porch, the yard.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s260",
+    "text": "Cook dinner with only five ingredients.",
+    "reason": "Fewer things, more attention.",
+    "categories": [
+      "food",
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s261",
+    "text": "Sing along to a whole album with someone.",
+    "reason": "Front to back, no skipping.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s262",
+    "text": "Make fresh pasta by hand.",
+    "reason": "A fork, an egg and a pile of flour are enough.",
+    "categories": [
+      "food",
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s263",
+    "text": "Paint your nails a color you'd never pick.",
+    "reason": "It comes off. That's the beauty of it.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s264",
+    "text": "Take a history walk or a haunted tour.",
+    "reason": "Most towns have one, and the guides love a question.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s265",
+    "text": "Have a spa night at home.",
+    "reason": "Face masks, warm towels, a slow playlist.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s266",
+    "text": "Go see a local band.",
+    "reason": "Stand near the front. Buy the shirt.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s267",
+    "text": "Ride a Ferris wheel.",
+    "reason": "The top is the best seat in town.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s268",
+    "text": "Go bowling.",
+    "reason": "Everyone picks a silly name for the screen.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s269",
+    "text": "Go ice skating.",
+    "reason": "Hold the wall as long as you need to.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s270",
+    "text": "Make hot chocolate from scratch.",
+    "reason": "Real chocolate, real milk, a pinch of salt.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s271",
+    "text": "Throw a tiny party for a small win.",
+    "reason": "Finished a book? Fixed the sink? That counts.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s272",
+    "text": "Play a board game you've never played before.",
+    "reason": "Read the rules out loud, in a dramatic voice.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "evening"
+  },
+  {
+    "id": "s273",
+    "text": "Find a heart shape somewhere it shouldn't be.",
+    "reason": "Clouds, puddles, a crack in the sidewalk.",
+    "categories": [
+      "creative",
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s274",
+    "text": "Take a photo of every door on one block.",
+    "reason": "Put them side by side later.",
+    "categories": [
+      "creative",
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s275",
+    "text": "Find letters in the world and spell your name.",
+    "reason": "A bent branch is a Y. A round window is an O.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s276",
+    "text": "Go to a friend's favorite place with them.",
+    "reason": "Ask them why it's their favorite.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s277",
+    "text": "Find the oldest thing in your home and learn its story.",
+    "reason": "Ask whoever gave it to you.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s278",
+    "text": "Find something beautiful in the most boring place.",
+    "reason": "A parking lot, a waiting room, a hallway.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s279",
+    "text": "Leave a kind note for a neighbor.",
+    "reason": "No signature needed.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s280",
+    "text": "Take a photo of your shadow.",
+    "reason": "Morning and evening shadows are the long, funny ones.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s281",
+    "text": "Find a reflection that looks like another world.",
+    "reason": "Windows, puddles, the back of a spoon.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s282",
+    "text": "Try a hobby you dismissed years ago.",
+    "reason": "Knitting, birding, chess, bread.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s283",
+    "text": "Write a thank-you note to someone who won't expect it.",
+    "reason": "A teacher, a mail carrier, a coach.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s284",
+    "text": "Find a tiny garden in an unexpected place.",
+    "reason": "Window boxes, sidewalk cracks, an old boot.",
+    "categories": [
+      "local",
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s285",
+    "text": "Give someone a plant.",
+    "reason": "A cutting from one of yours is best.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s286",
+    "text": "Find the strangest street name in town.",
+    "reason": "Then walk the whole street.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s287",
+    "text": "Learn the name of a tree you pass every day.",
+    "reason": "A free plant app or a library book will tell you.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s288",
+    "text": "Find something exactly as old as you.",
+    "reason": "A building, a tree, a song.",
+    "categories": [
+      "local",
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s289",
+    "text": "Draw a map of your neighborhood from memory.",
+    "reason": "Then walk it and see what you missed.",
+    "categories": [
+      "creative",
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s290",
+    "text": "Look for wildlife in the middle of town.",
+    "reason": "A heron, a hawk, a rabbit. They're closer than you think.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s291",
+    "text": "Buy flowers for no reason.",
+    "reason": "Split the bunch and give half away.",
+    "categories": [
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s292",
+    "text": "Find a sign with a typo.",
+    "reason": "It's out there.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s293",
+    "text": "Find the smallest door in town.",
+    "reason": "Mail slots, pet doors, a tiny painted door on a tree.",
+    "categories": [
+      "local",
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s294",
+    "text": "Take a photo from a worm's-eye view.",
+    "reason": "Lie down and look up at something tall.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s295",
+    "text": "Frame a view through a window, an arch or a gap in a fence.",
+    "reason": "A frame makes anything look composed.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s296",
+    "text": "Visit the place you keep saying you'll go.",
+    "reason": "It'll take less time than you've spent meaning to.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s297",
+    "text": "Find the best handwritten sign in town.",
+    "reason": "Chalkboards and taped-up notes count.",
+    "categories": [
+      "local",
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s298",
+    "text": "Make something for someone else's home.",
+    "reason": "A drawing, a jar of jam, a candle.",
+    "categories": [
+      "creative",
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s299",
+    "text": "Learn ten words in a language you've always wanted to speak.",
+    "reason": "Use one of them this week.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s300",
+    "text": "Find a patch of moss and look closely.",
+    "reason": "It's a whole forest at a tiny scale.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s301",
+    "text": "Look for the first sign of the next season.",
+    "reason": "A red leaf, a new bud, the first cold morning.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s302",
+    "text": "Volunteer for an hour.",
+    "reason": "A food bank, a park cleanup, a library book sale.",
+    "categories": [
+      "people",
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s303",
+    "text": "Clean up one small stretch of park or street.",
+    "reason": "Gloves and a bag. Take a before and after photo.",
+    "categories": [
+      "outdoors",
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s304",
+    "text": "Find a pattern in nature.",
+    "reason": "Spirals in shells, stripes in bark, grids in leaves.",
+    "categories": [
+      "outdoors",
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s305",
+    "text": "Sit somewhere and write down every sound you hear.",
+    "reason": "You'll hear more than you expect.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s306",
+    "text": "Take a new route somewhere you go every day.",
+    "reason": "Even one different street changes the trip.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s307",
+    "text": "Make a wish on a dandelion.",
+    "reason": "Then make a second wish, just in case.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s308",
+    "text": "Plant a seed and take a photo of it every day.",
+    "reason": "Sprouts are faster than you think.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s309",
+    "text": "Find the place in town that smells the best.",
+    "reason": "A bakery, a garden, a coffee roaster.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s310",
+    "text": "Arrange your books by color.",
+    "reason": "Then take a photo of the shelf.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s311",
+    "text": "Make a bouquet from things that aren't flowers.",
+    "reason": "Branches, herbs, tall grass.",
+    "categories": [
+      "creative",
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s312",
+    "text": "Sew a patch onto something you wear.",
+    "reason": "A jacket, a bag, a favorite pair of jeans.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s313",
+    "text": "Fold a paper airplane and find the best place to fly it.",
+    "reason": "A hill, a park, a long hallway.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s314",
+    "text": "Take a photo of your hands at work.",
+    "reason": "Kneading, knitting, fixing, writing.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s315",
+    "text": "Paint a rock and leave it somewhere for someone to find.",
+    "reason": "A small surprise for whoever's next.",
+    "categories": [
+      "creative",
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s316",
+    "text": "Find a piano in a public place and play one song.",
+    "reason": "Chopsticks counts.",
+    "categories": [
+      "local",
+      "creative"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s317",
+    "text": "Count the cats sitting in windows on your street.",
+    "reason": "Wave. They won't wave back.",
+    "categories": [
+      "local"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s318",
+    "text": "Walk barefoot on grass for ten minutes.",
+    "reason": "Your feet will thank you.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s319",
+    "text": "Jump in a big puddle.",
+    "reason": "Boots recommended, not required.",
+    "categories": [
+      "outdoors"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s320",
+    "text": "Make friendship bracelets and trade them.",
+    "reason": "Pick colors that remind you of each other.",
+    "categories": [
+      "creative",
+      "people"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s321",
+    "text": "Try a fruit you've never eaten.",
+    "reason": "Persimmon, dragon fruit, starfruit, a pluot.",
+    "categories": [
+      "food"
+    ],
+    "timeOfDay": "any"
+  },
+  {
+    "id": "s322",
+    "text": "Write a letter to your future self.",
+    "reason": "Seal it and write the date to open it on the front.",
+    "categories": [
+      "creative"
+    ],
+    "timeOfDay": "any"
   }
 ]

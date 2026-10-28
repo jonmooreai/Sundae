@@ -34,7 +34,7 @@ Shared/                  Compiled into both the app and the widget
   SundayClock.swift      Week math: Monday 00:00 to Sunday 23:59, local time
   Suggestion.swift       Suggestion model and catalog (deterministic daily pick, shuffle)
   SharedDefaults.swift   App-group state for the widget (current suggestion, approvals badge)
-  suggestions.json       Curated list of photographable suggestions, 122 so far (target ~200)
+  suggestions.json       Curated list of photographable suggestions, 322 of them, for anyone not sharing their location
 Sundae/
   App/                   SundaeApp, AppModel (session, phase, clock), RootView and the tab shell, App Intents
   Core/                  Theme, Icon, Haptics, Keychain
