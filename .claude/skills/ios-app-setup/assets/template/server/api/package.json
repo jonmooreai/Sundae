@@ -1,0 +1,10 @@
+{
+  "name": "__APP_SLUG__-api",
+  "private": true,
+  "type": "module",
+  "description": "__APP_NAME__'s server: one Cloudflare Worker and one D1 database, on the free plan.",
+  "scripts": {
+    "test": "node --test --no-warnings",
+    "deploy": "cd ../.. && npx wrangler deploy"
+  }
+}

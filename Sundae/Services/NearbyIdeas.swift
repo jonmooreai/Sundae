@@ -94,12 +94,18 @@ enum NearbyIdeas {
     struct Line: Sendable {
         let text: String
         let reason: String
+        /// The words the activity hangs on, which the on-device model's rewording must keep
+        /// (IdeaWriter): the treat and the friend in "Bring a treat to a friend", since the photo
+        /// line after it, "Snap a pic of it before you hand it over", needs both. "a|b" keeps
+        /// either. Every line has some, and its own words keep them (a test checks).
+        var keep: [String] = []
     }
 
-    /// An idea and the kind of place it is about.
+    /// An idea, the kind of place it is about, and the words its rewording must keep.
     private struct Pick {
         let suggestion: Suggestion
         let theme: Theme
+        let keep: [String]
     }
 
     enum Failure: Error {
@@ -126,7 +132,7 @@ enum NearbyIdeas {
         }
         let wet = await sky == .wet
         let picks = pick(from: places, origin: origin, cell: cell, day: day, calendar: calendar, wet: wet)
-        return await reword(picks, wet: wet, first: Suggestion.TimeOfDay.current(for: day, calendar: calendar))
+        return await reword(picks, first: Suggestion.TimeOfDay.current(for: day, calendar: calendar))
     }
 
     /// How long the on-device model may take over the day's wording before the rest keep their
@@ -135,7 +141,7 @@ enum NearbyIdeas {
 
     /// The day's ideas in fresh words, where the phone has Apple's on-device model (IdeaWriter):
     /// this part of the day first, then the rest, within the budget. The rest keep their lines.
-    private static func reword(_ picks: [Pick], wet: Bool, first slot: Suggestion.TimeOfDay) async -> [Suggestion] {
+    private static func reword(_ picks: [Pick], first slot: Suggestion.TimeOfDay) async -> [Suggestion] {
         var ideas = picks.map(\.suggestion)
         guard IdeaWriter.isAvailable else { return ideas }
         let deadline = ContinuousClock.now + rewordBudget
@@ -148,8 +154,7 @@ enum NearbyIdeas {
             let theme = picks[index].theme
             guard let place = idea.place else { continue }
             let brief = IdeaWriter.Brief(place: place.name, kind: theme.query, isBusiness: theme.isBusiness,
-                                         timeOfDay: idea.timeOfDay, walkMinutes: place.walkMinutes, isRaining: wet,
-                                         text: idea.text, reason: idea.reason)
+                                         text: idea.text, reason: idea.reason, keep: picks[index].keep)
             guard let wording = await IdeaWriter.reword(brief) else { continue }
             ideas[index] = Suggestion(id: idea.id, text: wording.text, reason: wording.reason,
                                       categories: idea.categories, timeOfDay: idea.timeOfDay, place: idea.place)
@@ -241,22 +246,31 @@ enum NearbyIdeas {
                                         distanceMeters: choice.meters,
                                         latitude: choice.place.latitude, longitude: choice.place.longitude,
                                         mapsID: choice.place.mapsID)),
-                theme: choice.place.theme))
+                theme: choice.place.theme, keep: line.keep))
         }
         return ideas.filter { IdeaGuard.isSafe($0.suggestion) }
     }
 
     /// One line per roofed place for a rainy day, used about half the time it rains.
     static let rainLines: [Theme: Line] = [
-        .cafe: Line(text: "Wait out the rain at {name}.", reason: "Get a drink and take a photo of the rain from inside."),
-        .bakery: Line(text: "Duck into {name} out of the rain.", reason: "Pick something you've never tried. Take a photo of it."),
-        .restaurant: Line(text: "Wait out the rain at {name}.", reason: "Order something you've never had. Snap a pic of the table."),
-        .market: Line(text: "Shop for one meal at {name} while it rains.", reason: "Three things, no list. Take a photo of the haul at home."),
-        .library: Line(text: "Spend a rainy hour at {name}.", reason: "Pick a book you'd never choose. Take a photo of the cover."),
-        .museum: Line(text: "A rainy day is a good day for {name}.", reason: "Pick one thing and give it five minutes. Take a photo if photos are allowed."),
-        .gallery: Line(text: "Step into {name} out of the rain.", reason: "Find the piece you'd take home. Take a photo if photos are allowed."),
-        .bookstore: Line(text: "Wait out the rain at {name}.", reason: "Pick a book by its first sentence. Take a photo of it in your hands."),
-        .recordStore: Line(text: "Spend the rain at {name}.", reason: "Pick the cover you like most. Snap a pic of it."),
+        .cafe: Line(text: "Wait out the rain at {name}.", reason: "Get a drink and take a photo of the rain from inside.",
+                    keep: ["rain|rainy"]),
+        .bakery: Line(text: "Duck into {name} out of the rain.", reason: "Pick something you've never tried. Take a photo of it.",
+                      keep: ["rain|rainy", "something|treat"]),
+        .restaurant: Line(text: "Wait out the rain at {name}.", reason: "Order something you've never had. Snap a pic of the table.",
+                          keep: ["rain|rainy", "order|share"]),
+        .market: Line(text: "Shop for one meal at {name} while it rains.", reason: "Three things, no list. Take a photo of the haul at home.",
+                      keep: ["rain|rainy", "meal"]),
+        .library: Line(text: "Spend a rainy hour at {name}.", reason: "Pick a book you'd never choose. Take a photo of the cover.",
+                       keep: ["rain|rainy", "book"]),
+        .museum: Line(text: "A rainy day is a good day for {name}.", reason: "Pick one thing and give it five minutes. Take a photo if photos are allowed.",
+                      keep: ["rain|rainy"]),
+        .gallery: Line(text: "Step into {name} out of the rain.", reason: "Find the piece you'd take home. Take a photo if photos are allowed.",
+                       keep: ["rain|rainy", "piece"]),
+        .bookstore: Line(text: "Wait out the rain at {name}.", reason: "Pick a book by its first sentence. Take a photo of it in your hands.",
+                         keep: ["rain|rainy", "book"]),
+        .recordStore: Line(text: "Spend the rain at {name}.", reason: "Pick the cover you like most. Snap a pic of it.",
+                           keep: ["rain|rainy", "cover|record|album"]),
     ]
 
     /// What to do at each kind of place, by time of day. {name} is the place. Business lines say
@@ -264,39 +278,54 @@ enum NearbyIdeas {
     /// Photos are always "take a photo", "take photos" or "snap a pic".
     static let lines: [Theme: [Suggestion.TimeOfDay: [Line]]] = {
         let cafe = [
-            Line(text: "Get a drink you've never ordered at {name}.", reason: "Take a photo of the cup before the first sip."),
-            Line(text: "Take a coffee break at {name}.", reason: "Ten minutes with no phone, then snap a pic of the view from where you are."),
+            Line(text: "Get a drink you've never ordered at {name}.", reason: "Take a photo of the cup before the first sip.",
+                 keep: ["drink", "never|new"]),
+            Line(text: "Take a coffee break at {name}.", reason: "Ten minutes with no phone, then snap a pic of the view from where you are.",
+                 keep: ["break|pause"]),
         ]
         let bakery = [
-            Line(text: "Pick something you've never tried at {name}.", reason: "Take a photo of it before the first bite."),
-            Line(text: "Bring a treat from {name} to a friend.", reason: "Snap a pic of it before you hand it over."),
+            Line(text: "Pick something you've never tried at {name}.", reason: "Take a photo of it before the first bite.",
+                 keep: ["something|treat", "never|new"]),
+            Line(text: "Bring a treat from {name} to a friend.", reason: "Snap a pic of it before you hand it over.",
+                 keep: ["treat", "friend|someone"]),
         ]
         let restaurant = [
-            Line(text: "Try {name}.", reason: "Order something you've never had. Snap a pic before the first bite."),
-            Line(text: "Take a friend to {name}.", reason: "Order two things and share. Take a photo of the table."),
+            Line(text: "Try {name}.", reason: "Order something you've never had. Snap a pic before the first bite.",
+                 keep: ["order", "never|new"]),
+            Line(text: "Take a friend to {name}.", reason: "Order two things and share. Take a photo of the table.",
+                 keep: ["friend|someone", "share"]),
         ]
         let market = [
-            Line(text: "Buy one thing you've never cooked at {name}.", reason: "Take a photo of it at home before you cook it."),
-            Line(text: "Shop for one meal at {name}.", reason: "Three things, no list. Snap a pic of the haul."),
+            Line(text: "Buy one thing you've never cooked at {name}.", reason: "Take a photo of it at home before you cook it.",
+                 keep: ["cook", "never|new"]),
+            Line(text: "Shop for one meal at {name}.", reason: "Three things, no list. Snap a pic of the haul.",
+                 keep: ["meal"]),
         ]
         let library = [
-            Line(text: "Spend an hour at {name}.", reason: "Pick a book you'd never choose. Take a photo of the cover."),
-            Line(text: "Read for a while at {name}.", reason: "Snap a pic of the page you stopped on."),
+            Line(text: "Spend an hour at {name}.", reason: "Pick a book you'd never choose. Take a photo of the cover.",
+                 keep: ["book"]),
+            Line(text: "Read for a while at {name}.", reason: "Snap a pic of the page you stopped on.",
+                 keep: ["read|reading"]),
         ]
         let museum = [
-            Line(text: "Spend an hour at {name}.", reason: "Pick one thing and give it five minutes. Take a photo if photos are allowed."),
+            Line(text: "Spend an hour at {name}.", reason: "Pick one thing and give it five minutes. Take a photo if photos are allowed.",
+                 keep: ["thing|piece|exhibit"]),
         ]
         let gallery = [
-            Line(text: "Walk through {name}.", reason: "Find the piece you'd take home. Take a photo if photos are allowed."),
+            Line(text: "Walk through {name}.", reason: "Find the piece you'd take home. Take a photo if photos are allowed.",
+                 keep: ["piece"]),
         ]
         let bookstore = [
-            Line(text: "Browse {name} for twenty minutes.", reason: "Pick a book by its first sentence. Take a photo of it in your hands."),
+            Line(text: "Browse {name} for twenty minutes.", reason: "Pick a book by its first sentence. Take a photo of it in your hands.",
+                 keep: ["book", "first sentence|first line|opening line"]),
         ]
         let records = [
-            Line(text: "Browse the records at {name}.", reason: "Pick the cover you like most. Snap a pic of it."),
+            Line(text: "Browse the records at {name}.", reason: "Pick the cover you like most. Snap a pic of it.",
+                 keep: ["record|album|vinyl", "cover"]),
         ]
         let iceCream = [
-            Line(text: "Get something sweet at {name}.", reason: "Take a photo of it before it melts."),
+            Line(text: "Get something sweet at {name}.", reason: "Take a photo of it before it melts.",
+                 keep: ["sweet|treat|scoop|cone"]),
         ]
         return [
             .cafe: [.morning: cafe, .afternoon: cafe],
@@ -310,26 +339,38 @@ enum NearbyIdeas {
             .recordStore: [.afternoon: records],
             .iceCream: [.afternoon: iceCream, .evening: iceCream],
             .park: [
-                .morning: [Line(text: "Take an early walk at {name}.", reason: "Low sun and long shadows. Take a photo of the wide view and one small detail.")],
+                .morning: [Line(text: "Take an early walk at {name}.", reason: "Low sun and long shadows. Take a photo of the wide view and one small detail.",
+                                keep: ["walk|stroll"])],
                 .afternoon: [
-                    Line(text: "Sit somewhere at {name} for twenty minutes.", reason: "Phone down first. Then snap a pic of what's in front of you."),
-                    Line(text: "Read a chapter at {name}.", reason: "Bring the book you keep not finishing. Take a photo of the page and the view."),
+                    Line(text: "Sit somewhere at {name} for twenty minutes.", reason: "Phone down first. Then snap a pic of what's in front of you.",
+                         keep: ["sit|seat"]),
+                    Line(text: "Read a chapter at {name}.", reason: "Bring the book you keep not finishing. Take a photo of the page and the view.",
+                         keep: ["read|reading|chapter", "book"]),
                 ],
-                .evening: [Line(text: "Catch the last light at {name}.", reason: "Bring a friend and take photos of the sky as it changes.")],
+                .evening: [Line(text: "Catch the last light at {name}.", reason: "Bring a friend and take photos of the sky as it changes.",
+                                keep: ["light|sky|sunset"])],
             ],
             .trail: [
-                .morning: [Line(text: "Walk part of {name} and turn back when you're ready.", reason: "Stay on the marked trail. Take a photo at your turnaround point.")],
-                .afternoon: [Line(text: "Walk part of {name} and turn back when you're ready.", reason: "Stay on the marked trail. Take a photo at your turnaround point.")],
+                .morning: [Line(text: "Walk part of {name} and turn back when you're ready.", reason: "Stay on the marked trail. Take a photo at your turnaround point.",
+                                keep: ["turn|turnaround", "marked"])],
+                .afternoon: [Line(text: "Walk part of {name} and turn back when you're ready.", reason: "Stay on the marked trail. Take a photo at your turnaround point.",
+                                  keep: ["turn|turnaround", "marked"])],
             ],
             .waterfront: [
-                .morning: [Line(text: "Walk along the water at {name}.", reason: "Take a photo with the horizon low in the frame.")],
-                .afternoon: [Line(text: "Walk along the water at {name}.", reason: "Take a photo with the horizon low in the frame.")],
-                .evening: [Line(text: "Watch the sky change at {name}.", reason: "Stay for the color after sunset. Take photos every few minutes.")],
+                .morning: [Line(text: "Walk along the water at {name}.", reason: "Take a photo with the horizon low in the frame.",
+                                keep: ["walk|stroll", "water|shore"])],
+                .afternoon: [Line(text: "Walk along the water at {name}.", reason: "Take a photo with the horizon low in the frame.",
+                                  keep: ["walk|stroll", "water|shore"])],
+                .evening: [Line(text: "Watch the sky change at {name}.", reason: "Stay for the color after sunset. Take photos every few minutes.",
+                                keep: ["sky|sunset"])],
             ],
             .viewpoint: [
-                .morning: [Line(text: "See the morning from {name}.", reason: "Take one photo, then put the phone away and look.")],
-                .afternoon: [Line(text: "Go to {name} and find your street.", reason: "Take a photo looking toward home.")],
-                .evening: [Line(text: "Watch the sunset from {name}.", reason: "Bring a friend. Take photos as the color changes.")],
+                .morning: [Line(text: "See the morning from {name}.", reason: "Take one photo, then put the phone away and look.",
+                                keep: ["morning|view"])],
+                .afternoon: [Line(text: "Go to {name} and find your street.", reason: "Take a photo looking toward home.",
+                                  keep: ["street|home"])],
+                .evening: [Line(text: "Watch the sunset from {name}.", reason: "Bring a friend. Take photos as the color changes.",
+                                keep: ["sunset|sun"])],
             ],
         ]
     }()

@@ -1,0 +1,44 @@
+name: Server
+
+# The API server's tests, which also fail any request that makes more D1 queries than
+# Cloudflare's free plan allows, and the guards on the build pipeline itself (workflow
+# permissions, pinned packages, signing rotation). Linux, a few seconds, so cheap even once the
+# repository is private. Deploying is Workers Builds' job, on pushes to main (docs/SETUP.md).
+on:
+  push:
+    branches: ["claude/**"]
+    paths:
+      - "server/**"
+      - "Shared/privacy.json"
+      - "wrangler.jsonc"
+      - ".github/workflows/**"
+      - "project.yml"
+      - "fastlane/Fastfile"
+      - "docs/SETUP.md"
+  pull_request:
+    paths:
+      - "server/**"
+      - "Shared/privacy.json"
+      - "wrangler.jsonc"
+      - ".github/workflows/**"
+      - "project.yml"
+      - "fastlane/Fastfile"
+      - "docs/SETUP.md"
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: API server tests
+        working-directory: server/api
+        run: node --test --no-warnings

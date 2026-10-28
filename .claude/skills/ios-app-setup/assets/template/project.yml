@@ -1,0 +1,97 @@
+# XcodeGen spec. Run `xcodegen generate` to produce __APP_TYPE__.xcodeproj; CI does this on every
+# build, so the .xcodeproj is never committed. Info.plist and the entitlements file are written
+# from here too: change them here, not in the generated files.
+name: __APP_TYPE__
+options:
+  bundleIdPrefix: __BUNDLE_PREFIX__
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    TARGETED_DEVICE_FAMILY: "1,2"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    SUPPORTS_MACCATALYST: NO
+    SWIFT_EMIT_LOC_STRINGS: YES
+targets:
+  __APP_TYPE__:
+    type: application
+    platform: iOS
+    sources:
+      - path: __APP_TYPE__
+        excludes:
+          - Info.plist
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __BUNDLE_ID__
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    info:
+      path: __APP_TYPE__/Info.plist
+      properties:
+        CFBundleDisplayName: __APP_NAME__
+        CFBundleName: __APP_NAME__
+        # XcodeGen would write literal 1 / 1.0 here; these follow the build settings instead,
+        # so CI can stamp each TestFlight build with its run number.
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        # The server (docs/SERVER.md). Empty means built-in demo data (MockAPI), with a "Try the
+        # demo" button on the sign-in screen. Set it to __API_BASE_URL__ once that answers.
+        APIBaseURL: "__APP_API_BASE_URL__"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        # Only HTTPS and Apple's own crypto: no export compliance paperwork for each build.
+        ITSAppUsesNonExemptEncryption: false
+    # Sign in with Apple is turned on for the App ID by the TestFlight lane itself.
+    entitlements:
+      path: __APP_TYPE__/__APP_TYPE__.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+  __APP_TYPE__Tests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: __APP_TYPE__Tests
+    dependencies:
+      - target: __APP_TYPE__
+  __APP_TYPE__UITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: __APP_TYPE__UITests
+    dependencies:
+      - target: __APP_TYPE__
+schemes:
+  __APP_TYPE__:
+    build:
+      targets:
+        __APP_TYPE__: all
+        __APP_TYPE__Tests: [test]
+        __APP_TYPE__UITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - __APP_TYPE__Tests
+        - __APP_TYPE__UITests
