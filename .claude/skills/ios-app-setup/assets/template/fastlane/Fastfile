@@ -1,0 +1,192 @@
+# TestFlight from CI, no Mac required.
+#
+# Needs these environment variables (GitHub secrets, docs/SETUP.md):
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_CONTENT   App Store Connect API key (the .p8 contents, raw or base64)
+#   APPLE_TEAM_ID                                 Developer team id
+#   MATCH_PASSWORD                                Passphrase that encrypts the signing certificate
+#   MATCH_GIT_URL, MATCH_GIT_TOKEN                The private repository holding the encrypted certificate, and a
+#                                                 fine-grained token with Contents read and write on it
+# Optional:
+#   BUILD_NUMBER (default GITHUB_RUN_NUMBER), MATCH_GIT_BRANCH (default certificates)
+
+require "base64"
+require "spaceship"
+require "tmpdir"
+
+APP_NAME = "__APP_NAME__"
+BUNDLE_ID = "__BUNDLE_ID__"
+SCHEME = "__APP_TYPE__"
+PROJECT = "__APP_TYPE__.xcodeproj"
+SKU = "__APP_SLUG__-ios"
+
+# App extensions (a widget, a share extension), each as [bundle id suffix, target, App ID name].
+# Every one needs its own App ID and profile; add it here when its target goes into project.yml.
+#   EXTENSIONS = [["widget", "__APP_TYPE__Widget", "__APP_NAME__ Widget"]]
+EXTENSIONS = []
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build the app, sign it, and upload to TestFlight"
+  lane :beta do
+    team_id = ENV["APPLE_TEAM_ID"].to_s.strip
+    extensions = EXTENSIONS.map { |suffix, target, name| ["#{BUNDLE_ID}.#{suffix}", target, name] }
+    identifiers = [BUNDLE_ID] + extensions.map(&:first)
+
+    setup_ci
+
+    # The secret may hold the .p8 file as pasted or base64 encoded; either works.
+    key_content = ENV["ASC_KEY_CONTENT"].to_s.strip
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: key_content,
+      is_key_content_base64: !key_content.start_with?("-----BEGIN")
+    )
+
+    # App IDs through Spaceship with the API key. The produce action only signs in with an
+    # Apple ID, which a runner cannot do. Idempotent: skips what exists.
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(hash: api_key)
+
+    ([[BUNDLE_ID, APP_NAME]] + extensions.map { |id, _, name| [id, name] }).each do |identifier, name|
+      if Spaceship::ConnectAPI::BundleId.find(identifier)
+        UI.message("App ID #{identifier} already exists")
+      else
+        UI.message("Creating App ID #{identifier}")
+        Spaceship::ConnectAPI::BundleId.create(name: name, platform: "IOS", identifier: identifier)
+      end
+    end
+
+    # Apple's public API can list and update apps but not create them (produce does it through an
+    # Apple ID web session, which a runner cannot open). The record is a one-minute form.
+    unless Spaceship::ConnectAPI::App.find(BUNDLE_ID)
+      UI.user_error!(<<~MSG)
+        No App Store Connect record exists for #{BUNDLE_ID} yet, and Apple's API does not allow creating one.
+        Create it once at https://appstoreconnect.apple.com/apps (plus button, New App):
+          Platforms: iOS
+          Name: #{APP_NAME} (or any name if that one is taken; it can be changed before release)
+          Primary language: English (U.S.)
+          Bundle ID: #{APP_NAME} - #{BUNDLE_ID}
+          SKU: #{SKU}
+        Then run this workflow again.
+      MSG
+    end
+
+    # Sign in with Apple on the app's App ID, through the API key, so nobody has to tick it in the
+    # developer portal. Turning a capability on makes the existing profiles invalid, so match
+    # makes new ones on that run.
+    profiles_stale = false
+    app_bundle = Spaceship::ConnectAPI::BundleId.find(BUNDLE_ID)
+    if app_bundle.get_capabilities.any? { |c| c.is_type?("APPLE_ID_AUTH") }
+      UI.message("Sign in with Apple is already on for #{BUNDLE_ID}")
+    else
+      UI.message("Turning on Sign in with Apple for #{BUNDLE_ID}")
+      begin
+        app_bundle.create_capability(
+          "APPLE_ID_AUTH",
+          settings: [{ key: "APPLE_ID_AUTH_APP_CONSENT", options: [{ key: "PRIMARY_APP_CONSENT" }] }]
+        )
+      rescue => e
+        UI.user_error!(<<~MSG)
+          Could not turn on Sign in with Apple through the API (#{e.message}).
+          Turn it on by hand: developer.apple.com, Certificates, IDs & Profiles, Identifiers,
+          #{BUNDLE_ID}, tick Sign in with Apple, Save. Then run this workflow again.
+        MSG
+      end
+      profiles_stale = true
+    end
+
+    # The distribution certificate and profiles, created on first run and kept encrypted in the
+    # private certificates repository. One repository serves every app on the team: the
+    # certificate is shared and each app adds its own profiles. GitHub ignores the username
+    # when the password is a token.
+    git_url = ENV["MATCH_GIT_URL"]
+    git_branch = ENV["MATCH_GIT_BRANCH"] || "certificates"
+    git_auth = Base64.strict_encode64("x-access-token:#{ENV['MATCH_GIT_TOKEN']}")
+
+    # Ticking rotate_signing when starting the workflow by hand revokes every distribution
+    # certificate on the team and its profiles and starts fresh, for when the encrypted store may
+    # have been exposed. Set a new MATCH_PASSWORD first; the new certificate is encrypted with it.
+    # Only a run started by hand can do this, whatever ROTATE_SIGNING says.
+    if ENV["ROTATE_SIGNING"] == "true" && ENV["GITHUB_EVENT_NAME"] == "workflow_dispatch"
+      match_nuke(
+        type: "appstore",
+        api_key: api_key,
+        team_id: team_id,
+        git_url: git_url,
+        git_branch: git_branch,
+        git_basic_authorization: git_auth,
+        skip_confirmation: true,
+        readonly: false
+      )
+    end
+
+    match(
+      type: "appstore",
+      app_identifier: identifiers,
+      api_key: api_key,
+      team_id: team_id,
+      readonly: false,
+      force: profiles_stale,
+      git_url: git_url,
+      git_branch: git_branch,
+      git_basic_authorization: git_auth
+    )
+
+    # The API key belongs to exactly one team, and the profile match just made carries its id.
+    # Trust that over the APPLE_TEAM_ID secret: Xcode only finds the profile under the right team.
+    profile_team = ENV["sigh_#{BUNDLE_ID}_appstore_team-id"].to_s.strip
+    if !profile_team.empty? && profile_team != team_id
+      UI.important("APPLE_TEAM_ID is '#{team_id}' but the signing profile belongs to team '#{profile_team}'; using '#{profile_team}'")
+      team_id = profile_team
+    end
+
+    ([[BUNDLE_ID, SCHEME]] + extensions.map { |id, target, _| [id, target] }).each do |identifier, target|
+      update_code_signing_settings(
+        path: PROJECT,
+        use_automatic_signing: false,
+        team_id: team_id,
+        code_sign_identity: "Apple Distribution",
+        targets: [target],
+        bundle_identifier: identifier,
+        profile_name: "match AppStore #{identifier}"
+      )
+    end
+
+    # Each upload needs a higher build number; the workflow run number only goes up.
+    build_number = ENV["BUILD_NUMBER"] || ENV["GITHUB_RUN_NUMBER"] || "1"
+
+    build_app(
+      project: PROJECT,
+      scheme: SCHEME,
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build/testflight",
+      # No index for an editor that will never open this build: it only costs minutes.
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} COMPILER_INDEX_STORE_ENABLE=NO",
+      export_options: {
+        provisioningProfiles: identifiers.to_h { |id| [id, "match AppStore #{id}"] }
+      }
+    )
+
+    # The name under the icon is the binary's CFBundleDisplayName. Prove the build carries the
+    # right one before it goes anywhere, and log the App Store Connect record's own name, which
+    # TestFlight shows in its list and which is separate from the one on the Home Screen.
+    ipa = lane_context[SharedValues::IPA_OUTPUT_PATH]
+    Dir.mktmpdir do |dir|
+      sh("unzip", "-q", ipa, "Payload/*.app/Info.plist", "-d", dir, log: false)
+      plist = Dir.glob(File.join(dir, "Payload", "*.app", "Info.plist")).first
+      display = sh("/usr/libexec/PlistBuddy", "-c", "Print :CFBundleDisplayName", plist, log: false).strip
+      record = Spaceship::ConnectAPI::App.find(BUNDLE_ID)&.name
+      UI.important("Home Screen name in this build: '#{display}'. App Store Connect record name: '#{record}'.")
+      UI.user_error!("This build's Home Screen name is '#{display}', not '#{APP_NAME}'.") unless display == APP_NAME
+    end
+
+    # Not waiting for processing keeps the runner minutes down; the build shows up in
+    # App Store Connect a few minutes after upload.
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end

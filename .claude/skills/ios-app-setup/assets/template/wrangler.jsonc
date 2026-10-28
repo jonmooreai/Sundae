@@ -1,0 +1,23 @@
+// __APP_NAME__'s server: one Worker and one D1 database, on Cloudflare's free plan. The code is in
+// server/api. This file sits at the top of the repository so Workers Builds can run
+// `npx wrangler deploy` from the root, with no build step (docs/SERVER.md).
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "__APP_SLUG__-api",
+  "main": "server/api/src/worker.js",
+  "compatibility_date": "__COMPAT_DATE__",
+  "workers_dev": true,
+  // No per-version preview addresses: they would be public and share the real database.
+  "preview_urls": false,
+  // The id is not a secret: only this Cloudflare account can use it.
+  "d1_databases": [{ "binding": "DB", "database_name": "__APP_SLUG__", "database_id": "__D1_DATABASE_ID__" }],
+  "vars": {
+    "APPLE_BUNDLE_ID": "__BUNDLE_ID__",
+    // "closed" once everyone invited has an account: nobody new can sign up, everyone else can sign in.
+    "SIGNUPS": "open"
+  },
+  // Clears spent nonces and old refresh tokens once a day.
+  "triggers": { "crons": ["17 9 * * *"] },
+  // Off: no request logs, so the privacy page can say the server keeps none.
+  "observability": { "enabled": false }
+}
