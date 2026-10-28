@@ -21,6 +21,12 @@ struct WidgetSnapshotTests {
         WidgetSnapshotBuilder.snapshot(at: date(day), timeZone: zone, mode: mode, catalog: catalog, shared: SharedDefaults())
     }
 
+    @Test func theWidgetWearsTheHolidayLikeTheApp() {
+        #expect(snapshot(21).piece == "Cherry", "an ordinary week")
+        #expect(snapshot(28).piece == "JackOLantern", "the week before Halloween Sunday")
+        #expect(snapshot(31).piece == "JackOLantern", "Halloween itself")
+    }
+
     @Test func sundayTurnsToTheWeeksPhotos() {
         let s = snapshot(25)
         #expect(s.mode == .sunday)

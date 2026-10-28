@@ -1,9 +1,9 @@
-import SwiftUI
+import Foundation
 
 /// Sundae's costumes: three Sundays a year dress up, the ones nearest Valentine's Day, Halloween
-/// and Christmas. A felt piece stands in for the cherry through the week before, and on the day a
-/// hello sits at the top of the feed. Read from the app's clock, so "Pretend it's Sunday" in the
-/// right week shows it.
+/// and Christmas. A felt piece stands in for the cherry through the week before, in the app and in
+/// the widget, and on the day a hello sits at the top of the feed. Read from the app's clock, so
+/// "Pretend it's Sunday" in the right week shows it.
 enum HolidaySunday: CaseIterable {
     case valentines, halloween, winter
 
@@ -88,20 +88,5 @@ enum HolidaySunday: CaseIterable {
         case .halloween: "Costumes, candy hauls and carved pumpkins: the spooky bits of your week belong here."
         case .winter: "Snow days, cookies and lights on the tree: the cozy bits of your week belong here."
         }
-    }
-}
-
-/// The cherry in costume: the holiday's felt piece. A picture, not a drawing, like the cherry, so
-/// it keeps its wool; whatever its shape, it sits centered in its square.
-struct HolidayPiece: View {
-    let holiday: HolidaySunday
-    var size: CGFloat = 30
-
-    var body: some View {
-        Image(holiday.image)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .accessibilityLabel(holiday.pieceName)
     }
 }

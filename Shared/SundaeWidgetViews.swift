@@ -75,7 +75,7 @@ struct SundaeWidgetView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
-                CherryArt(size: 22)
+                CherryArt(size: 22, image: snapshot.piece)
             }
             Spacer(minLength: 6)
             Text(snapshot.idea?.text ?? "Go make something worth posting.")
@@ -117,7 +117,7 @@ struct SundaeWidgetView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            CherryArt(size: 76)
+            CherryArt(size: 76, image: snapshot.piece)
         }
         .padding(inset)
     }
@@ -136,7 +136,7 @@ struct SundaeWidgetView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
-                CherryArt(size: 40)
+                CherryArt(size: 40, image: snapshot.piece)
             }
             .padding(.bottom, 8)
             let ideas = snapshot.list.isEmpty ? [snapshot.idea].compactMap { $0 } : snapshot.list
@@ -146,7 +146,7 @@ struct SundaeWidgetView: View {
                         .fill(Color.primary.opacity(0.08))
                         .frame(height: 0.5)
                 }
-                IdeaListRow(idea: idea, first: index == 0)
+                IdeaListRow(idea: idea)
             }
             Spacer(minLength: 0)
         }
@@ -185,7 +185,7 @@ struct SundaeWidgetView: View {
                 .padding(EdgeInsets(top: 0, leading: inset.leading - 2, bottom: inset.bottom - 4, trailing: inset.trailing))
             }
             .overlay(alignment: .topTrailing) {
-                CherryArt(size: 22)
+                CherryArt(size: 22, image: snapshot.piece)
                     .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
                     .padding(EdgeInsets(top: inset.top - 4, leading: 0, bottom: 0, trailing: inset.trailing - 4))
             }
@@ -219,7 +219,7 @@ struct SundaeWidgetView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 4)
-                CherryArt(size: 40)
+                CherryArt(size: 40, image: snapshot.piece)
             }
             if snapshot.photos.isEmpty {
                 SundaeArt()
@@ -239,7 +239,7 @@ struct SundaeWidgetView: View {
     private var sundayMedium: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                CherryArt(size: 24)
+                CherryArt(size: 24, image: snapshot.piece)
                 Spacer(minLength: 4)
                 Text("It's Sunday.")
                     .font(WidgetPalette.serif(20))
@@ -291,12 +291,13 @@ struct WidgetPhoto: View {
     }
 }
 
-/// The felt cherry from the app icon.
+/// The felt cherry from the app icon, or the holiday's felt piece standing in for it.
 struct CherryArt: View {
     var size: CGFloat = 22
+    var image = "Cherry"
 
     var body: some View {
-        Image("Cherry")
+        Image(image)
             .resizable()
             .widgetAccentedRenderingMode(.accentedDesaturated)
             .scaledToFit()
@@ -324,31 +325,26 @@ struct SundaeArt: View {
 /// that opens it in Apple Maps.
 struct IdeaListRow: View {
     let idea: Suggestion
-    var first = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
+                // Every idea the same size; a long one ends in an ellipsis instead of shrinking.
                 Text(idea.text)
-                    .font(first ? WidgetPalette.serif(17) : WidgetPalette.serif(15))
+                    .font(WidgetPalette.serif(15))
                     .lineLimit(2)
-                    .minimumScaleFactor(0.8)
+                    .truncationMode(.tail)
                 if let place = idea.place { PlaceLine(place: place) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let place = idea.place, let link = WidgetSnapshot.mapsLink(for: place) {
                 Link(destination: link) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "map.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text("Maps")
-                            .font(.caption2.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(WidgetPalette.sage, in: Capsule())
-                    .widgetAccentable()
+                    Image(systemName: "map.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        .background(WidgetPalette.sage, in: Circle())
+                        .widgetAccentable()
                 }
                 .accessibilityLabel("Open \(place.name) in Maps")
             }

@@ -29,6 +29,8 @@ public struct WidgetSnapshot: Sendable, Equatable {
     /// How many photos the library holds from Monday until now.
     public var weekPhotoCount: Int
     public var hasPosted: Bool
+    /// The felt piece in the cherry's place: the cherry, or a holiday's, on the same days as the app.
+    public var piece: String = "Cherry"
 
     /// "4 days to Sunday", "Sunday is tomorrow".
     public var countdown: String {
@@ -98,7 +100,17 @@ public enum WidgetSnapshotBuilder {
             upcoming: upcoming(after: date, clock: clock, catalog: catalog),
             photos: photos.thumbnails,
             weekPhotoCount: photos.count,
-            hasPosted: posted)
+            hasPosted: posted,
+            piece: piece(at: date, clock: clock, mode: resolved))
+    }
+
+    /// The cherry, or a holiday's felt piece in its place, as in the app: all through the week
+    /// before a holiday Sunday, and on the Sunday itself.
+    static func piece(at date: Date, clock: SundayClock, mode: WidgetSnapshot.Mode) -> String {
+        let holiday = mode == .sunday
+            ? HolidaySunday.on(date, calendar: clock.calendar)
+            : HolidaySunday.during(weekStartingOn: clock.weekStart(), calendar: clock.calendar)
+        return holiday?.image ?? "Cherry"
     }
 
     /// The idea the app is showing today: the one picked or shuffled to, a nearby one if the
