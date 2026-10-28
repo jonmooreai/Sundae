@@ -54,6 +54,7 @@ struct UsernameView: View {
             .buttonBorderShape(.capsule)
             .controlSize(.large)
             .disabled(isWorking || username.count < 2)
+            .accessibilityIdentifier("create-account")
 
             Button("Back") { model.cancelSignUp() }
                 .frame(maxWidth: .infinity)

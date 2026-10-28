@@ -58,6 +58,7 @@ struct HomeView: View {
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.capsule)
                     .disabled(isSaving || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("add-note")
             }
             if let errorMessage {
                 Text(errorMessage)

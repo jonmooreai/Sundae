@@ -26,7 +26,7 @@ final class ScreenshotTests: XCTestCase {
             "-mockAPI",
             "-AppleLanguages", "(en)",
             "-AppleLocale", "en_US",
-            "-AppleInterfaceStyle", appearance == "dark" ? "Dark" : "Light",
+            "-appearance", appearance,
         ]
         app.launch()
         return app
@@ -49,27 +49,34 @@ final class ScreenshotTests: XCTestCase {
 
     func testSignUpAndHome() {
         let app = launch()
-        let demo = app.buttons["Try the demo"]
+        let demo = app.buttons["Try the demo"].firstMatch
         XCTAssertTrue(demo.waitForExistence(timeout: 10))
         snap(app, "01-sign-in")
 
         demo.tap()
-        let username = app.textFields["username"]
+        let username = app.textFields["username"].firstMatch
         XCTAssertTrue(username.waitForExistence(timeout: 5))
         username.typeText("patdoe")
         snap(app, "02-username")
-        app.buttons["Continue"].tap()
+        // By identifier: the keyboard can show a key with the same label.
+        app.buttons["create-account"].firstMatch.tap()
 
-        let note = app.textFields["Write a note"]
+        let note = app.textFields["Write a note"].firstMatch
         XCTAssertTrue(note.waitForExistence(timeout: 5))
         snap(app, "03-home-empty")
         note.tap()
         note.typeText("Call Pat at 555-0100")
-        app.buttons["Add"].tap()
+        app.buttons["add-note"].firstMatch.tap()
         snap(app, "04-home")
 
         app.buttons["Settings"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["Sign out"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Sign out"].firstMatch.waitForExistence(timeout: 5))
         snap(app, "05-settings")
+    }
+
+    func testDarkMode() {
+        let app = launch(appearance: "dark")
+        XCTAssertTrue(app.buttons["Try the demo"].firstMatch.waitForExistence(timeout: 10))
+        snap(app, "06-sign-in-dark")
     }
 }
