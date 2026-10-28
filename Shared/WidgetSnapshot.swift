@@ -189,17 +189,21 @@ public enum WidgetPhotos {
         let request = PHImageRequestOptions()
         request.isSynchronous = true
         request.deliveryMode = .highQualityFormat
-        request.resizeMode = .fast
+        // Exactly the size asked for, never a bigger picture to shrink later.
+        request.resizeMode = .exact
         request.isNetworkAccessAllowed = false
         var thumbnails: [Data] = []
         for asset in picks {
-            // Synchronous request: the handler runs before requestImage returns.
-            let box = DataBox()
-            manager.requestImage(for: asset, targetSize: CGSize(width: side, height: side),
-                                 contentMode: .aspectFill, options: request) { image, _ in
-                box.data = image?.jpegData(compressionQuality: 0.8)
+            // Each picture let go before the next, so they are never all in memory at once.
+            autoreleasepool {
+                // Synchronous request: the handler runs before requestImage returns.
+                let box = DataBox()
+                manager.requestImage(for: asset, targetSize: CGSize(width: side, height: side),
+                                     contentMode: .aspectFill, options: request) { image, _ in
+                    box.data = image?.jpegData(compressionQuality: 0.8)
+                }
+                if let data = box.data { thumbnails.append(data) }
             }
-            if let data = box.data { thumbnails.append(data) }
         }
         return (thumbnails, count)
     }
