@@ -163,9 +163,9 @@ struct WeekdayView: View {
                     .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
                     Text(suggestion.text)
-                        .font(Theme.display(verticalSizeClass == .compact ? 28 : 36))
-                        // Lines set close, so a headline of two or three lines reads as one.
-                        .lineHeight(.multiple(factor: 1.05))
+                        // The font's own tight leading sets the lines close, so a headline of two or
+                        // three lines reads as one, and still leaves room for a y or a comma to hang.
+                        .font(Theme.display(verticalSizeClass == .compact ? 28 : 36).leading(.tight))
                         .minimumScaleFactor(0.6)
                     Text(suggestion.reason)
                         .font(.title3)
