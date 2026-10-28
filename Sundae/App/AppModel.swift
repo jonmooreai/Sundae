@@ -73,9 +73,13 @@ final class AppModel {
     private(set) var appearance: Appearance
     private(set) var debugDay: DebugDay
     /// An admin's look at a holiday's week and Sunday on any day, until set back. Never saved.
-    var holidayPreview: HolidaySunday?
+    var holidayPreview: HolidaySunday? {
+        didSet { syncWidgetPiece() }
+    }
     /// An admin's look at their birthday week, until switched off. Never saved.
-    var birthdayWeekPreview = false
+    var birthdayWeekPreview = false {
+        didSet { syncWidgetPiece() }
+    }
     /// Set by a view that wants the shell to switch tabs (the profile's "Post your week" card).
     var requestedTab: SundayTab?
     /// Goes up when the user removes a follower or follows or unfollows someone, so a profile
@@ -117,6 +121,20 @@ final class AppModel {
     var isBirthdayWeek: Bool {
         (canChangeDay && birthdayWeekPreview) || MomentMemory.isBirthdayWeek(startingOn: currentWeekStart, calendar: clock.calendar)
     }
+    /// What stands in the cherry's place today: the birthday sundae all your birthday week, a
+    /// holiday's felt piece in its week, or the cherry. The widget wears the same one.
+    var pieceImage: String {
+        if isBirthdayWeek { return CherryMark.birthday }
+        return (isSunday ? holidayToday : holidayThisWeek)?.image ?? "Cherry"
+    }
+
+    /// Hands the piece to the widget, and has the widget redrawn when it changed.
+    func syncWidgetPiece() {
+        if shared.setPiece(pieceImage, forWeekStarting: currentWeekStart) {
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+    }
+
     /// The holiday this week dresses up as, for the weekday screen: the real one, or an admin's preview.
     var holidayThisWeek: HolidaySunday? {
         if canChangeDay, let holidayPreview { return holidayPreview }
@@ -259,6 +277,7 @@ final class AppModel {
         let next: DayPhase = clock.isSunday() ? .sunday : .weekday(daysUntilSunday: clock.daysUntilSunday())
         if next != phase { WidgetCenter.shared.reloadAllTimelines() }
         phase = next
+        syncWidgetPiece()
         boundaryTask?.cancel()
         let interval = max(1, clock.nextBoundary().timeIntervalSince(clock.now()))
         boundaryTask = Task { [weak self] in

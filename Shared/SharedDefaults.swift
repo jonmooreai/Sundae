@@ -31,6 +31,8 @@ public struct SharedDefaults: @unchecked Sendable {
         static let localIdeasDay = "weekday.localIdeasDay"
         static let localIdeasFetchedAt = "weekday.localIdeasFetchedAt"
         static let localDone = "weekday.localDone"
+        static let piece = "app.piece"
+        static let pieceWeekStart = "app.pieceWeekStart"
     }
 
     /// The suggestion the user is currently looking at, valid only for the day it was chosen.
@@ -64,6 +66,28 @@ public struct SharedDefaults: @unchecked Sendable {
     public var postedWeekStart: Date? {
         get { defaults.object(forKey: Key.postedWeekStart) as? Date }
         nonmutating set { defaults.set(newValue, forKey: Key.postedWeekStart) }
+    }
+
+    // MARK: The cherry's stand-in
+
+    /// The felt piece the app shows in the cherry's place this week (the cherry, a holiday's or
+    /// the birthday sundae, an admin's preview included), so the widget wears the same one. Only
+    /// the picture's name is kept, with its week; another week the widget works it out itself.
+    public func piece(forWeekStarting weekStart: Date, calendar: Calendar) -> String? {
+        guard let stored = defaults.object(forKey: Key.pieceWeekStart) as? Date,
+              calendar.isDate(stored, inSameDayAs: weekStart) else { return nil }
+        return defaults.string(forKey: Key.piece)
+    }
+
+    /// Keeps it. True when it changed, so the widget is redrawn only when it has to be.
+    @discardableResult
+    public func setPiece(_ name: String, forWeekStarting weekStart: Date) -> Bool {
+        guard defaults.string(forKey: Key.piece) != name || (defaults.object(forKey: Key.pieceWeekStart) as? Date) != weekStart else {
+            return false
+        }
+        defaults.set(name, forKey: Key.piece)
+        defaults.set(weekStart, forKey: Key.pieceWeekStart)
+        return true
     }
 
     // MARK: Ideas near you

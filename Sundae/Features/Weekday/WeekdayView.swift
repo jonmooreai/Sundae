@@ -91,18 +91,11 @@ struct WeekdayView: View {
 
     // MARK: - Pieces
 
-    /// The cherry, or what stands in for it: the birthday sundae all your birthday week, or a
-    /// holiday's felt piece through the week before its Sunday.
-    private var pieceImage: String {
-        if model.isBirthdayWeek { return CherryMark.birthday }
-        return model.holidayThisWeek?.image ?? "Cherry"
-    }
-
     /// The cherry in the middle; Your week up in the left corner and Settings in the right, out of its way.
     private var topBar: some View {
         ZStack(alignment: .top) {
             // Big enough to want to tap; smaller when a phone on its side has little height to spare.
-            TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96, image: pieceImage).wobbleOnTap()
+            TiltingCherry(size: verticalSizeClass == .compact ? 64 : 96, image: model.pieceImage).wobbleOnTap()
                 .padding(.top, 12)
                 .frame(maxWidth: .infinity)
 

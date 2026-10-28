@@ -101,11 +101,11 @@ public enum WidgetSnapshotBuilder {
             photos: photos.thumbnails,
             weekPhotoCount: photos.count,
             hasPosted: posted,
-            piece: piece(at: date, clock: clock, mode: resolved))
+            piece: shared.piece(forWeekStarting: clock.weekStart(), calendar: calendar) ?? piece(at: date, clock: clock, mode: resolved))
     }
 
-    /// The cherry, or a holiday's felt piece in its place, as in the app: all through the week
-    /// before a holiday Sunday, and on the Sunday itself.
+    /// When the app has not said (a week it was not opened), the cherry, or a holiday's felt piece
+    /// in its place, as in the app: all through the week before a holiday Sunday, and on the day.
     static func piece(at date: Date, clock: SundayClock, mode: WidgetSnapshot.Mode) -> String {
         let holiday = mode == .sunday
             ? HolidaySunday.on(date, calendar: clock.calendar)
