@@ -21,7 +21,7 @@ struct OnboardingIntro: View {
     static let feltTop = Color(red: 233 / 255, green: 223 / 255, blue: 210 / 255)
     static let feltBottom = Color(red: 228 / 255, green: 218 / 255, blue: 206 / 255)
     /// The words on the felt: a warm near-black, the same in any appearance.
-    private static let ink = Color(red: 38 / 255, green: 33 / 255, blue: 29 / 255)
+    private static let ink = Color(red: 26 / 255, green: 22 / 255, blue: 19 / 255)
     /// Where the finished sundae sits in the film, as fractions of its height: the tip of the
     /// cherry's stem to the bowl's foot. And how much of the film's width the bowl takes.
     private static let sundaeTop: CGFloat = 0.24
