@@ -3,8 +3,8 @@ import Combine
 import SwiftUI
 import UIKit
 
-/// The first thing anyone sees: the felt sundae building itself, bowl to cherry, in ten seconds,
-/// filling the screen. When it ends, the finished sundae rises and settles between the title and
+/// The first thing anyone sees: the felt sundae building itself in its blue bowl, scoops to
+/// cherry, in ten seconds, filling the screen. When it ends, the finished sundae rises and settles between the title and
 /// Begin, and the felt comes up at the foot of the screen so the words read clearly. A tap skips
 /// to the end. With Reduce Motion or VoiceOver on, the finished sundae shows as a still, in place.
 /// The sound plays even with the ring switch on silent, lowering any music for the ten seconds.
@@ -16,13 +16,15 @@ struct OnboardingIntro: View {
     @State private var skipped = false
     @State private var finished = false
 
-    /// The felt at the top and the foot of the film, so the space around it carries on.
-    static let feltTop = Color(red: 229 / 255, green: 221 / 255, blue: 205 / 255)
-    static let feltBottom = Color(red: 210 / 255, green: 199 / 255, blue: 182 / 255)
-    /// Where the sundae sits in the film, as fractions of its height: the cherry's stem to the
-    /// bowl's foot.
-    private static let sundaeTop: CGFloat = 0.18
-    private static let sundaeBottom: CGFloat = 0.92
+    /// The felt at the top and the foot of the film, measured from its middle, so the space around
+    /// it carries on.
+    static let feltTop = Color(red: 233 / 255, green: 223 / 255, blue: 210 / 255)
+    static let feltBottom = Color(red: 228 / 255, green: 218 / 255, blue: 206 / 255)
+    /// Where the finished sundae sits in the film, as fractions of its height: the tip of the
+    /// cherry's stem to the bowl's foot. And how much of the film's width the bowl takes.
+    private static let sundaeTop: CGFloat = 0.24
+    private static let sundaeBottom: CGFloat = 0.83
+    private static let sundaeWidth: CGFloat = 0.76
     /// Room inside the safe area for the title above the sundae, and the line and Begin below it.
     private static let titleRoom: CGFloat = 70
     private static let buttonsRoom: CGFloat = 124
@@ -86,7 +88,7 @@ struct OnboardingIntro: View {
             let bottom = size.height - safeArea.bottom - Self.buttonsRoom
             let span: CGFloat = (Self.sundaeBottom - Self.sundaeTop) * size.height
             let fitsHeight: CGFloat = (bottom - top) / span
-            let fitsWidth: CGFloat = size.width * 0.96 / (0.8 * width)
+            let fitsWidth: CGFloat = size.width * 0.96 / (Self.sundaeWidth * width)
             let shrink: CGFloat = min(1, max(0.3, fitsHeight), fitsWidth)
             // Moves the sundae's middle to the middle of the space between the title and Begin.
             let sundaeMiddle: CGFloat = ((Self.sundaeTop + Self.sundaeBottom) / 2 - 0.5) * size.height * shrink
@@ -152,7 +154,7 @@ struct OnboardingIntro: View {
         } else if let player {
             FilmView(player: player)
         } else {
-            // The film opens on empty felt, so the felt behind it stands in until it starts.
+            // Until the film's first frame is ready, the felt behind it stands in.
             Color.clear
         }
     }
