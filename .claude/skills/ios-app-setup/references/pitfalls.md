@@ -71,9 +71,10 @@ something only in Debug passes CI and is missing on the phone.
   roll with `xcrun simctl addmedia`.
 - **Element not found** after layout changes: give important controls a stable
   `accessibilityIdentifier` and wait with `waitForExistence(timeout:)`.
-- **`Multiple matching elements found`** when tapping by label (the template's own first run hit
-  this with "Continue" while the keyboard was up): tap by `accessibilityIdentifier`, and add
-  `.firstMatch` to every query.
+- **`Multiple matching elements found`** when tapping by label: the first time a keyboard
+  appears on a fresh simulator, iOS shows a "slide to type" tip with its own **Continue**
+  button, which collided with the template's own Continue on its first run. Tap by
+  `accessibilityIdentifier`, and add `.firstMatch` to every query.
 - **Attachment names with quotes** broke the artifact upload; name screenshots
   `<device>-<nn>-<name>.png` with plain characters only (the collector keeps only those).
 
