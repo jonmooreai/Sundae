@@ -3,7 +3,7 @@ import SwiftUI
 /// Horizontally paged photos with a page indicator. Tag chips appear on tap, not by default,
 /// so photos stay clean. Every photo shows whole, never cut off: the frame takes the shape of the
 /// tallest photo (no taller than 3:4, no wider than 3:2, so the feed stays scannable), and any
-/// photo of another shape sits inside it on a soft mat.
+/// photo of another shape sits inside it with black bars.
 struct PhotoCarousel: View {
     let photos: [Photo]
     @Binding var index: Int
@@ -18,6 +18,8 @@ struct PhotoCarousel: View {
     var tagsLinkToProfiles = false
 
     @State private var showTags = false
+    /// Captions float over the photos until a tap puts them away; another tap brings them back.
+    @State private var captionsHidden = false
     @State private var burst = 0
     @State private var screenFrame = ScreenFrame()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -26,6 +28,11 @@ struct PhotoCarousel: View {
     private var aspect: CGFloat {
         min(max(photos.map(\.aspectRatio).min() ?? 1, 0.75), 1.5)
     }
+
+    private var hasCaptions: Bool { photos.contains { !($0.caption ?? "").isEmpty } }
+
+    /// A little above the page dots, or near the foot when there is only one photo and no dots.
+    private var captionLift: CGFloat { photos.count > 1 ? 36 : 14 }
 
     var body: some View {
         TabView(selection: $index) {
@@ -62,7 +69,7 @@ struct PhotoCarousel: View {
             .accessibilityAction(named: "Show tagged friends") { toggleTags() }
     }
 
-    /// The photo and its tags.
+    /// The photo, its caption and its tags.
     private func face(_ photo: Photo) -> some View {
         ZStack(alignment: .bottomLeading) {
             PhotoView(source: photo.source, contentMode: .fit)
@@ -79,10 +86,26 @@ struct PhotoCarousel: View {
                 .padding(10)
             }
         }
+        .overlay(alignment: .bottom) {
+            if let caption = photo.caption, !caption.isEmpty, !captionsHidden {
+                FloatingCaption(text: caption)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, captionLift)
+                    .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.opacity.combined(with: .offset(y: 18)))
+            }
+        }
     }
 
+    /// With captions, a tap puts them away or brings them back. Without, it opens the post (in
+    /// the feed) or shows who is tagged.
     private func singleTap() {
-        if let onTap { onTap(index) } else { toggleTags() }
+        if hasCaptions {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .snappy(duration: 0.3)) { captionsHidden.toggle() }
+        } else if let onTap {
+            onTap(index)
+        } else {
+            toggleTags()
+        }
     }
 
     private func doubleTap() {
@@ -111,29 +134,35 @@ struct PhotoCarousel: View {
     }
 }
 
-/// The caption of the photo being looked at, under the photos. It changes as they are swiped,
-/// and takes no room when a photo has none.
-struct PhotoCaptionLine: View {
-    let photos: [Photo]
-    let page: Int
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+/// A photo's caption floating over it: white on soft black, hugging its words up to a width and
+/// wrapping past it. A pill when it fits on one line, a rounded card when it wraps. Read with
+/// the photo itself, so VoiceOver does not say it twice.
+struct FloatingCaption: View {
+    let text: String
+    static let maxWidth: CGFloat = 300
+    private static let fill = Color.black.opacity(0.55)
 
     var body: some View {
-        let caption = photos.indices.contains(page) ? (photos[page].caption ?? "") : ""
-        Group {
-            if !caption.isEmpty {
-                Text(caption)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .id(caption)
-                    .transition(.opacity)
-                    // Read with the photo itself, so VoiceOver does not say it twice.
-                    .accessibilityHidden(true)
-            }
+        ViewThatFits(in: .horizontal) {
+            label
+                .lineLimit(1)
+                .fixedSize()
+                .background(Self.fill, in: Capsule())
+            label
+                .fixedSize(horizontal: false, vertical: true)
+                .background(Self.fill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: caption)
+        .frame(maxWidth: Self.maxWidth)
+        .accessibilityHidden(true)
+    }
+
+    private var label: some View {
+        Text(text)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
     }
 }
 

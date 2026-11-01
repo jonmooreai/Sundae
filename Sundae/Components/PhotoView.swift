@@ -49,14 +49,20 @@ enum ImageCache {
 
 /// Draws any `PhotoSource` in its container, which decides the size. `.fill` (the default, for
 /// thumbnails and grids) covers it and clips the rest; `.fit` shows the whole photo, never cut
-/// off, on the surface colour wherever its shape differs from the container's.
+/// off, on black bars wherever its shape differs from the container's, the way photos are shown
+/// everywhere else on a phone.
 struct PhotoView: View {
     let source: PhotoSource
     var contentMode: ContentMode = .fill
 
+    /// Behind the photo: black bars around a fitted one, the soft surface under a thumbnail.
+    static func matte(for contentMode: ContentMode) -> Color {
+        contentMode == .fit ? .black : Theme.surface
+    }
+
     var body: some View {
         Rectangle()
-            .fill(Theme.surface)
+            .fill(Self.matte(for: contentMode))
             .overlay { content }
             .clipped()
     }
@@ -89,7 +95,7 @@ private struct DownsampledImage: View {
         GeometryReader { geo in
             let request = Request(source: source, size: PixelSize(geo.size, scale: displayScale))
             ZStack {
-                Theme.surface
+                PhotoView.matte(for: contentMode)
                 if let image {
                     Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
                 }

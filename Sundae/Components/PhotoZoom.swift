@@ -1,9 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// Pinch a photo in a post to look closer. It lifts above everything else on screen, grows and
-/// moves with both fingers, and settles back into its place when they let go, the way photos do
-/// in Messages and Instagram. One per window: `SundayShell` holds it and draws `PhotoZoomLayer`.
+/// Pinch a photo in a post to look closer. It lifts above everything else on screen and grows and
+/// moves with both fingers. Lift one and the other moves it around at that size; put it back down
+/// to pinch again. It settles back into its place when every finger lets go, the way photos do in
+/// Messages and Instagram. One per window: `SundayShell` holds it and draws `PhotoZoomLayer`.
 @MainActor
 @Observable
 final class PhotoZoom {
@@ -150,29 +151,69 @@ private struct PinchToZoom: ViewModifier {
 }
 
 /// UIKit's own pinch: it reports where the fingers are as they move, which SwiftUI's does not,
-/// and once it starts it keeps the photos from paging and the feed from scrolling under it.
+/// and once it starts it keeps the photos from paging and the feed from scrolling under it. It
+/// carries on while one finger stays down, which is what lets one finger pan a zoomed photo.
 private struct PinchRecognizer: UIGestureRecognizerRepresentable {
     let onBegin: (CGPoint) -> Void
     let onChange: (CGFloat, CGPoint) -> Void
     let onEnd: () -> Void
 
-    func makeUIGestureRecognizer(context: Context) -> UIPinchGestureRecognizer {
-        UIPinchGestureRecognizer()
+    func makeUIGestureRecognizer(context: Context) -> SteadyPinch {
+        SteadyPinch()
     }
 
-    func handleUIGestureRecognizerAction(_ recognizer: UIPinchGestureRecognizer, context: Context) {
-        let point = context.converter.location(in: .global)
+    func handleUIGestureRecognizerAction(_ recognizer: SteadyPinch, context: Context) {
+        let raw = context.converter.location(in: .global)
         switch recognizer.state {
         case .began:
-            onBegin(point)
-            onChange(recognizer.scale, point)
+            recognizer.start(at: raw)
+            onBegin(raw)
+            onChange(recognizer.zoom, raw)
         case .changed:
-            // One finger lifted: let go now, before the photo jumps to the finger that's left.
-            if recognizer.numberOfTouches < 2 { onEnd() } else { onChange(recognizer.scale, point) }
+            let (scale, point) = recognizer.follow(raw)
+            onChange(scale, point)
         case .ended, .cancelled, .failed:
             onEnd()
         default:
             break
         }
+    }
+}
+
+/// A pinch that keeps the photo steady when a finger lifts or comes back down. UIKit reports the
+/// middle of the fingers that are down, so that point leaps when their number changes, and its
+/// scale needs two fingers. Here both carry on from where they were at that moment: with one
+/// finger the photo keeps its size and follows it, and a second finger picks the pinch back up.
+private final class SteadyPinch: UIPinchGestureRecognizer {
+    private(set) var zoom: CGFloat = 1
+    private var fingers = 0
+    private var point: CGPoint = .zero
+    /// Added to UIKit's point, so the photo stays put when the fingers change.
+    private var shift: CGPoint = .zero
+    /// The photo's size, and UIKit's scale, when the fingers last changed.
+    private var zoomBase: CGFloat = 1
+    private var scaleBase: CGFloat = 1
+
+    func start(at raw: CGPoint) {
+        fingers = numberOfTouches
+        point = raw
+        shift = .zero
+        zoomBase = 1
+        scaleBase = scale > 0 ? scale : 1
+        zoom = 1
+    }
+
+    func follow(_ raw: CGPoint) -> (CGFloat, CGPoint) {
+        if numberOfTouches != fingers {
+            fingers = numberOfTouches
+            shift = CGPoint(x: point.x - raw.x, y: point.y - raw.y)
+            zoomBase = zoom
+            scaleBase = scale > 0 ? scale : 1
+        }
+        point = CGPoint(x: raw.x + shift.x, y: raw.y + shift.y)
+        if fingers >= 2 {
+            zoom = min(max(zoomBase * scale / scaleBase, 0.85), PhotoZoom.maxScale)
+        }
+        return (zoom, point)
     }
 }
