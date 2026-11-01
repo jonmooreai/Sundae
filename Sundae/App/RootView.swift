@@ -186,7 +186,7 @@ struct SundaeTabBar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Post your week")
+            .accessibilityLabel("Share your week")
             .accessibilityIdentifier("tab-post")
             item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
             profileItem

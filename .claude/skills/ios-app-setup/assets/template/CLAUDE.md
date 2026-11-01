@@ -23,7 +23,9 @@ docs/SERVER.md before changing the server.
   Apple's own apps: system controls, generous spacing, separation from whitespace and fills
   rather than borders, and never a thick border on one side of a container. Every colour lives
   in `Core/Theme.swift` or the asset catalog with a dark value.
-- **Plain words** in the UI: short, specific and kind. Errors say what to do next.
+- **Warm words** in the UI: cozy, friendly, genuine, like a friend talking. Short, specific and
+  kind, never cold or system-speak ("Thanks for sharing your week", not "Your week is up").
+  Errors say what happened and what to do next, gently.
 - **Made-up people only** in examples, tests and screenshots: Pat Doe, 555 numbers.
 
 ## No Mac here

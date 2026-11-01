@@ -395,11 +395,11 @@ struct OnboardingView: View {
     /// here with the reason beside it; iOS's prompt comes after the yes. No changes nothing.
     private var reminders: some View {
         VStack(alignment: .leading, spacing: 20) {
-            heading("Sunday reminders?", "Sundae opens once a week, so a nudge helps. It sends two, and only on Sunday.")
+            heading("Sunday reminders?", "Sundae opens once a week, so a friendly nudge helps. Just two, and only on Sundays.")
 
             VStack(alignment: .leading, spacing: 16) {
-                valueRow(Glyph.bell, "Sunday, 9:00 am", "Sunday is here. Time to post your week.", index: 0)
-                valueRow(Glyph.moon, "Sunday, 8:00 pm", "A last call, only if you haven't posted. Your week closes at midnight.", index: 1)
+                valueRow(Glyph.bell, "Sunday, 9:00 am", "Happy Sunday. Come share your week.", index: 0)
+                valueRow(Glyph.moon, "Sunday, 8:00 pm", "A gentle evening nudge, only if you haven't shared yet. Your week stays open until midnight.", index: 1)
                 valueRow(Glyph.block, "Nothing midweek", "No nudges the rest of the week. Change either one any time in Settings.", index: 2)
             }
 

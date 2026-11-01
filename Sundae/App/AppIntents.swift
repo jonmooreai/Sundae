@@ -10,7 +10,7 @@ struct ShowSuggestionIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let clock = SundayClock()
         if clock.isSunday() {
-            return .result(dialog: "It's Sunday. Post your week.")
+            return .result(dialog: "It's Sunday. Come share your week.")
         }
         let now = clock.now()
         let catalog = SuggestionCatalog.bundled()

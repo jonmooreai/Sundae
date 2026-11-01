@@ -44,12 +44,12 @@ struct WidgetSnapshotTests {
     @Test func fridayLooksAheadToSunday() {
         let s = snapshot(23)
         #expect(s.upcoming.count == 2)
-        #expect(s.upcoming.last?.text == "Post your week.")
+        #expect(s.upcoming.last?.text == "Share your week.")
     }
 
     @Test func saturdayOnlyHasSundayLeft() {
         let s = snapshot(24)
-        #expect(s.upcoming.map(\.text) == ["Post your week."])
+        #expect(s.upcoming.map(\.text) == ["Share your week."])
         #expect(s.countdown == "Sunday is tomorrow")
     }
 

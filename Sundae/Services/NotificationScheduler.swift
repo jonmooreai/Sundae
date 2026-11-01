@@ -30,8 +30,8 @@ enum NotificationScheduler {
 
         if reminder {
             let content = UNMutableNotificationContent()
-            content.title = "Sunday is here"
-            content.body = "Post your week."
+            content.title = "Happy Sunday"
+            content.body = "Come share your week. Your friends would love to see it."
             content.sound = .default
             var components = DateComponents()
             components.weekday = 1
@@ -41,8 +41,8 @@ enum NotificationScheduler {
         }
         if lastCall {
             let content = UNMutableNotificationContent()
-            content.title = "Last call"
-            content.body = "Your week closes at midnight."
+            content.title = "Still time to share"
+            content.body = "Your week stays open until midnight. We'd love to see it."
             content.sound = .default
             var components = DateComponents()
             components.weekday = 1

@@ -72,10 +72,10 @@ struct PeopleListView: View {
                  ? "Their weeks leave your feed. You can follow again any time."
                  : "Their weeks leave your feed. Their account is private, so following again is a new request.")
         }
-        .alert("Couldn't reach Sundae", isPresented: $actionFailed) {
+        .alert("We couldn't reach Sundae", isPresented: $actionFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Nothing changed. Try again when you're online.")
+            Text("Nothing changed. Give it another try once you're online.")
         }
     }
 
@@ -132,7 +132,7 @@ struct PeopleListView: View {
                            message: emptyText)
             }
         } else if loadFailed {
-            EmptyState(message: "Couldn't load them. Check your connection.") {
+            EmptyState(message: "We couldn't load them. Check your connection and try again.") {
                 Button("Try again") { Task { await load() } }
                     .buttonStyle(.pill(.secondary, size: .small))
             }
