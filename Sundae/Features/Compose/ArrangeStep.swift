@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// Step two: see each photo large, give it a caption, tag the friends who were there, fix the order.
@@ -21,6 +22,8 @@ struct ArrangeStep: View {
     @State private var altPhoto: DraftPhoto?
     @State private var showReorder = false
     @State private var confirmDelete = false
+    @State private var showsPhotosPicker = false
+    @State private var showsCamera = false
 
     private var compose: ComposeStore { model.compose }
     private var photos: [DraftPhoto] { compose.draft.photos }
@@ -108,7 +111,7 @@ struct ArrangeStep: View {
             TabView(selection: $page) {
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                     PhotoView(source: photo.source)
-                        .aspectRatio(min(max(CGFloat(photo.width) / CGFloat(max(photo.height, 1)), 0.8), 1.25), contentMode: .fit)
+                        .aspectRatio(Self.shape(of: photo), contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .overlay(alignment: .bottomLeading) {
                             // A few faces and a short line, never one chip per person.
@@ -193,6 +196,12 @@ struct ArrangeStep: View {
         }
     }
 
+    /// The photo's own width to height, so the frame is exactly its shape and nothing is cut off.
+    private static func shape(of photo: DraftPhoto) -> CGFloat {
+        guard photo.width > 0, photo.height > 0 else { return 1 }
+        return CGFloat(photo.width) / CGFloat(photo.height)
+    }
+
     private func action(_ title: String, _ glyph: Ph, _ perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
             HStack(spacing: 6) {
@@ -219,15 +228,14 @@ struct ArrangeStep: View {
                         .accessibilityLabel("Photo \(index + 1)")
                 }
                 if compose.draft.canAddMore {
-                    Button {
-                        addMore()
+                    Menu {
+                        addChoices
                     } label: {
                         Icon(Glyph.plus, weight: .bold, size: 20)
                             .foregroundStyle(.secondary)
                             .frame(width: 60, height: 60)
                             .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel("Add more photos")
                 }
             }
@@ -235,6 +243,7 @@ struct ArrangeStep: View {
         }
         .scrollIndicators(.hidden)
         .frame(height: 64)
+        .photoSources(compose: compose, showsPicker: $showsPhotosPicker, showsCamera: $showsCamera)
     }
 
     private var empty: some View {
@@ -242,10 +251,29 @@ struct ArrangeStep: View {
             PhotoStackIcon(size: 64)
             Text("No photos yet")
                 .font(.title3.weight(.semibold))
-            PrimaryButton(title: "Add photos") { addMore() }
+            PrimaryButton(title: "Add this week's photos") { addMore() }
                 .padding(.horizontal, 40)
+            VStack(spacing: 4) {
+                Button("Choose from Photos") { showsPhotosPicker = true }
+                    .buttonStyle(.pill(.quiet))
+                if CameraCapture.isAvailable {
+                    Button("Take a photo") { showsCamera = true }
+                        .buttonStyle(.pill(.quiet))
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .photoSources(compose: compose, showsPicker: $showsPhotosPicker, showsCamera: $showsCamera)
+    }
+
+    /// Where more photos can come from: the week's grid, any album, or the camera.
+    @ViewBuilder
+    private var addChoices: some View {
+        Button { addMore() } label: { Label { Text("This week's photos") } icon: { Glyph.calendar.regular } }
+        Button { showsPhotosPicker = true } label: { Label { Text("Choose from Photos") } icon: { Glyph.photos.regular } }
+        if CameraCapture.isAvailable {
+            Button { showsCamera = true } label: { Label { Text("Take a photo") } icon: { Glyph.camera.regular } }
+        }
     }
 
     /// Back to the picker when it is already in the chain, otherwise forward to it.

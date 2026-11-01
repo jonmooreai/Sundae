@@ -47,9 +47,12 @@ enum ImageCache {
     }
 }
 
-/// Draws any `PhotoSource` filling its container, clipped. The container decides the size.
+/// Draws any `PhotoSource` in its container, which decides the size. `.fill` (the default, for
+/// thumbnails and grids) covers it and clips the rest; `.fit` shows the whole photo, never cut
+/// off, on the surface colour wherever its shape differs from the container's.
 struct PhotoView: View {
     let source: PhotoSource
+    var contentMode: ContentMode = .fill
 
     var body: some View {
         Rectangle()
@@ -62,7 +65,7 @@ struct PhotoView: View {
     private var content: some View {
         switch source {
         case .remote, .data:
-            DownsampledImage(source: source)
+            DownsampledImage(source: source, contentMode: contentMode)
         case .placeholder(let seed):
             PlaceholderPhoto(seed: seed)
         }
@@ -72,6 +75,7 @@ struct PhotoView: View {
 /// Loads at the size it is drawn, and again only if that size grows past the next step.
 private struct DownsampledImage: View {
     let source: PhotoSource
+    let contentMode: ContentMode
     @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
     @State private var shown: PhotoSource?
@@ -87,7 +91,7 @@ private struct DownsampledImage: View {
             ZStack {
                 Theme.surface
                 if let image {
-                    Image(uiImage: image).resizable().scaledToFill()
+                    Image(uiImage: image).resizable().aspectRatio(contentMode: contentMode)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)

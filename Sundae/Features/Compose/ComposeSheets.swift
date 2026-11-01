@@ -22,8 +22,8 @@ struct TagPickerSheet: View {
         NavigationStack {
             List {
                 Section {
-                    PhotoView(source: photo.source)
-                        .frame(height: 180)
+                    PhotoView(source: photo.source, contentMode: .fit)
+                        .frame(height: 220)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.smallRadius, style: .continuous))
                         .listRowInsets(EdgeInsets())
                         .listRowBackground(Color.clear)
@@ -128,8 +128,8 @@ struct AltTextSheet: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 16) {
-                PhotoView(source: photo.source)
-                    .frame(height: 220)
+                PhotoView(source: photo.source, contentMode: .fit)
+                    .frame(height: 260)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                 TextField("Describe the photo for people who can't see it", text: $text, axis: .vertical)
                     .lineLimit(2...5)

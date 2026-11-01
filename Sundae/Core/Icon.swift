@@ -11,6 +11,7 @@ enum Ph: String, CaseIterable, Sendable {
     case bell
     case bookmarkSimple = "bookmark-simple"
     case calendarBlank = "calendar-blank"
+    case camera
     case caretLeft = "caret-left"
     case caretRight = "caret-right"
     case chatCircle = "chat-circle"
@@ -28,6 +29,7 @@ enum Ph: String, CaseIterable, Sendable {
     case magnifyingGlass = "magnifying-glass"
     case mapPin = "map-pin"
     case moon
+    case pencilSimple = "pencil-simple"
     case plus
     case plusSquare = "plus-square"
     case shuffle
@@ -85,6 +87,8 @@ enum Glyph {
     static var pin: Ph { .mapPin }
     static var bell: Ph { .bell }
     static var moon: Ph { .moon }
+    static var camera: Ph { .camera }
+    static var edit: Ph { .pencilSimple }
 }
 
 enum IconWeight {

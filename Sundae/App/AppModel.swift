@@ -190,6 +190,32 @@ final class AppModel {
         self.localIdeas = LocalIdeasStore(api: api, onDevice: true)
     }
 
+    // MARK: - This week's post
+
+    /// My own post for this week, until it locks: it can still be changed.
+    func canEdit(_ dump: Dump) -> Bool {
+        dump.author.id == currentUser?.id && dump.weekStart == currentWeekStart && !dump.isLocked
+    }
+
+    /// Opens this week's post in the editor, on its photos.
+    func editThisWeek() async {
+        await compose.load(weekStart: currentWeekStart)
+        compose.present(compose.hasPosted ? .arrange : .pick)
+    }
+
+    /// Deletes one of my posts. True once it is gone; it stays where it was if the server says no.
+    @discardableResult
+    func deletePost(_ dump: Dump) async -> Bool {
+        do {
+            try await api.deleteDump(id: dump.id)
+        } catch {
+            return false
+        }
+        feed.remove(dumpID: dump.id)
+        compose.reset()
+        return true
+    }
+
     // MARK: - Lifecycle
 
     func start() async {

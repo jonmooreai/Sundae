@@ -20,6 +20,7 @@
         "Where your photos were taken. Location and camera details are removed before a photo leaves your phone, and again when it arrives.",
         "The ideas you save and the photos you keep with them. Sundae matches photos to the places you saved by where they were taken, on your phone, and all of it stays there until you post on Sunday.",
         "Your contacts. Sundae never asks for them.",
+        "Anything from your camera you don't post. It opens only when you choose to take a photo for your week.",
         "Anything for ads or tracking. No ads, no analytics, no trackers."
       ]
     },

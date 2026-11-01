@@ -3,6 +3,7 @@ import SwiftUI
 /// Full dump: photos, caption, tags, likes, and the one conversation per dump.
 struct DumpDetailView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     let dumpID: ID
     /// The photo to show first, when the dump was opened by tapping one.
     var photoID: ID? = nil
@@ -12,6 +13,7 @@ struct DumpDetailView: View {
     @State private var page = 0
     @State private var errorMessage: String?
     @State private var reporting = false
+    @State private var confirmDelete = false
     @State private var showFullScreen = false
     @State private var showComments = false
     @State private var focusComposer = false
@@ -26,13 +28,12 @@ struct DumpDetailView: View {
                     if let dump {
                         Menu {
                             if isOwn {
-                                Button(role: .destructive) {
-                                    Task {
-                                        try? await model.api.deleteDump(id: dump.id)
-                                        model.feed.remove(dumpID: dump.id)
-                                        model.compose.reset()
+                                if model.canEdit(dump) {
+                                    Button { Task { await model.editThisWeek() } } label: {
+                                        Label { Text("Edit this week") } icon: { Glyph.edit.regular }
                                     }
-                                } label: {
+                                }
+                                Button(role: .destructive) { confirmDelete = true } label: {
                                     Label { Text("Delete this week") } icon: { Glyph.trash.regular }
                                 }
                             } else {
@@ -68,6 +69,16 @@ struct DumpDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dumpID)
+        }
+        .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    // The post is gone, so its page goes too.
+                    if let dump, await model.deletePost(dump) { dismiss() }
+                }
+            }
+        } message: {
+            Text("Your photos and any tags on them are removed. Friends keep the photos they posted.")
         }
         .sheet(isPresented: $showComments, onDismiss: { Task { await reloadComments() } }) {
             if let dump {
