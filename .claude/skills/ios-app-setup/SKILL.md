@@ -49,6 +49,10 @@ Apply these without asking. They come from the owner and hold for every app:
   white, sage green buttons, felt illustrations, a squeak and a wobble). Separation from
   whitespace and soft fills, borders used sparingly, never a thick border on one side of a
   container, text truncated rather than wrapped in tight spots.
+- **Words:** every line of UI text is cozy, friendly, genuine and warm, like a friend talking:
+  "Thanks for sharing your week", never "Your week is up"; "We couldn't open that photo. Want
+  to try another?", never "That image could not be read." Errors still say what happened and
+  what to do, kindly. No system-speak, no exclamation marks.
 - **No model names** in commits, code or docs.
 
 ### Already set up on the owner's accounts (reuse, don't recreate)

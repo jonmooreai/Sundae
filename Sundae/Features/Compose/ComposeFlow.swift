@@ -253,12 +253,12 @@ struct SundayPromptStep: View {
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.8)
-                Text("\(greeting)\n\(compose.hasPosted ? "Your week is up." : "Post your week.")")
+                Text("\(greeting)\n\(compose.hasPosted ? "Thanks for sharing your week." : "Come share your week.")")
                     .font(Theme.display(44).leading(.tight))
                 Text(compose.hasPosted
-                     ? "Add a photo, fix the caption, or tag someone you missed. You have until midnight."
+                     ? "Want to add a photo, tweak the caption, or tag someone you missed? It's all yours until midnight."
                      : startsFromSaved ? savedLine
-                     : "Pick the photos, tag who was there, and say how it went. You have until midnight.")
+                     : "Pick your favorite photos, tag who was there, and tell everyone how it went. No rush, you have until midnight.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
@@ -306,7 +306,7 @@ struct SundayPromptStep: View {
     private var savedLine: String {
         let count = savedPhotos.count
         let photos = count == 1 ? "1 photo" : "\(count) photos"
-        return "Your saved ideas start it with \(photos). Add more, tag who was there, and say how it went. You have until midnight."
+        return "Your saved ideas already gathered \(photos) for you. Add more, tag who was there, and tell everyone how it went. No rush, you have until midnight."
     }
 
     /// Fills the draft from saved ideas and opens it ready to arrange. If none of their photos
@@ -356,12 +356,12 @@ struct PostedStep: View {
                 .scaleEffect(appeared ? 1 : 0.6)
                 .animation(.bouncy(duration: 0.5), value: appeared)
                 .background { Sprinkles(fired: appeared) }
-            Text(compose.queuedOffline ? "Saved for when you're back online." : "Your week is up.")
+            Text(compose.queuedOffline ? "Tucked away until you're back online." : "Thanks for sharing your week.")
                 .font(Theme.display(36))
                 .multilineTextAlignment(.center)
             Text(compose.queuedOffline
-                 ? "It posts the moment the network returns, as long as it is still Sunday."
-                 : "Edit any time until midnight. Tagged friends get a request to approve.")
+                 ? "It'll go out the moment you're connected again, as long as it's still Sunday."
+                 : "You can make changes until midnight. Friends you tagged will get a little note to say yes.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

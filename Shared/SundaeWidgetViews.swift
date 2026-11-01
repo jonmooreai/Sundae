@@ -38,15 +38,15 @@ struct SundaeWidgetView: View {
     var body: some View {
         switch family {
         case .accessoryInline:
-            Text(snapshot.mode == .sunday ? (snapshot.hasPosted ? "Sundae: your week is up" : "Sundae: post your week")
+            Text(snapshot.mode == .sunday ? (snapshot.hasPosted ? "Sundae: thanks for sharing" : "Sundae: share your week")
                  : "Sundae: \(snapshot.countdown.lowercased())")
         case .accessoryRectangular:
             VStack(alignment: .leading, spacing: 2) {
                 Text(snapshot.mode == .sunday ? "Sundae" : snapshot.countdown)
                     .font(.caption2.weight(.semibold))
                     .widgetAccentable()
-                Text(snapshot.mode == .sunday ? (snapshot.hasPosted ? "Your week is up." : "Post your week.")
-                     : (snapshot.idea?.text ?? "Go make something worth posting."))
+                Text(snapshot.mode == .sunday ? (snapshot.hasPosted ? "Thanks for sharing." : "Share your week.")
+                     : (snapshot.idea?.text ?? "Go enjoy your day."))
                     .font(.caption)
                     .lineLimit(2)
             }
@@ -156,11 +156,11 @@ struct SundaeWidgetView: View {
 
     // MARK: Sunday
 
-    private var headline: String { snapshot.hasPosted ? "Your week is up." : "Post your week." }
+    private var headline: String { snapshot.hasPosted ? "Thanks for sharing." : "Share your week." }
 
     private var photoCountLine: String {
         switch snapshot.weekPhotoCount {
-        case 0: snapshot.hasPosted ? "Edit until midnight." : "Pick from this week."
+        case 0: snapshot.hasPosted ? "Tweak it until midnight." : "Pick your favorites."
         case 1: "1 photo since Monday"
         default: "\(snapshot.weekPhotoCount) photos since Monday"
         }

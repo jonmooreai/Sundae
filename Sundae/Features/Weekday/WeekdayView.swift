@@ -180,7 +180,7 @@ struct WeekdayView: View {
                 removal: .opacity
             ))
         } else {
-            Text("Go make something worth posting.")
+            Text("Go enjoy your day.")
                 .font(Theme.display(36))
         }
     }
@@ -285,7 +285,7 @@ struct WeekdayView: View {
             footnote("iOS will ask about location the first time Sundae looks.")
         case .denied:
             VStack(spacing: 4) {
-                footnote("Location is off for Sundae in iOS Settings, so today's idea is general.")
+                footnote("Location is off for Sundae, so today's idea is one for anywhere.")
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     Link("Open iOS Settings", destination: url)
                         .font(.footnote.weight(.medium))
@@ -300,12 +300,12 @@ struct WeekdayView: View {
             }
         case .ready(let count):
             if count == 0 {
-                footnote("Nothing near you yet, so today's idea is general.")
+                footnote("Nothing nearby yet, so here's one for anywhere.")
             }
         case .offline:
-            footnote("Offline, so today's idea is general.")
+            footnote("You're offline, so here's one for anywhere.")
         case .failed:
-            footnote("Couldn't see what's near you today, so the idea is general.")
+            footnote("We couldn't see what's near you today, so here's one for anywhere.")
         }
     }
 

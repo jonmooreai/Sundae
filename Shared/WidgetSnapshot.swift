@@ -162,7 +162,7 @@ public enum WidgetSnapshotBuilder {
         for offset in 1...2 {
             guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
             if clock.isSunday(day) {
-                result.append(.init(day: short.string(from: day), text: "Post your week."))
+                result.append(.init(day: short.string(from: day), text: "Share your week."))
                 break
             }
             let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day

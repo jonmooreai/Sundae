@@ -79,9 +79,9 @@ struct SettingsView: View {
                     SettingsToggle(title: "Comments on my weeks", isOn: $settings.commentsEnabled)
                 }
 
-                SettingsGroup(title: "Notifications", footer: model.isUsingMock ? nil : "Sundae sends only these two, both on Sunday.") {
+                SettingsGroup(title: "Notifications", footer: model.isUsingMock ? nil : "Just these two, and only on Sundays.") {
                     SettingsToggle(title: "Sunday reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
-                    SettingsToggle(title: "Last call", detail: "8:00 pm, if you haven't posted", isOn: $settings.notifyLastCall)
+                    SettingsToggle(title: "Evening nudge", detail: "8:00 pm, only if you haven't shared yet", isOn: $settings.notifyLastCall)
                     // A switch that is on but can't deliver says how to fix it.
                     if settings.notifySundayReminder || settings.notifyLastCall {
                         if notificationStatus == .notDetermined {
@@ -175,10 +175,10 @@ struct SettingsView: View {
         } message: {
             Text("Other devices are signed out within 15 minutes.")
         }
-        .alert("Couldn't reach Sundae", isPresented: $signOutFailed) {
+        .alert("We couldn't reach Sundae", isPresented: $signOutFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Nothing was signed out. Try again when you're online.")
+            Text("Nothing was signed out. Give it another try once you're online.")
         }
         .saveFailedAlert(isPresented: Binding(get: { saveFailed && !showingAutoApprove }, set: { saveFailed = $0 }))
         .confirmationDialog("Delete your account?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -186,10 +186,10 @@ struct SettingsView: View {
         } message: {
             Text("Your posts, comments and tags are removed right away. Photos you were tagged in stay in the poster's week with the tag removed.")
         }
-        .alert("Couldn't finish deleting your account", isPresented: $deleteFailed) {
+        .alert("We couldn't finish deleting your account", isPresented: $deleteFailed) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Try again when you're online.")
+            Text("Give it another try once you're online.")
         }
         // Settings is a sheet, and a sheet keeps the look it opened with unless it asks for its own.
         .preferredColorScheme(model.appearance.colorScheme)
@@ -318,7 +318,7 @@ struct AutoApproveList: View {
                     }
                 }
             } else if loadFailed {
-                note("Couldn't load the people you follow. Check your connection.")
+                note("We couldn't load the people you follow. Check your connection and try again.")
             } else {
                 ProgressView()
                     .frame(maxWidth: .infinity)
@@ -369,10 +369,10 @@ private struct LoadingRow: View {
 private extension View {
     /// After a settings change the server didn't get. The switches are already back as they were.
     func saveFailedAlert(isPresented: Binding<Bool>) -> some View {
-        alert("Couldn't save", isPresented: isPresented) {
+        alert("That didn't save", isPresented: isPresented) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text("Nothing changed.")
+            Text("Nothing changed. Give it another try in a moment.")
         }
     }
 }

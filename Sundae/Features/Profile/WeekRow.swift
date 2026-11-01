@@ -120,10 +120,10 @@ struct WeekRow: View {
             HStack(spacing: 16) {
                 PhotoStackIcon(size: 44)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Post your week")
+                    Text("Share your week")
                         .font(.headline)
                         .lineLimit(1)
-                    Text("Pick the photos from this week.")
+                    Text("Pick your favorites from this week.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -136,6 +136,6 @@ struct WeekRow: View {
             .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.rowRadius, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Post your week")
+        .accessibilityLabel("Share your week")
     }
 }

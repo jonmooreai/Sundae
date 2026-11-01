@@ -81,8 +81,10 @@ felt illustrations, a cherry that squeaks and wobbles, faint film grain). In pra
   `.lineHeight(.multiple(...))` (it clips descenders on iOS 26).
 - **Controls:** system ones (`.borderedProminent`, `.capsule`, `.controlSize(.large)`), 44 pt
   targets, `ContentUnavailableView` or the `EmptyState` below for empty screens.
-- **Words:** short, specific and kind. Errors say what to do next ("You're offline. Try again
-  when you're connected."). No exclamation marks, no jargon, no em-dashes.
+- **Words:** cozy, friendly, genuine and warm, like a friend talking: "Thanks for sharing your
+  week", never "Your week is up". Short and specific. Errors say what happened and what to do
+  next, gently ("We couldn't open that photo. Want to try another?"). No exclamation marks, no
+  jargon or system-speak, no em-dashes.
 - **Motion:** small and meaningful; honour Reduce Motion (`@Environment(\.accessibilityReduceMotion)`).
 
 ## 4. Screens

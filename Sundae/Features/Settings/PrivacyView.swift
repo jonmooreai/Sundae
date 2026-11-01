@@ -57,7 +57,7 @@ struct PrivacyView: View {
                     }
                 }
             } else {
-                Text("The privacy details could not be loaded. Reinstalling Sundae brings them back.")
+                Text("We couldn't load the privacy details. Reinstalling Sundae brings them back.")
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
             }
