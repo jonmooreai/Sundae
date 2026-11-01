@@ -204,8 +204,10 @@ final class SavedIdeasStore {
     }
 
     /// Up to `limit` photos for Sunday's post, in the order taken. When there are more, each idea
-    /// gets a turn in the order it was saved, so every idea makes it in.
-    func photosForPost(limit: Int = DumpDraft.maxPhotos) -> [SavedPhotoForPost] {
+    /// gets a turn in the order it was saved, so every idea makes it in. Only for the week asked
+    /// about: until the new week is started, the store may still hold last week's ideas.
+    func photosForPost(weekStart start: Date, limit: Int = DumpDraft.maxPhotos) -> [SavedPhotoForPost] {
+        guard weekStart == start else { return [] }
         var queues = ideas.map { idea in
             idea.photos.map { SavedPhotoForPost(assetID: $0.assetID, takenAt: $0.takenAt, caption: idea.caption) }
         }

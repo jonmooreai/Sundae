@@ -103,10 +103,14 @@ final class ComposeStore {
         draft.photos.count - libraryPhotoIDs.count
     }
 
-    /// Loads this week's dump if one exists. An in-progress draft is never thrown away.
+    /// Loads this week's dump if one exists. An in-progress draft is never thrown away within its
+    /// week. A new week starts from nothing: last week's post and draft can't be posted again, and
+    /// the app can sit in memory from one Sunday to the next, so without this Sunday opened on
+    /// last week's photos as if they were already this week's post.
     func load(weekStart: Date) async {
         if loadedWeekStart == weekStart, !draft.isEmpty || existingDump != nil { return }
         guard !isLoading else { return }
+        if let loaded = loadedWeekStart, loaded != weekStart { reset() }
         isLoading = true
         defer { isLoading = false }
         loadedWeekStart = weekStart

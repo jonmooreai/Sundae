@@ -203,14 +203,18 @@ struct SavedIdeasTests {
         store.setPhotos((0..<3).map { SavedPhoto(assetID: "b\($0)", takenAt: date(20, minute: $0), found: false) }, for: b, at: date(21))
         store.setCaption("Juniper's best", for: a)
 
-        let all = store.photosForPost()
+        let all = store.photosForPost(weekStart: weekStart)
         #expect(all.map(\.assetID) == ["b0", "b1", "b2", "a0", "a1", "a2", "a3", "a4", "a5"])
         #expect(all.filter { $0.assetID.hasPrefix("a") }.allSatisfy { $0.caption == "Juniper's best" })
         #expect(all.filter { $0.assetID.hasPrefix("b") }.allSatisfy { $0.caption.isEmpty })
 
         // Too many for one post: each idea gets its turn, so both make it in.
-        let four = store.photosForPost(limit: 4)
+        let four = store.photosForPost(weekStart: weekStart, limit: 4)
         #expect(four.map(\.assetID) == ["b0", "b1", "a0", "a1"])
+
+        // Asked about the next week before it has been started, last week's photos stay out.
+        let next = store.photosForPost(weekStart: date(26, hour: 0))
+        #expect(next.isEmpty)
     }
 
     @Test func theWeekComesBackForTheSamePersonOnly() {

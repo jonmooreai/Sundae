@@ -82,8 +82,18 @@ struct SundayShell: View {
             presentPromptIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
-            // Coming back from the background counts as opening the app.
-            if phase == .active, compose.loadedWeekStart != nil { presentPromptIfNeeded() }
+            // Coming back from the background counts as opening the app, and may be a new week:
+            // the app can be kept in memory from one Sunday to the next. Before the first load
+            // finishes the task above handles it.
+            guard phase == .active, let loaded = compose.loadedWeekStart else { return }
+            if loaded == model.currentWeekStart {
+                presentPromptIfNeeded()
+            } else {
+                Task {
+                    await compose.load(weekStart: model.currentWeekStart)
+                    presentPromptIfNeeded()
+                }
+            }
         }
     }
 
@@ -92,8 +102,17 @@ struct SundayShell: View {
         compose.present(.prompt)
     }
 
+    /// Opens on the post when this week has one, on the grid when not: this week's answer, so a
+    /// week loaded earlier is replaced first.
     private func openCompose() {
-        compose.present(compose.hasPosted ? .arrange : .pick)
+        guard compose.loadedWeekStart != model.currentWeekStart else {
+            compose.present(compose.hasPosted ? .arrange : .pick)
+            return
+        }
+        Task {
+            await compose.load(weekStart: model.currentWeekStart)
+            compose.present(compose.hasPosted ? .arrange : .pick)
+        }
     }
 }
 

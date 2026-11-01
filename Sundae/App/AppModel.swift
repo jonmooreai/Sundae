@@ -274,6 +274,8 @@ final class AppModel {
 
     /// Recomputes Sunday vs weekday and arms a wake-up at the next midnight boundary.
     func refreshPhase() {
+        // A new week clears last week's saved ideas before any screen reads them.
+        if isSignedIn { savedIdeas.startWeek(currentWeekStart) }
         let next: DayPhase = clock.isSunday() ? .sunday : .weekday(daysUntilSunday: clock.daysUntilSunday())
         if next != phase { WidgetCenter.shared.reloadAllTimelines() }
         phase = next
@@ -293,10 +295,7 @@ final class AppModel {
         // A week posted early skips its last call; a new week brings the weekly one back.
         if isSignedIn { scheduleReminders() }
         // Photos taken at saved places since the last look, matched on the phone.
-        if isSignedIn {
-            savedIdeas.startWeek(currentWeekStart)
-            await savedIdeas.findPhotos(clock: clock)
-        }
+        if isSignedIn { await savedIdeas.findPhotos(clock: clock) }
         await refreshPendingCount()
     }
 

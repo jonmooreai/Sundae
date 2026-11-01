@@ -226,7 +226,7 @@ struct SundayPromptStep: View {
     }
     private var compose: ComposeStore { model.compose }
     /// Photos kept with this week's saved ideas, ready to start the post.
-    private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost() }
+    private var savedPhotos: [SavedPhotoForPost] { model.savedIdeas.photosForPost(weekStart: model.currentWeekStart) }
     private var startsFromSaved: Bool { !compose.hasPosted && compose.draft.isEmpty && !savedPhotos.isEmpty }
 
     var body: some View {
