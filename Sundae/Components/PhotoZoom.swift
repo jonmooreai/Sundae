@@ -101,7 +101,8 @@ private struct ZoomedPhoto: View {
             if case .placeholder(let seed) = source {
                 PlaceholderPhoto(seed: seed)
             } else if let image {
-                Image(uiImage: image).resizable().scaledToFill()
+                // Whole, as the carousel shows it.
+                Image(uiImage: image).resizable().scaledToFit()
             }
         }
         .task(id: source) {

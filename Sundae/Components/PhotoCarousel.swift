@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Horizontally paged photos with a page indicator. Tag chips appear on tap, not by default,
-/// so photos stay clean. The aspect ratio follows the first photo, clamped so a feed of mixed
-/// portrait and landscape shots stays scannable.
+/// so photos stay clean. Every photo shows whole, never cut off: the frame takes the shape of the
+/// tallest photo (no taller than 3:4, no wider than 3:2, so the feed stays scannable), and any
+/// photo of another shape sits inside it on a soft mat.
 struct PhotoCarousel: View {
     let photos: [Photo]
     @Binding var index: Int
@@ -23,7 +24,7 @@ struct PhotoCarousel: View {
     @Environment(PhotoZoom.self) private var zoom: PhotoZoom?
 
     private var aspect: CGFloat {
-        min(max(photos.first?.aspectRatio ?? 1, 0.8), 1.5)
+        min(max(photos.map(\.aspectRatio).min() ?? 1, 0.75), 1.5)
     }
 
     var body: some View {
@@ -64,7 +65,7 @@ struct PhotoCarousel: View {
     /// The photo and its tags.
     private func face(_ photo: Photo) -> some View {
         ZStack(alignment: .bottomLeading) {
-            PhotoView(source: photo.source)
+            PhotoView(source: photo.source, contentMode: .fit)
             if !photo.visibleTags.isEmpty {
                 // The badge stays put; the people stack up above it, clear of the page dots.
                 VStack(alignment: .leading, spacing: 6) {

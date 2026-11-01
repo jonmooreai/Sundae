@@ -111,7 +111,7 @@ struct ArrangeStep: View {
             TabView(selection: $page) {
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                     PhotoView(source: photo.source)
-                        .aspectRatio(min(max(CGFloat(photo.width) / CGFloat(max(photo.height, 1)), 0.8), 1.25), contentMode: .fit)
+                        .aspectRatio(Self.shape(of: photo), contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                         .overlay(alignment: .bottomLeading) {
                             // A few faces and a short line, never one chip per person.
@@ -194,6 +194,12 @@ struct ArrangeStep: View {
                 .padding(.top, 2)
             Spacer(minLength: 0)
         }
+    }
+
+    /// The photo's own width to height, so the frame is exactly its shape and nothing is cut off.
+    private static func shape(of photo: DraftPhoto) -> CGFloat {
+        guard photo.width > 0, photo.height > 0 else { return 1 }
+        return CGFloat(photo.width) / CGFloat(photo.height)
     }
 
     private func action(_ title: String, _ glyph: Ph, _ perform: @escaping () -> Void) -> some View {
