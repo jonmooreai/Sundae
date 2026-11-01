@@ -41,6 +41,8 @@ Apply these without asking. They come from the owner and hold for every app:
   Program membership is the one paid thing, and it already exists.
 - **Privacy first.** Collect only what a feature needs. No analytics, ads, tracking SDKs,
   request logs or third-party code that reports on people.
+- **Always ship.** Once CI is green, ship to TestFlight without asking and say which build to
+  install. Server deploys and live database writes still need a yes each time.
 - **Writes to a live database need an explicit yes** for that change. Creating a new, empty
   database for the new app is part of setting it up.
 - **No em-dashes**, anywhere: code, comments, docs, UI text, commit messages, chat.

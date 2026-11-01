@@ -54,7 +54,8 @@ fast-forward; never force). Check the deploy afterwards with the Cloudflare tool
 
 ## Shipping to TestFlight
 
-The `testflight` branch only moves forward. To ship the work branch as it is now:
+Always ship: once CI is green on the work branch, ship it without asking and say which build
+number to install. The `testflight` branch only moves forward. To ship the work branch as it is now:
 
 ```bash
 git fetch origin testflight
