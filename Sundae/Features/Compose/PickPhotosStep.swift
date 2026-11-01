@@ -18,6 +18,7 @@ struct PickPhotosStep: View {
     @State private var assetsByID: [String: PHAsset] = [:]
     @State private var pickerItems: [PhotosPickerItem] = []
     @State private var isPreparing = false
+    @State private var showsCamera = false
 
     private var compose: ComposeStore { model.compose }
     private var columns: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 2), count: 3) }
@@ -106,19 +107,39 @@ struct PickPhotosStep: View {
         }
     }
 
-    /// The Photos picker, for anything the grid cannot show.
+    /// The Photos picker, for anything the grid cannot show, and the camera.
     private var otherAlbum: some View {
-        PhotosPicker(selection: $pickerItems, maxSelectionCount: remaining, selectionBehavior: .ordered,
-                     matching: .images, photoLibrary: .shared()) {
-            HStack(spacing: 8) {
-                Icon(Glyph.photos, size: 18)
-                Text("Choose from another album")
+        VStack(spacing: 0) {
+            PhotosPicker(selection: $pickerItems, maxSelectionCount: remaining, selectionBehavior: .ordered,
+                         matching: .images, photoLibrary: .shared()) {
+                HStack(spacing: 8) {
+                    Icon(Glyph.photos, size: 18)
+                    Text("Choose from another album")
+                }
+                .font(.subheadline.weight(.semibold))
             }
-            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.pill(.quiet))
+            .disabled(remaining == 0)
+            takePhoto
         }
-        .buttonStyle(.pill(.quiet))
-        .disabled(remaining == 0)
         .padding(.vertical, 12)
+    }
+
+    /// The camera, when the phone has one. The photo taken joins the draft at once.
+    @ViewBuilder
+    private var takePhoto: some View {
+        if CameraCapture.isAvailable {
+            Button { showsCamera = true } label: {
+                HStack(spacing: 8) {
+                    Icon(Glyph.camera, size: 18)
+                    Text("Take a photo")
+                }
+                .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.pill(.quiet))
+            .disabled(remaining == 0)
+            .cameraCapture(isPresented: $showsCamera, compose: compose)
+        }
     }
 
     private func cell(_ asset: PHAsset) -> some View {
@@ -188,6 +209,7 @@ struct PickPhotosStep: View {
                 Text("Choose from Photos instead")
             }
             .buttonStyle(.pill(.quiet, fullWidth: true))
+            takePhoto
         }
         .padding(24)
     }

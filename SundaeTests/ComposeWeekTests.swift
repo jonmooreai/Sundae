@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Sundae
 
 /// What went wrong on Sunday, November 1, 2026: the app had been kept in memory since the Sunday
@@ -48,5 +49,22 @@ struct ComposeWeekTests {
         await compose.load(weekStart: lastWeek)
         #expect(compose.draft.photos.count == count)
         #expect(compose.hasPosted)
+    }
+
+    /// A photo taken with the camera joins the draft like any other: sized, dated now, and counted
+    /// as one of the post's photos, not one of the library's.
+    @Test func aPhotoFromTheCameraJoinsTheDraft() async throws {
+        let api = MockSundaeAPI(clock: SundayClock(timeZone: zone))
+        let compose = ComposeStore(api: api)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300)).image { context in
+            UIColor(red: 0.85, green: 0.3, blue: 0.3, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+        }
+        await compose.addCameraPhoto(image)
+        #expect(compose.draft.photos.count == 1)
+        #expect(compose.nonLibraryPhotoCount == 1)
+        let photo = try #require(compose.draft.photos.first)
+        #expect(photo.takenAt != nil)
+        #expect(photo.width > 0 && photo.height > 0)
     }
 }

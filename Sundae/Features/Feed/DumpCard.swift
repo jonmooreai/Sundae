@@ -10,6 +10,7 @@ struct DumpCard: View {
 
     @State private var page = 0
     @State private var reporting = false
+    @State private var confirmDelete = false
     @State private var showPeople = false
     @State private var showComments = false
     @State private var focusComposer = false
@@ -83,6 +84,11 @@ struct DumpCard: View {
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .dump, targetID: dump.id)
         }
+        .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { Task { await model.deletePost(dump) } }
+        } message: {
+            Text("Your photos and any tags on them are removed. Friends keep the photos they posted.")
+        }
         .sheet(isPresented: $showPeople) {
             TaggedPeopleSheet(users: dump.taggedUsers) { user in
                 showPeople = false
@@ -127,13 +133,12 @@ struct DumpCard: View {
                         Label { Text("Block \(dump.author.firstName)") } icon: { Glyph.block.regular }
                     }
                 } else {
-                    Button(role: .destructive) {
-                        Task {
-                            try? await model.api.deleteDump(id: dump.id)
-                            model.feed.remove(dumpID: dump.id)
-                            model.compose.reset()
+                    if model.canEdit(dump) {
+                        Button { Task { await model.editThisWeek() } } label: {
+                            Label { Text("Edit this week") } icon: { Glyph.edit.regular }
                         }
-                    } label: {
+                    }
+                    Button(role: .destructive) { confirmDelete = true } label: {
                         Label { Text("Delete this week") } icon: { Glyph.trash.regular }
                     }
                 }

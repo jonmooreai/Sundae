@@ -3,6 +3,7 @@ import Observation
 import Photos
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Where the full-screen posting flow starts.
 enum ComposeEntry: Equatable {
@@ -146,6 +147,16 @@ final class ComposeStore {
                   let processed = await PhotoProcessor.processInBackground(data) else { continue }
             append(processed, takenAt: nil)
         }
+    }
+
+    /// A photo just taken with the camera. Made into a JPEG and then through PhotoProcessor like
+    /// every other photo, so it is sized and stripped of its details the same way.
+    func addCameraPhoto(_ image: UIImage) async {
+        guard draft.canAddMore, let data = image.jpegData(compressionQuality: 0.92) else { return }
+        isImporting = true
+        defer { isImporting = false }
+        guard let processed = await PhotoProcessor.processInBackground(data) else { return }
+        append(processed, takenAt: Date())
     }
 
     func importLibraryData(_ data: Data, assetID: String, takenAt: Date?) async {
