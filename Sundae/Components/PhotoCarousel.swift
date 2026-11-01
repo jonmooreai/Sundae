@@ -3,7 +3,7 @@ import SwiftUI
 /// Horizontally paged photos with a page indicator. Tag chips appear on tap, not by default,
 /// so photos stay clean. Every photo shows whole, never cut off: the frame takes the shape of the
 /// tallest photo (no taller than 3:4, no wider than 3:2, so the feed stays scannable), and any
-/// photo of another shape sits inside it on a soft mat.
+/// photo of another shape sits inside it with black bars.
 struct PhotoCarousel: View {
     let photos: [Photo]
     @Binding var index: Int
