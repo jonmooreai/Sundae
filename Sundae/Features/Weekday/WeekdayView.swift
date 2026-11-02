@@ -19,6 +19,7 @@ struct WeekdayView: View {
 
     private var store: WeekdayStore { model.weekday }
     private var nearby: LocalIdeasStore { model.localIdeas }
+    private var written: WrittenIdeasStore { model.writtenIdeas }
     private var saved: SavedIdeasStore { model.savedIdeas }
 
     var body: some View {
@@ -51,6 +52,10 @@ struct WeekdayView: View {
             store.load(clock: model.clock)
             await nearby.refresh(clock: model.clock)
         }
+        .task {
+            // Alongside the nearby ideas, never waiting on them: the model takes a few seconds a day.
+            await written.refresh(clock: model.clock)
+        }
         .onChange(of: store.restUntil) { _, until in
             guard let until else { return }
             Task {
@@ -64,13 +69,21 @@ struct WeekdayView: View {
                 store.applyLocal(ideas, clock: model.clock)
             }
         }
+        .onChange(of: written.ideas) { _, ideas in
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.35)) {
+                store.applyWritten(ideas, clock: model.clock)
+            }
+        }
         .onChange(of: nearby.isEnabled) { _, enabled in
             // Turned on from Settings, or here. The first look may show the iOS prompt.
             if enabled { Task { await nearby.refresh(clock: model.clock) } }
         }
         .onChange(of: scenePhase) { _, phase in
             // Coming back later in the day, maybe somewhere else.
-            if phase == .active { Task { await nearby.refresh(clock: model.clock) } }
+            if phase == .active {
+                Task { await nearby.refresh(clock: model.clock) }
+                Task { await written.refresh(clock: model.clock) }
+            }
         }
         .onChange(of: store.current?.id) { _, _ in justSaved = false }
         .sheet(isPresented: $showSettings) {

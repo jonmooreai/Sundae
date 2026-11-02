@@ -16,6 +16,9 @@ final class WeekdayStore {
     private(set) var done: [String: Date] = [:]
     /// Today's ideas for the user's area, when they asked for them. Preferred over the catalog.
     private(set) var local: [Suggestion] = []
+    /// This week's ideas written on the phone (WrittenIdeasStore), one for each day they cover.
+    /// A day starts with its own unless a nearby idea comes first; Shuffle mixes them in.
+    private(set) var written: [Suggestion] = []
     /// Set when the tenth shuffle in a row lands on the only idea that cannot be shuffled away.
     private(set) var restUntil: Date?
     private var shuffles = 0
@@ -64,6 +67,8 @@ final class WeekdayStore {
         done = shared.doneSuggestions().filter { $0.value >= weekStart }
         shared.setDoneLocalSuggestions(shared.doneLocalSuggestions().filter { done[$0.id] != nil })
         local = clock.isSunday() ? [] : (shared.localIdeas(on: now, calendar: clock.calendar) ?? [])
+        // Kept on Sunday too, so the week's prompt can still name the ones that were done.
+        written = shared.writtenIdeas(forWeekStarting: weekStart, calendar: clock.calendar)
         if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar), let suggestion = resolve(id),
            IdeaGuard.isSafe(suggestion) {
             current = suggestion
@@ -72,11 +77,34 @@ final class WeekdayStore {
             shared.setCurrentSuggestion(id: nearby.id, on: now)
             WidgetCenter.shared.reloadAllTimelines()
         } else {
-            current = catalog.suggestion(forDay: now, calendar: clock.calendar)
+            current = dayPick(on: now, calendar: clock.calendar)
             if let current { shared.setCurrentSuggestion(id: current.id, on: now) }
             WidgetCenter.shared.reloadAllTimelines()
         }
         saved.startWeek(clock.weekStart())
+    }
+
+    /// The day's own idea before anyone shuffles: the one written on the phone for it, else the
+    /// catalog's. The widget and Siri pick the same way (SuggestionCatalog).
+    private func dayPick(on date: Date, calendar: Calendar) -> Suggestion? {
+        catalog.suggestion(forDay: date, calendar: calendar, written: written, done: Set(done.keys))
+    }
+
+    /// This week's written ideas arrived or grew. Today's takes over only from the catalog's
+    /// automatic pick: a nearby idea, or one the user shuffled to, saved or finished, stays put.
+    func applyWritten(_ ideas: [Suggestion], clock: SundayClock) {
+        written = IdeaGuard.filter(ideas)
+        guard let current else {
+            load(clock: clock)
+            return
+        }
+        let now = clock.now()
+        guard !clock.isSunday(), !current.isNearby, !current.isWritten, !isCurrentDone, !isCurrentSaved,
+              current.id == catalog.suggestion(forDay: now, calendar: clock.calendar)?.id,
+              let mine = dayPick(on: now, calendar: clock.calendar), mine.isWritten else { return }
+        self.current = mine
+        shared.setCurrentSuggestion(id: mine.id, on: now)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Today's nearby ideas arrived or changed. They take over only from the automatic pick:
@@ -89,9 +117,9 @@ final class WeekdayStore {
             load(clock: clock)
             return
         }
-        let automatic = catalog.suggestion(forDay: now, calendar: clock.calendar)
+        let automatic = dayPick(on: now, calendar: clock.calendar)
         if ideas.isEmpty {
-            // Turned off, or a quiet area. A nearby idea that was showing gives way to the catalog.
+            // Turned off, or a quiet area. A nearby idea that was showing gives way to the day's own.
             if current.isNearby, !isCurrentDone, let automatic {
                 self.current = automatic
                 shared.setCurrentSuggestion(id: automatic.id, on: now)
@@ -141,10 +169,14 @@ final class WeekdayStore {
             for idea in fitting { shown.remove(idea.id) }
             openLocal = fitting.filter { $0.id != current?.id && done[$0.id] == nil }
         }
-        // Half the time a nearby idea, while any are left; the catalog otherwise, skipping what
-        // has already been on screen today.
-        if let nearby = openLocal.randomElement(), Bool.random() {
-            current = nearby
+        // This week's written ideas join the nearby ones, each once a day.
+        let openWritten = written.filter { idea in
+            idea.id != current?.id && done[idea.id] == nil && !shown.contains(idea.id) && !saved.isSaved(idea)
+        }
+        // Half the time a nearby or written idea, while any are left; the catalog otherwise,
+        // skipping what has already been on screen today.
+        if let fresh = (openLocal + openWritten).randomElement(), Bool.random() {
+            current = fresh
         } else {
             let skip = Set(done.keys).union(shown).union(saved.ideas.filter { !$0.suggestion.isNearby }.map(\.suggestion.id))
             current = catalog.shuffle(from: current, for: now, calendar: clock.calendar, excluding: skip)
@@ -165,7 +197,7 @@ final class WeekdayStore {
     func recordDone(_ suggestion: Suggestion, on day: Date) async {
         done[suggestion.id] = day
         shared.setDoneSuggestions(done)
-        if suggestion.isNearby {
+        if suggestion.isNearby || suggestion.isWritten {
             var kept = shared.doneLocalSuggestions().filter { $0.id != suggestion.id }
             kept.append(suggestion)
             shared.setDoneLocalSuggestions(kept)
@@ -196,9 +228,11 @@ final class WeekdayStore {
         return open.first { $0.timeOfDay == slot || $0.timeOfDay == .any } ?? open.first
     }
 
-    /// Today's nearby ideas, then the catalog, then nearby ideas finished earlier in the week.
+    /// Today's nearby ideas, this week's written ones, then the catalog, then nearby and written
+    /// ideas finished earlier in the week.
     private func resolve(_ id: String) -> Suggestion? {
         local.first { $0.id == id }
+            ?? written.first { $0.id == id }
             ?? catalog.suggestion(id: id)
             ?? shared.doneLocalSuggestions().first { $0.id == id }
     }
