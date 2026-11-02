@@ -92,6 +92,8 @@ final class AppModel {
     let weekday: WeekdayStore
     let savedIdeas: SavedIdeasStore
     let localIdeas: LocalIdeasStore
+    /// This week's ideas from the phone's own model, where it has one.
+    let writtenIdeas: WrittenIdeasStore
     let network = NetworkMonitor()
 
     /// True when running against the in-memory mock instead of a server.
@@ -188,6 +190,7 @@ final class AppModel {
         // Ideas near you come from Apple Maps on the phone in every build: the friends and family
         // server has no ideas service (docs/SERVER.md), and this keeps location off it entirely.
         self.localIdeas = LocalIdeasStore(api: api, onDevice: true)
+        self.writtenIdeas = WrittenIdeasStore(catalog: catalog)
     }
 
     // MARK: - This week's post

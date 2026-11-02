@@ -16,10 +16,11 @@ struct ShowSuggestionIntent: AppIntent {
         let catalog = SuggestionCatalog.bundled()
         let shared = SharedDefaults()
         let suggestion: Suggestion?
-        if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar), let s = catalog.suggestion(id: id) {
+        if let id = shared.currentSuggestionID(on: now, calendar: clock.calendar),
+           let s = TodaysIdea.find(id, clock: clock, catalog: catalog, shared: shared) {
             suggestion = s
         } else {
-            suggestion = catalog.suggestion(forDay: now, calendar: clock.calendar)
+            suggestion = TodaysIdea.automatic(clock: clock, catalog: catalog, shared: shared)
             if let suggestion { shared.setCurrentSuggestion(id: suggestion.id, on: now) }
         }
         guard let suggestion else {
@@ -41,14 +42,36 @@ struct MarkSuggestionDoneIntent: AppIntent {
         let shared = SharedDefaults()
         let catalog = SuggestionCatalog.bundled()
         let id = shared.currentSuggestionID(on: now, calendar: clock.calendar)
-            ?? catalog.suggestion(forDay: now, calendar: clock.calendar)?.id
-        guard let id, let suggestion = catalog.suggestion(id: id) else {
+            ?? TodaysIdea.automatic(clock: clock, catalog: catalog, shared: shared)?.id
+        guard let id, let suggestion = TodaysIdea.find(id, clock: clock, catalog: catalog, shared: shared) else {
             return .result(dialog: "Nothing to mark today.")
         }
         var done = shared.doneSuggestions()
         done[id] = now
         shared.setDoneSuggestions(done)
+        if suggestion.isNearby {
+            // Tomorrow's nearby ideas replace today's, so Sunday keeps this one whole.
+            shared.setDoneLocalSuggestions(shared.doneLocalSuggestions().filter { $0.id != id } + [suggestion])
+        }
         return .result(dialog: "Done: \(suggestion.text) Sunday will remind you to add the photos.")
+    }
+}
+
+/// Today's idea for Siri, found the way the app finds it: today's nearby ideas, this week's
+/// ideas written on the phone, then the catalog.
+enum TodaysIdea {
+    static func find(_ id: String, clock: SundayClock, catalog: SuggestionCatalog, shared: SharedDefaults) -> Suggestion? {
+        let now = clock.now()
+        let local = shared.localIdeas(on: now, calendar: clock.calendar) ?? []
+        let written = shared.writtenIdeas(forWeekStarting: clock.weekStart(), calendar: clock.calendar)
+        return local.first { $0.id == id } ?? written.first { $0.id == id } ?? catalog.suggestion(id: id)
+    }
+
+    /// The day's pick before anyone shuffles.
+    static func automatic(clock: SundayClock, catalog: SuggestionCatalog, shared: SharedDefaults) -> Suggestion? {
+        let written = shared.writtenIdeas(forWeekStarting: clock.weekStart(), calendar: clock.calendar)
+        return catalog.suggestion(forDay: clock.now(), calendar: clock.calendar, written: written,
+                                  done: Set(shared.doneSuggestions().keys))
     }
 }
 

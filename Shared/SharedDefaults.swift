@@ -1,7 +1,8 @@
 import Foundation
 
 /// Small amount of state shared between the app and the widget. Nothing sensitive goes here:
-/// which idea is showing, today's nearby ideas, whether this week is posted, the approvals badge.
+/// which idea is showing, today's nearby ideas, this week's written ideas, whether this week is
+/// posted, the approvals badge.
 /// Storage is `SharedStore`: the app group when there is one, a shared keychain item otherwise.
 public struct SharedDefaults: @unchecked Sendable {
     public static let appGroup = "group.com.jonmooreai.sundae"
@@ -31,6 +32,8 @@ public struct SharedDefaults: @unchecked Sendable {
         static let localIdeasDay = "weekday.localIdeasDay"
         static let localIdeasFetchedAt = "weekday.localIdeasFetchedAt"
         static let localDone = "weekday.localDone"
+        static let writtenIdeas = "weekday.writtenIdeas"
+        static let writtenWeekStart = "weekday.writtenWeekStart"
         static let piece = "app.piece"
         static let pieceWeekStart = "app.pieceWeekStart"
     }
@@ -133,5 +136,23 @@ public struct SharedDefaults: @unchecked Sendable {
         if let data = try? JSONEncoder().encode(ideas) {
             defaults.set(data, forKey: Key.localDone)
         }
+    }
+
+    // MARK: Ideas written on the phone
+
+    /// The ideas the phone's own model wrote for the week starting `weekStart` (WeekIdeaWriter), or
+    /// none when they are from another week. Nothing about the person goes into them.
+    public func writtenIdeas(forWeekStarting weekStart: Date, calendar: Calendar) -> [Suggestion] {
+        guard let stored = defaults.object(forKey: Key.writtenWeekStart) as? Date,
+              calendar.isDate(stored, inSameDayAs: weekStart),
+              let data = defaults.data(forKey: Key.writtenIdeas),
+              let ideas = try? JSONDecoder().decode([Suggestion].self, from: data) else { return [] }
+        return IdeaGuard.filter(ideas)
+    }
+
+    public func setWrittenIdeas(_ ideas: [Suggestion], forWeekStarting weekStart: Date) {
+        guard let data = try? JSONEncoder().encode(ideas) else { return }
+        defaults.set(data, forKey: Key.writtenIdeas)
+        defaults.set(weekStart, forKey: Key.writtenWeekStart)
     }
 }

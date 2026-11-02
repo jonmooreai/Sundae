@@ -91,13 +91,14 @@ public enum WidgetSnapshotBuilder {
         let calendar = clock.calendar
         let resolved = mode ?? (clock.isSunday() ? .sunday : .weekday)
         let posted = shared.postedWeekStart.map { $0 == clock.weekStart() } ?? false
+        let written = shared.writtenIdeas(forWeekStarting: clock.weekStart(), calendar: calendar)
         return WidgetSnapshot(
             mode: resolved,
             dayName: clock.weekdayName(date),
             daysUntilSunday: clock.daysUntilSunday(),
             idea: idea(on: date, calendar: calendar, catalog: catalog, shared: shared),
             list: list(on: date, calendar: calendar, catalog: catalog, shared: shared),
-            upcoming: upcoming(after: date, clock: clock, catalog: catalog),
+            upcoming: upcoming(after: date, clock: clock, catalog: catalog, written: written),
             photos: photos.thumbnails,
             weekPhotoCount: photos.count,
             hasPosted: posted,
@@ -114,11 +115,13 @@ public enum WidgetSnapshotBuilder {
     }
 
     /// The idea the app is showing today: the one picked or shuffled to, a nearby one if the
-    /// app has today's, otherwise the catalog's pick for the day. Same order as the app.
+    /// app has today's, then the one written on the phone for today, otherwise the catalog's pick
+    /// for the day. Same order as the app.
     static func idea(on date: Date, calendar: Calendar, catalog: SuggestionCatalog, shared: SharedDefaults) -> Suggestion? {
         let local = shared.localIdeas(on: date, calendar: calendar) ?? []
+        let written = writtenIdeas(on: date, calendar: calendar, shared: shared)
         if let id = shared.currentSuggestionID(on: date, calendar: calendar),
-           let current = local.first(where: { $0.id == id }) ?? catalog.suggestion(id: id),
+           let current = local.first(where: { $0.id == id }) ?? written.first(where: { $0.id == id }) ?? catalog.suggestion(id: id),
            IdeaGuard.isSafe(current) {
             return current
         }
@@ -126,11 +129,17 @@ public enum WidgetSnapshotBuilder {
         if let nearby = local.first(where: { $0.timeOfDay == slot || $0.timeOfDay == .any }) ?? local.first {
             return nearby
         }
-        return catalog.suggestion(forDay: date, calendar: calendar)
+        return catalog.suggestion(forDay: date, calendar: calendar, written: written, done: Set(shared.doneSuggestions().keys))
     }
 
-    /// Today's idea, then today's other nearby ideas, then a few more from the catalog, five in
-    /// all, no repeats. Every one has passed IdeaGuard.
+    /// This week's ideas written on the phone, for the week `date` is in.
+    static func writtenIdeas(on date: Date, calendar: Calendar, shared: SharedDefaults) -> [Suggestion] {
+        let clock = SundayClock(now: { date }, timeZone: calendar.timeZone)
+        return shared.writtenIdeas(forWeekStarting: clock.weekStart(), calendar: calendar)
+    }
+
+    /// Today's idea, then today's other nearby ideas, then the days ahead (written on the phone or
+    /// from the catalog), five in all, no repeats. Every one has passed IdeaGuard.
     static func list(on date: Date, calendar: Calendar, catalog: SuggestionCatalog, shared: SharedDefaults,
                      count: Int = 5) -> [Suggestion] {
         var result: [Suggestion] = []
@@ -141,17 +150,20 @@ public enum WidgetSnapshotBuilder {
         }
         add(idea(on: date, calendar: calendar, catalog: catalog, shared: shared))
         for nearby in shared.localIdeas(on: date, calendar: calendar) ?? [] { add(nearby) }
+        let written = writtenIdeas(on: date, calendar: calendar, shared: shared)
         let today = calendar.startOfDay(for: date)
         for offset in 1...14 where result.count < count {
             guard let day = calendar.date(byAdding: .day, value: offset, to: today),
                   let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) else { continue }
-            add(catalog.suggestion(forDay: noon, calendar: calendar))
+            add(catalog.suggestion(forDay: noon, calendar: calendar, written: written))
         }
         return result
     }
 
-    /// The next two days: their catalog ideas, or Sunday's nudge when Sunday comes first.
-    static func upcoming(after date: Date, clock: SundayClock, catalog: SuggestionCatalog) -> [WidgetSnapshot.Upcoming] {
+    /// The next two days: their ideas (written on the phone, or the catalog's), or Sunday's nudge
+    /// when Sunday comes first.
+    static func upcoming(after date: Date, clock: SundayClock, catalog: SuggestionCatalog,
+                         written: [Suggestion] = []) -> [WidgetSnapshot.Upcoming] {
         let calendar = clock.calendar
         let short = DateFormatter()
         short.calendar = calendar
@@ -166,7 +178,7 @@ public enum WidgetSnapshotBuilder {
                 break
             }
             let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: day) ?? day
-            if let idea = catalog.suggestion(forDay: noon, calendar: calendar) {
+            if let idea = catalog.suggestion(forDay: noon, calendar: calendar, written: written) {
                 result.append(.init(day: short.string(from: day), text: idea.text))
             }
         }

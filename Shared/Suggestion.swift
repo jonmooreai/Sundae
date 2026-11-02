@@ -73,6 +73,18 @@ public struct Suggestion: Codable, Identifiable, Hashable, Sendable {
     }
 
     public var isNearby: Bool { id.hasPrefix(Self.nearbyPrefix) }
+
+    /// Ideas the phone's own model wrote for this week start with this (WeekIdeaWriter). The id
+    /// names the day the idea is for and nothing else: `written:<day>`, safe to send with an account.
+    public static let writtenPrefix = "written:"
+
+    public var isWritten: Bool { id.hasPrefix(Self.writtenPrefix) }
+
+    /// The id of the idea written for `day`, as that calendar counts days.
+    public static func writtenID(for day: Date, calendar: Calendar) -> String {
+        let parts = calendar.dateComponents([.year, .month, .day], from: day)
+        return writtenPrefix + String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
 }
 
 /// The curated list, bundled as JSON. Server-managed later; fixed for v1.
@@ -113,6 +125,15 @@ public struct SuggestionCatalog: Sendable {
         guard !pool.isEmpty else { return nil }
         let day = calendar.ordinality(of: .day, in: .era, for: date) ?? 0
         return pool[abs(day) % pool.count]
+    }
+
+    /// The idea a day starts with before anyone shuffles, the same in the app, the widget and Siri:
+    /// the one the phone's model wrote for that day, unless it is done already, otherwise the
+    /// catalog's pick.
+    public func suggestion(forDay date: Date, calendar: Calendar, written: [Suggestion], done: Set<String> = []) -> Suggestion? {
+        let id = Suggestion.writtenID(for: date, calendar: calendar)
+        if let mine = written.first(where: { $0.id == id }), !done.contains(id) { return mine }
+        return suggestion(forDay: date, calendar: calendar)
     }
 
     /// A different suggestion than `current`, chosen at random from what fits right now.
