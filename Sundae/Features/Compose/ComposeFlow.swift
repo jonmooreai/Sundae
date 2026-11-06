@@ -146,6 +146,7 @@ struct FlowBottomBar<Leading: View>: View {
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.vertical, 10)
+        .centeredColumn()
         .background {
             Theme.background
                 .overlay(alignment: .top) { Hairline() }
@@ -304,6 +305,7 @@ struct SundayPromptStep: View {
             .padding(.top, 12)
         }
         .padding(24)
+        .centeredColumn(Theme.columnWidth + 48)
         .background(Theme.background)
         .toolbar(.hidden, for: .navigationBar)
         .task { await loadPreviews() }
@@ -391,6 +393,7 @@ struct PostedStep: View {
             .padding(.top, 2)
         }
         .padding(24)
+        .centeredColumn(Theme.columnWidth + 48)
         .background(Theme.background)
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)

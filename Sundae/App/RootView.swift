@@ -114,7 +114,7 @@ struct SundayShell: View {
         .overlay { PhotoZoomLayer() }
         .environment(zoom)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .environment(\.splitLayout, sizeClass == .regular && width >= 820)
+        .environment(\.splitLayout, UIDevice.current.userInterfaceIdiom == .pad && sizeClass == .regular && width >= 820)
         .filmGrain()
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
@@ -165,9 +165,8 @@ struct SundayShell: View {
     }
 }
 
-/// Two columns, feed beside the open post: an iPad, or an iPhone Duo open and on its side. The
-/// Duo open and upright is regular width too, but at 669 points two columns would leave the post
-/// a sliver, so it reads as one column, like a phone.
+/// Two columns, feed beside the open post: an iPad only. An iPhone Duo open is regular width too,
+/// but there the feed reads as one centered column, like a phone with room on either side.
 private struct SplitLayoutKey: EnvironmentKey {
     static let defaultValue = false
 }

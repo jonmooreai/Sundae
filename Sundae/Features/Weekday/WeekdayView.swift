@@ -50,6 +50,7 @@ struct WeekdayView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
             .padding(.top, 12)
+            .centeredColumn(Theme.columnWidth + 48)
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
         .goldenHour(calendar: model.clock.calendar)

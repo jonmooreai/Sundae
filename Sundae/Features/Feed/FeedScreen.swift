@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Sunday's home. A plain stack on a phone; two columns, the feed on the left and the open post
-/// or profile on the right, wherever there is room for two (SundayShell decides: an iPad, or an
-/// iPhone Duo open on its side).
+/// or profile on the right, on an iPad (SundayShell decides). An iPhone Duo open gets the stack,
+/// centered.
 struct FeedScreen: View {
     @Environment(\.splitLayout) private var splitLayout
     @State private var path: [Route] = []
@@ -94,8 +94,7 @@ struct FeedList: View {
                 }
             }
             .padding(.bottom, 24)
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
+            .centeredColumn()
             // Nothing posted yet: the spinner or the quiet Sunday sits in the middle of the space left.
             .fillsVisibleHeight(feed.dumps.isEmpty)
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
