@@ -36,7 +36,10 @@ struct SearchView: View {
     @Environment(\.scrollToTop) private var scrollToTop
 
     var body: some View {
-        searchBody.centeredColumn()
+        searchBody
+            .centeredColumn()
+            // The column is cream; so are the sides, edge to edge, on a screen wider than it.
+            .background(Theme.background)
     }
 
     private var searchBody: some View {
