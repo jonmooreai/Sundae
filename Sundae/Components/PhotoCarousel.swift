@@ -36,6 +36,12 @@ struct PhotoCarousel: View {
 
     private var hasCaptions: Bool { photos.contains { !($0.caption ?? "").isEmpty } }
 
+    /// Soft corners where a post floats in a column with room on either side (regular width: the
+    /// Duo open, an iPad); square on a phone, where the photos run edge to edge.
+    static func radius(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat {
+        sizeClass == .regular ? 14 : 0
+    }
+
     /// A little above the page dots, or near the foot when there is only one photo and no dots.
     private var captionLift: CGFloat { photos.count > 1 ? 36 : 14 }
 

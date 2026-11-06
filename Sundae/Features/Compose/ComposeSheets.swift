@@ -66,6 +66,9 @@ struct TagPickerSheet: View {
                         .padding(.top, 200)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .presentationBackground(Theme.background)
             .searchable(text: $query, prompt: "Name or username")
             .navigationTitle("Tag friends")
             .navigationBarTitleDisplayMode(.inline)
@@ -106,6 +109,9 @@ struct ReorderSheet: View {
                 }
                 .onMove { from, to in model.compose.move(from: from, to: to) }
             }
+            .scrollContentBackground(.hidden)
+            .background(Theme.background)
+            .presentationBackground(Theme.background)
             .environment(\.editMode, .constant(.active))
             .navigationTitle("Reorder")
             .navigationBarTitleDisplayMode(.inline)
@@ -138,6 +144,8 @@ struct AltTextSheet: View {
                 Spacer()
             }
             .padding(Theme.pagePadding)
+            .background(Theme.background)
+            .presentationBackground(Theme.background)
             .navigationTitle("Alt text")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

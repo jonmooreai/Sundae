@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Full dump: photos, caption, tags, likes, and the one conversation per dump.
 struct DumpDetailView: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let dumpID: ID
@@ -115,7 +116,7 @@ struct DumpDetailView: View {
         }
         .padding(.horizontal, Theme.pagePadding)
 
-        PhotoCarousel(photos: dump.photos, index: $page, onDoubleTap: {
+        PhotoCarousel(photos: dump.photos, index: $page, cornerRadius: PhotoCarousel.radius(sizeClass), onDoubleTap: {
             if !dump.likedByMe { Task { await toggleLike() } }
         }, tagsLinkToProfiles: true)
             .focusable()
