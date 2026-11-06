@@ -31,18 +31,19 @@ struct WeekdayView: View {
                 // side, and on either side of the crease on an iPhone Duo held like a book or set
                 // down like a laptop.
                 FoldAwareLayout(primaryShare: 0.56) {
+                    // Centered on the screen, and up to 640 wide: an iPhone Duo open is 669.
                     ZStack(alignment: .leading) {
                         suggestionBlock
                     }
-                    .frame(maxWidth: 560, alignment: .leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: 640)
+                    .frame(maxWidth: .infinity)
                     // Clipped so a shuffle slides in tidily, with room around it for the card's shadow.
                     .padding(20)
                     .clipped()
                     .padding(-20)
                 } secondary: {
                     actions
-                        .frame(maxWidth: 560)
+                        .frame(maxWidth: 640)
                 }
                 .padding(.top, 12)
             }

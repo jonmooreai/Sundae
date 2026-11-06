@@ -233,9 +233,11 @@ struct SundaeTabBar: View {
         }
         .padding(.horizontal, 8)
         .background {
+            // Edge to edge, under the strip an iPhone Duo keeps down one side for the clock and
+            // the camera; the buttons themselves stay out of it.
             Theme.background
                 .overlay(alignment: .top) { Hairline() }
-                .ignoresSafeArea(edges: .bottom)
+                .ignoresSafeArea(edges: [.bottom, .horizontal])
         }
         .background {
             Color.clear.onGeometryChange(for: Creased.self) { proxy in

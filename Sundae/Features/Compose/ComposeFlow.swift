@@ -149,7 +149,7 @@ struct FlowBottomBar<Leading: View>: View {
         .background {
             Theme.background
                 .overlay(alignment: .top) { Hairline() }
-                .ignoresSafeArea(edges: .bottom)
+                .ignoresSafeArea(edges: [.bottom, .horizontal])
         }
     }
 }
