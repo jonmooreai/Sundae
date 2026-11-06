@@ -33,7 +33,9 @@ struct PeopleListView: View {
     private var isOwn: Bool { userID == model.currentUser?.id }
 
     var body: some View {
-        peopleBody.centeredColumn()
+        peopleBody
+            .centeredColumn()
+            .background(Theme.background)
     }
 
     private var peopleBody: some View {

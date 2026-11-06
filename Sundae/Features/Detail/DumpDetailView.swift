@@ -3,6 +3,7 @@ import SwiftUI
 /// Full dump: photos, caption, tags, likes, and the one conversation per dump.
 struct DumpDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let dumpID: ID
@@ -19,10 +20,83 @@ struct DumpDetailView: View {
     @State private var showComments = false
     @State private var focusComposer = false
     @State private var profileToOpen: ID?
+    @State private var width: CGFloat = 393
+    @State private var height: CGFloat = 852
 
     private var isOwn: Bool { dump?.author.id == model.currentUser?.id }
 
+    /// A big screen wider than tall and lying flat (an iPhone Duo open on its side, an iPad on its
+    /// side): the photos on the left and the conversation beside them on the right, the way a post
+    /// reads on a wide screen. Regular both ways, so never a phone turned sideways.
+    private var isWide: Bool {
+        sizeClass == .regular && verticalSizeClass == .regular && width > height + 120
+    }
+
     var body: some View {
+        Group {
+            if isWide, let dump, dump.commentsEnabled {
+                HStack(spacing: 0) {
+                    post
+                    Rectangle()
+                        .fill(Theme.hairline)
+                        .frame(width: 0.5)
+                        .padding(.vertical, 16)
+                    CommentsSheet(dump: dump, inline: true, onCountChange: { count in
+                        self.dump?.commentCount = count
+                    }, onOpenProfile: { user in
+                        profileToOpen = user.id
+                    })
+                    .id(dump.id)
+                    .frame(width: min(440, max(320, width * 0.4)))
+                }
+            } else {
+                post
+            }
+        }
+        .background(Theme.background)
+        .toolbar(.hidden, for: .navigationBar)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            width = size.width
+            height = size.height
+        }
+        .sheet(isPresented: $reporting) {
+            ReportSheet(target: .dump, targetID: dumpID)
+        }
+        .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) {
+                Task {
+                    // The post is gone, so its page goes too.
+                    if let dump, await model.deletePost(dump) { dismiss() }
+                }
+            }
+        } message: {
+            Text("Your photos and any tags on them are removed. Friends keep the photos they posted.")
+        }
+        .sheet(isPresented: $showComments, onDismiss: { Task { await reloadComments() } }) {
+            if let dump {
+                CommentsSheet(dump: dump, focusOnOpen: focusComposer, onCountChange: { count in
+                    self.dump?.commentCount = count
+                }, onOpenProfile: { user in
+                    showComments = false
+                    profileToOpen = user.id
+                })
+                .environment(model)
+            }
+        }
+        .navigationDestination(item: $profileToOpen) { id in
+            RouteView(route: .profile(id))
+        }
+        .fullScreenCover(isPresented: $showFullScreen) {
+            if let dump, dump.photos.indices.contains(page) {
+                FullScreenPhotoView(photo: dump.photos[page], caption: dump.caption)
+            }
+        }
+        .task(id: dumpID) { await load() }
+    }
+
+    /// The photos, the caption and the likes, with a taste of the conversation under them where
+    /// the conversation is not already beside them.
+    private var post: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: dump.map { model.clock.rangeLabel(weekStart: $0.weekStart) } ?? "", showsBack: true) {
@@ -65,41 +139,6 @@ struct DumpDetailView: View {
             .centeredColumn(Theme.postWidth)
             .padding(.bottom, 24)
         }
-        .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $reporting) {
-            ReportSheet(target: .dump, targetID: dumpID)
-        }
-        .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) {
-                Task {
-                    // The post is gone, so its page goes too.
-                    if let dump, await model.deletePost(dump) { dismiss() }
-                }
-            }
-        } message: {
-            Text("Your photos and any tags on them are removed. Friends keep the photos they posted.")
-        }
-        .sheet(isPresented: $showComments, onDismiss: { Task { await reloadComments() } }) {
-            if let dump {
-                CommentsSheet(dump: dump, focusOnOpen: focusComposer, onCountChange: { count in
-                    self.dump?.commentCount = count
-                }, onOpenProfile: { user in
-                    showComments = false
-                    profileToOpen = user.id
-                })
-                .environment(model)
-            }
-        }
-        .navigationDestination(item: $profileToOpen) { id in
-            RouteView(route: .profile(id))
-        }
-        .fullScreenCover(isPresented: $showFullScreen) {
-            if let dump, dump.photos.indices.contains(page) {
-                FullScreenPhotoView(photo: dump.photos[page], caption: dump.caption)
-            }
-        }
-        .task(id: dumpID) { await load() }
     }
 
     @ViewBuilder
@@ -130,14 +169,16 @@ struct DumpDetailView: View {
                 LikeButton(liked: dump.likedByMe, celebrates: dump.likedBy.count >= 10) {
                     Task { await toggleLike() }
                 }
-                Button {
-                    focusComposer = true
-                    showComments = true
-                } label: {
-                    Icon(Glyph.comment, size: 26).foregroundStyle(.primary)
+                if !isWide {
+                    Button {
+                        focusComposer = true
+                        showComments = true
+                    } label: {
+                        Icon(Glyph.comment, size: 26).foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("Comments")
+                    .disabled(!dump.commentsEnabled)
                 }
-                .accessibilityLabel("Comments")
-                .disabled(!dump.commentsEnabled)
                 LikesLabel(dump: dump, meID: model.currentUser?.id)
                 Spacer(minLength: 8)
                 if dump.photos.count > 1 {
@@ -156,7 +197,9 @@ struct DumpDetailView: View {
         }
         .padding(.horizontal, Theme.pagePadding)
 
-        // The last two comments as a taste; the drawer has the whole conversation.
+        // The last two comments as a taste; the drawer has the whole conversation. Beside the
+        // conversation on a wide screen there is nothing to tease.
+        if !isWide {
         VStack(alignment: .leading, spacing: 12) {
             if !dump.commentsEnabled {
                 Text("Comments are off for this week.").font(.footnote).foregroundStyle(.secondary)
@@ -196,6 +239,7 @@ struct DumpDetailView: View {
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 8)
+        }
     }
 
     private func reloadComments() async {

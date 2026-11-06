@@ -10,6 +10,9 @@ struct PlaceCard: View {
     let distance: String?
     /// False on short screens, where the picture would crowd the idea.
     var showsPicture = true
+    /// A bigger card for a wide screen lying flat (an iPhone Duo open on its side): a taller map,
+    /// and what Apple Maps knows about the place, its kind, address and website, when it has them.
+    var wide = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
@@ -22,7 +25,7 @@ struct PlaceCard: View {
             // house next door.
             if showsPicture, let coordinate {
                 map(of: coordinate)
-                    .frame(height: 132)
+                    .frame(height: wide ? 210 : 132)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .padding([.top, .horizontal], 8)
             }
@@ -30,7 +33,7 @@ struct PlaceCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(place.name)
                     .font(.body.weight(.semibold))
-                    .lineLimit(1)
+                    .lineLimit(wide ? 2 : 1)
                 if let distance {
                     HStack(spacing: 5) {
                         Icon(Glyph.pin, weight: .fill, size: 13)
@@ -39,6 +42,16 @@ struct PlaceCard: View {
                     }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                }
+                if wide, let item = lookup?.mapItem {
+                    ForEach(Self.details(of: item), id: \.self) { line in
+                        Text(line)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .padding(.top, 4)
+                    .transition(.opacity)
                 }
             }
             .padding(.horizontal, 16)
@@ -84,6 +97,45 @@ struct PlaceCard: View {
 }
 
 extension PlaceCard {
+    /// What Apple Maps knows about the place, in a line or two: its kind and address, then its
+    /// website. Only what it has; nothing is made up to fill the card.
+    static func details(of item: MKMapItem) -> [String] {
+        var lines: [String] = []
+        let kindAndAddress = [kind(of: item), item.address?.shortAddress].compactMap { $0 }
+        if !kindAndAddress.isEmpty { lines.append(kindAndAddress.joined(separator: " \u{00B7} ")) }
+        if let host = item.url?.host() {
+            lines.append(host.hasPrefix("www.") ? String(host.dropFirst(4)) : host)
+        }
+        return lines
+    }
+
+    /// The kind of place, in plain words, for the kinds an idea can be about.
+    static func kind(of item: MKMapItem) -> String? {
+        guard let category = item.pointOfInterestCategory else { return nil }
+        switch category {
+        case .cafe: return "Coffee shop"
+        case .bakery: return "Bakery"
+        case .restaurant: return "Restaurant"
+        case .foodMarket: return "Market"
+        case .library: return "Library"
+        case .museum: return "Museum"
+        case .park: return "Park"
+        case .nationalPark: return "National park"
+        case .beach: return "Beach"
+        case .marina: return "Marina"
+        case .hiking: return "Trail"
+        case .store: return "Shop"
+        case .theater: return "Theater"
+        case .movieTheater: return "Cinema"
+        case .zoo: return "Zoo"
+        case .aquarium: return "Aquarium"
+        case .amusementPark: return "Amusement park"
+        case .campground: return "Campground"
+        case .stadium: return "Stadium"
+        default: return nil
+        }
+    }
+
     private var coordinate: CLLocationCoordinate2D? {
         guard let latitude = place.latitude, let longitude = place.longitude else { return nil }
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)

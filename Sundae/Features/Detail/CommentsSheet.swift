@@ -11,6 +11,9 @@ struct CommentsSheet: View {
 
     let dump: Dump
     var focusOnOpen = false
+    /// Beside the photos on a wide screen rather than in a drawer over them: no Close, since
+    /// there is nothing to close.
+    var inline = false
     /// Called with the new total whenever a comment is added or removed.
     var onCountChange: ((Int) -> Void)? = nil
     /// Tapping a commenter's face or name. The caller closes the drawer and opens the profile.
@@ -79,8 +82,10 @@ struct CommentsSheet: View {
         HStack(alignment: .center, spacing: 8) {
             Text("Comments").font(Theme.display(26))
             Spacer()
-            IconButton(glyph: Glyph.close, label: "Close", size: 20) { dismiss() }
-                .padding(.trailing, -8)
+            if !inline {
+                IconButton(glyph: Glyph.close, label: "Close", size: 20) { dismiss() }
+                    .padding(.trailing, -8)
+            }
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 18)

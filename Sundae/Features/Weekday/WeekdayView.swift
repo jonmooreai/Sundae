@@ -6,6 +6,7 @@ import UIKit
 struct WeekdayView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
@@ -14,8 +15,16 @@ struct WeekdayView: View {
     @State private var showSavedIntro = false
     /// True for a moment after Save, for the line that says what happens next.
     @State private var justSaved = false
-    /// The screen's height, so the place card leaves out its picture where there is no room.
+    /// The screen's size: the place card leaves out its picture where there is no room, and a wide
+    /// screen lying flat puts the place beside the words.
     @State private var height: CGFloat = 852
+    @State private var width: CGFloat = 393
+
+    /// A big screen wider than tall and lying flat: an iPhone Duo open on its side, an iPad on its
+    /// side. Regular both ways, so never a phone turned sideways.
+    private var isWide: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular && width > height + 120
+    }
 
     private var store: WeekdayStore { model.weekday }
     private var nearby: LocalIdeasStore { model.localIdeas }
@@ -35,7 +44,7 @@ struct WeekdayView: View {
                     ZStack(alignment: .leading) {
                         suggestionBlock
                     }
-                    .frame(maxWidth: 640)
+                    .frame(maxWidth: isWide ? 812 : 640)
                     .frame(maxWidth: .infinity)
                     // Clipped so a shuffle slides in tidily, with room around it for the card's shadow.
                     .padding(20)
@@ -50,9 +59,12 @@ struct WeekdayView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
             .padding(.top, 12)
-            .centeredColumn(Theme.columnWidth + 48)
+            .centeredColumn(isWide ? 860 : Theme.columnWidth + 48)
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+            height = size.height
+            width = size.width
+        }
         .goldenHour(calendar: model.clock.calendar)
         .birthdayPaper(calendar: model.clock.calendar)
         .task {
@@ -161,37 +173,26 @@ struct WeekdayView: View {
     @ViewBuilder
     private var suggestionBlock: some View {
         if let suggestion = store.current {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack(spacing: 6) {
-                        if store.isCurrentSaved {
-                            Icon(Glyph.saved, weight: .fill, size: 16)
-                                .foregroundStyle(Color.accentColor)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                        Text(store.isCurrentSaved ? "Saved for this week" : dayLine(nearby: suggestion.isNearby))
-                            .textCase(.uppercase)
-                            .tracking(0.8)
-                            .contentTransition(.opacity)
+            Group {
+                if isWide, let place = suggestion.place {
+                    // A wide screen lying flat: the words on the left, the place on the right, with
+                    // a bigger map and what Maps knows about it.
+                    HStack(alignment: .center, spacing: 32) {
+                        words(suggestion)
+                        PlaceCard(place: place, distance: distanceLine(place), wide: true)
+                            .frame(width: 340)
+                            .transition(.opacity)
                     }
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    Text(suggestion.text)
-                        // The font's own tight leading sets the lines close, so a headline of two or
-                        // three lines reads as one, and still leaves room for a y or a comma to hang.
-                        .font(Theme.display(verticalSizeClass == .compact ? 28 : 36).leading(.tight))
-                        .minimumScaleFactor(0.6)
-                    Text(suggestion.reason)
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-                // The words read as one; the card's buttons stay buttons of their own.
-                .accessibilityElement(children: .combine)
-                if let place = suggestion.place {
-                    PlaceCard(place: place, distance: distanceLine(place),
-                              showsPicture: verticalSizeClass != .compact && height >= 740)
-                        .padding(.top, 6)
-                        .transition(.opacity)
+                } else {
+                    VStack(alignment: .leading, spacing: 18) {
+                        words(suggestion)
+                        if let place = suggestion.place {
+                            PlaceCard(place: place, distance: distanceLine(place),
+                                      showsPicture: verticalSizeClass != .compact && height >= 740)
+                                .padding(.top, 6)
+                                .transition(.opacity)
+                        }
+                    }
                 }
             }
             .animation(reduceMotion ? nil : .snappy(duration: 0.3), value: store.isCurrentSaved)
@@ -204,6 +205,36 @@ struct WeekdayView: View {
             Text("Go enjoy your day.")
                 .font(Theme.display(36))
         }
+    }
+
+    /// The day line, the idea and the why. They read as one; the card's buttons stay buttons of
+    /// their own.
+    private func words(_ suggestion: Suggestion) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 6) {
+                if store.isCurrentSaved {
+                    Icon(Glyph.saved, weight: .fill, size: 16)
+                        .foregroundStyle(Color.accentColor)
+                        .transition(.scale.combined(with: .opacity))
+                }
+                Text(store.isCurrentSaved ? "Saved for this week" : dayLine(nearby: suggestion.isNearby))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                    .contentTransition(.opacity)
+            }
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(.secondary)
+            Text(suggestion.text)
+                // The font's own tight leading sets the lines close, so a headline of two or
+                // three lines reads as one, and still leaves room for a y or a comma to hang.
+                .font(Theme.display(verticalSizeClass == .compact ? 28 : 36).leading(.tight))
+                .minimumScaleFactor(0.6)
+            Text(suggestion.reason)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// "8 min walk" close by, "32 mi" when it is worth the trip.
