@@ -77,6 +77,7 @@ struct PrivacySheet: View {
                         Button("Done") { dismiss() }
                     }
                 }
+                .presentationBackground(Theme.background)
         }
     }
 }

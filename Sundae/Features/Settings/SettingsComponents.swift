@@ -26,6 +26,9 @@ struct SettingsScreen<Content: View>: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(Theme.background)
+        // Presented as a sheet (Settings, Edit profile, Report), the sheet itself is cream too:
+        // on a wide screen it is a card, and the card showed the system's white around the page.
+        .presentationBackground(Theme.background)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
     }

@@ -233,6 +233,7 @@ struct TaggedPeopleSheet: View {
             }
         }
         .background(Theme.background)
+        .presentationBackground(Theme.background)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }

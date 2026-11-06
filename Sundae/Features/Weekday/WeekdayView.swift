@@ -95,6 +95,7 @@ struct WeekdayView: View {
         .onChange(of: store.current?.id) { _, _ in justSaved = false }
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
+                .presentationBackground(Theme.background)
         }
         .sheet(isPresented: $showLocationConsent) {
             LocationConsentSheet { nearby.enable() }

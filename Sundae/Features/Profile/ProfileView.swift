@@ -103,6 +103,7 @@ struct ProfileView: View {
         .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
+                .presentationBackground(Theme.background)
         }
         .sheet(isPresented: $showEdit, onDismiss: { Task { await load() } }) {
             if let user = profile?.user { EditProfileSheet(user: user) }
