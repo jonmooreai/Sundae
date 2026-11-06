@@ -30,11 +30,20 @@ enum SundayTab: Hashable, CaseIterable {
 /// Familiar skeleton with our own bottom bar: Feed, Search, Post, Approvals, Profile.
 /// The system TabView does the paging (so every tab keeps its scroll position and navigation)
 /// with its own bar hidden; the bar you see is `SundaeTabBar`.
+///
+/// Where the system lays its bars out down the side of the screen instead (an iPhone Duo closed,
+/// or open on its side), the system's own tab bar shows instead of ours: the Duo moves it into the
+/// strip it keeps for the clock and the camera, and the pages get the whole screen beside it.
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var tab: SundayTab = .feed
+    /// True while the system's bars run down the side of the screen (iOS 27.1 and an iPhone Duo).
+    @State private var sideBars = false
     @State private var barHeight: CGFloat = 50
+    /// The shell's width: two columns need room for two, which regular width alone does not promise.
+    @State private var width: CGFloat = 0
     /// A pinched photo, drawn over everything including the bar.
     @State private var zoom = PhotoZoom()
     /// Taps on a tab that is already showing, by tab: back to its first screen, then to the top.
@@ -42,21 +51,59 @@ struct SundayShell: View {
 
     private var compose: ComposeStore { model.compose }
 
+    /// The tab the system bar asks for. Post is a button, not a page: it opens the posting flow
+    /// and the page you were on stays. The tab already showing, tapped again, goes back to its
+    /// first screen, then to the top, as in our own bar.
+    private var systemSelection: Binding<SundayTab> {
+        Binding(get: { tab }, set: { next in
+            if next == .post {
+                Haptics.light()
+                openCompose()
+            } else if next == tab {
+                reselects[next, default: 0] += 1
+            } else {
+                tab = next
+            }
+        })
+    }
+
+    private var pageInset: CGFloat { sideBars ? 0 : barHeight }
+
     var body: some View {
-        TabView(selection: $tab) {
-            Tab(value: .feed) { FeedScreen(onPost: openCompose, reselects: reselects[.feed, default: 0]).tabPage(barHeight: barHeight) }
-            Tab(value: .search) { SearchScreen(reselects: reselects[.search, default: 0]).tabPage(barHeight: barHeight) }
-            Tab(value: .approvals) { ApprovalsScreen(reselects: reselects[.approvals, default: 0]).tabPage(barHeight: barHeight) }
-            Tab(value: .profile) { ProfileScreen(reselects: reselects[.profile, default: 0]).tabPage(barHeight: barHeight) }
+        TabView(selection: systemSelection) {
+            Tab(value: SundayTab.feed) {
+                FeedScreen(onPost: openCompose, reselects: reselects[.feed, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Feed") } icon: { TabIcon.image(Glyph.feed) } }
+            Tab(value: SundayTab.search) {
+                SearchScreen(reselects: reselects[.search, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Search") } icon: { TabIcon.image(Glyph.search) } }
+            // Never shown: choosing it opens the posting flow (systemSelection).
+            Tab(value: SundayTab.post) {
+                Color.clear.tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Share your week") } icon: { TabIcon.image(Glyph.post) } }
+            Tab(value: SundayTab.approvals) {
+                ApprovalsScreen(reselects: reselects[.approvals, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Approvals") } icon: { TabIcon.image(Glyph.approvals) } }
+            .badge(model.pendingApprovalCount)
+            Tab(value: SundayTab.profile) {
+                ProfileScreen(reselects: reselects[.profile, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Profile") } icon: { TabIcon.image(Glyph.profile) } }
         }
         // The bar is an overlay and every page reserves its height. A safe area inset on the
         // TabView itself never reached the pages, so a screen's bottom composer sat under the bar.
         .overlay(alignment: .bottom) {
-            SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
-                         onReselect: { reselects[$0, default: 0] += 1 })
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
-                // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
-                .ignoresSafeArea(.keyboard, edges: .bottom)
+            if !sideBars {
+                SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
+                             onReselect: { reselects[$0, default: 0] += 1 })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+                    // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
+        }
+        .background {
+            if #available(iOS 27.1, *) {
+                SideBarsReader { sideBars = $0 }
+            }
         }
         .overlay(alignment: .top) {
             Theme.background.opacity(0.94)
@@ -66,6 +113,8 @@ struct SundayShell: View {
         }
         .overlay { PhotoZoomLayer() }
         .environment(zoom)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .environment(\.splitLayout, sizeClass == .regular && width >= 820)
         .filmGrain()
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
@@ -116,6 +165,20 @@ struct SundayShell: View {
     }
 }
 
+/// Two columns, feed beside the open post: an iPad, or an iPhone Duo open and on its side. The
+/// Duo open and upright is regular width too, but at 669 points two columns would leave the post
+/// a sliver, so it reads as one column, like a phone.
+private struct SplitLayoutKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var splitLayout: Bool {
+        get { self[SplitLayoutKey.self] }
+        set { self[SplitLayoutKey.self] = newValue }
+    }
+}
+
 /// Height of our bottom bar, handed to every screen under it. Safe area insets set on the
 /// TabView or on a stack never reach pushed screens, so each screen reserves the room itself.
 private struct BottomBarInsetKey: EnvironmentKey {
@@ -152,10 +215,43 @@ extension View {
 }
 
 private extension View {
-    /// A tab page under our own bar: the system bar hidden, our height in the environment.
-    func tabPage(barHeight: CGFloat) -> some View {
-        toolbar(.hidden, for: .tabBar)
+    /// A tab page under our own bar: the system bar hidden, our height in the environment. Where
+    /// the system's bars run down the side, the system bar shows and the page needs no room for ours.
+    func tabPage(barHeight: CGFloat, systemBar: Bool) -> some View {
+        toolbar(systemBar ? .automatic : .hidden, for: .tabBar)
             .environment(\.bottomBarInset, barHeight)
+    }
+}
+
+/// Says whether the system lays its bars out down the side of the screen: an iPhone Duo closed,
+/// with the clock and the camera in a strip down one edge, or open on its side.
+@available(iOS 27.1, *)
+private struct SideBarsReader: View {
+    @Environment(\.toolbarVerticalEdge) private var edge
+    let report: (Bool) -> Void
+
+    var body: some View {
+        Color.clear
+            .onAppear { report(edge != nil) }
+            .onChange(of: edge) { _, now in report(now != nil) }
+    }
+}
+
+/// Our Phosphor icons at the size a system tab bar draws them. The artwork is 256 points square,
+/// which the bar would show at full size, so each is drawn once at 26 points and kept.
+@MainActor
+enum TabIcon {
+    private static var drawn: [Ph: UIImage] = [:]
+
+    static func image(_ glyph: Ph) -> Image {
+        if let image = drawn[glyph] { return Image(uiImage: image) }
+        guard let source = UIImage(named: glyph.rawValue) else { return Image(systemName: "circle") }
+        let size = CGSize(width: 26, height: 26)
+        let image = UIGraphicsImageRenderer(size: size)
+            .image { _ in source.draw(in: CGRect(origin: .zero, size: size)) }
+            .withRenderingMode(.alwaysTemplate)
+        drawn[glyph] = image
+        return Image(uiImage: image)
     }
 }
 
@@ -169,34 +265,78 @@ struct SundaeTabBar: View {
     /// The tab that was already showing was tapped again.
     var onReselect: (SundayTab) -> Void = { _ in }
     @State private var bumped: SundayTab?
+    /// The bar's width and where an iPhone Duo's crease crosses it, when the phone is part open.
+    @State private var creased = Creased(width: 0, fold: nil)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Creased: Equatable {
+        var width: CGFloat
+        var fold: CGRect?
+    }
+
+    /// Held like a book, the crease runs down the middle of the bar, right where Post would be.
+    /// The two left items keep the left page and the other three take the right, with the crease
+    /// left empty between them. The sides of the padded bar are 8 in from its edges.
+    private var pages: (left: CGFloat, right: CGFloat)? {
+        guard let fold = creased.fold, fold.height > fold.width else { return nil }
+        let left = fold.minX - 8 - 6
+        let right = creased.width - 8 - fold.maxX - 6
+        guard left >= 96, right >= 140 else { return nil }
+        return (left, right)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            item(.feed, Glyph.feed, "Feed")
-            item(.search, Glyph.search, "Search")
-            Button {
-                Haptics.light()
-                onPost()
-            } label: {
-                Icon(Glyph.post, size: 27)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .contentShape(Rectangle())
+            if let pages {
+                HStack(spacing: 0) {
+                    item(.feed, Glyph.feed, "Feed")
+                    item(.search, Glyph.search, "Search")
+                }
+                .frame(width: pages.left)
+                Spacer(minLength: 0)
+                HStack(spacing: 0) {
+                    postItem
+                    item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+                    profileItem
+                }
+                .frame(width: pages.right)
+            } else {
+                item(.feed, Glyph.feed, "Feed")
+                item(.search, Glyph.search, "Search")
+                postItem
+                item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+                profileItem
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share your week")
-            .accessibilityIdentifier("tab-post")
-            item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
-            profileItem
         }
         .padding(.horizontal, 8)
         .background {
+            // Edge to edge, under the strip an iPhone Duo keeps down one side for the clock and
+            // the camera; the buttons themselves stay out of it.
             Theme.background
                 .overlay(alignment: .top) { Hairline() }
-                .ignoresSafeArea(edges: .bottom)
+                .ignoresSafeArea(edges: [.bottom, .horizontal])
         }
+        .background {
+            Color.clear.onGeometryChange(for: Creased.self) { proxy in
+                Creased(width: proxy.size.width, fold: Fold.frame(in: proxy))
+            } action: { creased = $0 }
+        }
+    }
+
+    private var postItem: some View {
+        Button {
+            Haptics.light()
+            onPost()
+        } label: {
+            Icon(Glyph.post, size: 27)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Share your week")
+        .accessibilityIdentifier("tab-post")
     }
 
     private func item(_ which: SundayTab, _ glyph: Ph, _ label: String, badge: Int = 0) -> some View {

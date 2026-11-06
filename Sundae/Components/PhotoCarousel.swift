@@ -23,10 +23,15 @@ struct PhotoCarousel: View {
     @State private var burst = 0
     @State private var screenFrame = ScreenFrame()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(PhotoZoom.self) private var zoom: PhotoZoom?
 
+    /// The shape of the tallest photo, within limits. On a phone turned on its side the frame is
+    /// wide (16:10 or wider), so a post is never twice the height of the screen.
     private var aspect: CGFloat {
-        min(max(photos.map(\.aspectRatio).min() ?? 1, 0.75), 1.5)
+        let tallest = photos.map(\.aspectRatio).min() ?? 1
+        if verticalSizeClass == .compact { return max(1.6, min(tallest, 1.8)) }
+        return min(max(tallest, 0.75), 1.5)
     }
 
     private var hasCaptions: Bool { photos.contains { !($0.caption ?? "").isEmpty } }

@@ -149,7 +149,7 @@ struct FlowBottomBar<Leading: View>: View {
         .background {
             Theme.background
                 .overlay(alignment: .top) { Hairline() }
-                .ignoresSafeArea(edges: .bottom)
+                .ignoresSafeArea(edges: [.bottom, .horizontal])
         }
     }
 }
@@ -214,6 +214,7 @@ struct FannedPhotos: View {
 struct SundayPromptStep: View {
     @Environment(AppModel.self) private var model
     @Environment(\.displayScale) private var displayScale
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
     @State private var previews: [UIImage] = []
@@ -246,53 +247,61 @@ struct SundayPromptStep: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer(minLength: 20)
-
-            VStack(alignment: .leading, spacing: 18) {
-                Text(dateLine)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.8)
-                Text("\(greeting)\n\(compose.hasPosted ? "Thanks for sharing your week." : "Come share your week.")")
-                    .font(Theme.display(44).leading(.tight))
-                Text(compose.hasPosted
-                     ? "Want to add a photo, tweak the caption, or tag someone you missed? It's all yours until midnight."
-                     : startsFromSaved ? savedLine
-                     : "Pick your favorite photos, tag who was there, and tell everyone how it went. No rush, you have until midnight.")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer(minLength: 20)
-
-            Group {
-                if previews.isEmpty {
-                    PhotoStackIcon(size: 96)
-                } else {
-                    FannedPhotos(images: previews)
+            // The words and the photos, then the buttons: below them upright, beside them on a
+            // phone on its side, and on either side of an iPhone Duo's crease when it is part open.
+            FoldAwareLayout(primaryShare: 0.58, spacing: 20) {
+                VStack(spacing: 20) {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text(dateLine)
+                            .font(.footnote.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                            .tracking(0.8)
+                        Text("\(greeting)\n\(compose.hasPosted ? "Thanks for sharing your week." : "Come share your week.")")
+                            .font(Theme.display(verticalSizeClass == .compact ? 32 : 44).leading(.tight))
+                            .minimumScaleFactor(0.7)
+                        Text(compose.hasPosted
+                             ? "Want to add a photo, tweak the caption, or tag someone you missed? It's all yours until midnight."
+                             : startsFromSaved ? savedLine
+                             : "Pick your favorite photos, tag who was there, and tell everyone how it went. No rush, you have until midnight.")
+                            .font(verticalSizeClass == .compact ? .body : .title3)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // A phone on its side has no room for the photos under the words.
+                    if verticalSizeClass != .compact {
+                        Spacer(minLength: 0)
+                        Group {
+                            if previews.isEmpty {
+                                PhotoStackIcon(size: 96)
+                            } else {
+                                FannedPhotos(images: previews)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    Spacer(minLength: 0)
+                }
+            } secondary: {
+                VStack(spacing: 4) {
+                    PrimaryButton(title: compose.hasPosted ? "Edit your week" : startsFromSaved ? "Start with your saved photos" : "Pick your photos",
+                                  isLoading: preparing) {
+                        Haptics.light()
+                        if compose.hasPosted {
+                            compose.entry = .arrange
+                            path = []
+                        } else if startsFromSaved {
+                            Task { await startFromSaved() }
+                        } else {
+                            path.append(.pick)
+                        }
+                    }
+                    Button(compose.hasPosted ? "See the feed" : "Show me the feed first") { notNow() }
+                        .buttonStyle(.pill(.quiet, fullWidth: true))
                 }
             }
-            .frame(maxWidth: .infinity)
-
-            Spacer(minLength: 20)
-
-            PrimaryButton(title: compose.hasPosted ? "Edit your week" : startsFromSaved ? "Start with your saved photos" : "Pick your photos",
-                          isLoading: preparing) {
-                Haptics.light()
-                if compose.hasPosted {
-                    compose.entry = .arrange
-                    path = []
-                } else if startsFromSaved {
-                    Task { await startFromSaved() }
-                } else {
-                    path.append(.pick)
-                }
-            }
-            Button(compose.hasPosted ? "See the feed" : "Show me the feed first") { notNow() }
-                .buttonStyle(.pill(.quiet, fullWidth: true))
-                .padding(.top, 4)
+            .padding(.top, 12)
         }
         .padding(24)
         .background(Theme.background)
