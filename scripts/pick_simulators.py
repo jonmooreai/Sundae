@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Choose one iPhone and one iPad from `simctl list devices available -j`.
+"""Choose one iPhone, one iPad and the iPhone Duo from `simctl list devices available -j`.
 
-Prints GITHUB_ENV lines: IPHONE_UDID, IPHONE_NAME, IPAD_UDID, IPAD_NAME.
-Prefers the newest numbered iPhone Pro and the newest iPad Pro.
+Prints GITHUB_ENV lines: IPHONE_UDID, IPHONE_NAME, IPAD_UDID, IPAD_NAME, DUO_UDID, DUO_NAME.
+Prefers the newest numbered iPhone Pro and the newest iPad Pro. The Duo is empty when the
+image has no iPhone Duo simulator (Xcode before 27.1).
 """
 import json
 import re
@@ -33,11 +34,14 @@ def pick(pattern, fallback):
     return sorted(matches, key=key)[-1]
 
 
-iphone = pick(r"^iPhone \d+ Pro$", r"^iPhone")
+iphone = pick(r"^iPhone \d+ Pro$", r"^iPhone \d+")
 ipad = pick(r"^iPad Pro", r"^iPad")
+duo = pick(r"^iPhone Duo$", r"^iPhone Duo")
 if not iphone:
     sys.exit("No iPhone simulator available")
 print(f"IPHONE_UDID={iphone[2]}")
 print(f"IPHONE_NAME={iphone[1]}")
 print(f"IPAD_UDID={ipad[2] if ipad else ''}")
 print(f"IPAD_NAME={ipad[1] if ipad else ''}")
+print(f"DUO_UDID={duo[2] if duo else ''}")
+print(f"DUO_NAME={duo[1] if duo else ''}")

@@ -59,8 +59,8 @@ final class PhotoLibrary {
         assets = list
     }
 
-    func thumbnail(for asset: PHAsset, side: CGFloat) async -> UIImage? {
-        let scale = UIScreen.main.scale
+    /// `scale` is the display's (`\.displayScale`): a phone with two displays has no one main screen.
+    func thumbnail(for asset: PHAsset, side: CGFloat, scale: CGFloat) async -> UIImage? {
         let target = CGSize(width: side * scale, height: side * scale)
         return await withCheckedContinuation { continuation in
             let options = PHImageRequestOptions()

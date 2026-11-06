@@ -2,14 +2,21 @@ import XCTest
 
 /// Walks every screen against the mock backend and saves a screenshot of each.
 /// Screenshots are attached to the result bundle and, when `SCREENSHOT_DIR` is set,
-/// written straight to that folder as `<device>-<name>.png`.
-final class ScreenshotTests: XCTestCase {
+/// written straight to that folder as `<device>-<name>.png`. The iPhone Duo's files start
+/// with `Duo`, and the landscape run's with `DuoLandscape` (LandscapeScreenshotTests).
+class ScreenshotTests: XCTestCase {
+    /// Turned sideways for every screen. The landscape run overrides it.
+    var landscape: Bool { false }
+
     private var device: String {
-        UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+        let simulator = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? ""
+        let base = simulator.contains("Duo") ? "Duo" : UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+        return landscape ? "\(base)Landscape" : base
     }
 
     override func setUpWithError() throws {
         continueAfterFailure = true
+        XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait
         addUIInterruptionMonitor(withDescription: "System alert") { alert in
             for label in ["Allow", "Allow Full Access", "OK", "Don\u{2019}t Allow"] where alert.buttons[label].exists {
                 alert.buttons[label].tap()
@@ -35,6 +42,11 @@ final class ScreenshotTests: XCTestCase {
 
     private func snap(_ app: XCUIApplication, _ name: String, settle: TimeInterval = 1.2) {
         Thread.sleep(forTimeInterval: settle)
+        if name.hasPrefix("00-onboarding-intro-film") {
+            // Once per run, for the record: how many displays the device shows, and their sizes.
+            let sizes = XCUIScreen.screens.map { "\($0.screenshot().image.size)" }
+            print("[screens] \(device): \(XCUIScreen.screens.count) \(sizes) window \(app.windows.firstMatch.frame)")
+        }
         let screenshot = XCUIScreen.main.screenshot()
         let fileName = "\(device)-\(name).png"
         let attachment = XCTAttachment(screenshot: screenshot)
@@ -209,5 +221,15 @@ final class ScreenshotTests: XCTestCase {
         }
         XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed-dark", settle: 5)
+    }
+}
+
+/// Every screen again with the phone turned sideways, for the iPhone Duo run.
+final class LandscapeScreenshotTests: ScreenshotTests {
+    override var landscape: Bool { true }
+
+    override func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
+        super.tearDown()
     }
 }

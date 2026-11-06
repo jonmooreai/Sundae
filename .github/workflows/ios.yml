@@ -40,9 +40,13 @@ jobs:
     # A [testflight] push runs the TestFlight workflow instead; no need to build twice.
     # And while the repository is private, only when asked: [ios], [screenshots], or by hand.
     if: ${{ !contains(github.event.head_commit.message, '[testflight]') && (!github.event.repository.private || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ios]') || contains(github.event.head_commit.message, '[screenshots]')) }}
-    runs-on: macos-latest
+    # Xcode 27.1 and its iOS 27.1 SDK: built with anything older, the app runs in a phone-sized
+    # box on the iPhone Duo's inner display instead of filling it. The image also carries the
+    # iPhone Duo simulator.
+    runs-on: xcode-27
     # Normal pushes build and run the unit tests; a slow runner can spend 15 minutes on the build alone.
-    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 45 || 35 }}
+    # The full run also walks every screen on the iPhone Duo, upright and sideways.
+    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 75 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,7 +57,11 @@ jobs:
       - name: Select newest Xcode
         run: |
           set -euo pipefail
-          XCODE=$(ls -d /Applications/Xcode_*.app | grep -vi beta | sort -V | tail -1)
+          # The newest released Xcode by its own version number: real folders only, never a beta,
+          # a release candidate or one of the image's links.
+          XCODE=$(for x in $(find /Applications -maxdepth 1 -type d -name 'Xcode_*.app' | grep -viE 'beta|release_candidate'); do
+            echo "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$x/Contents/version.plist" 2>/dev/null || echo 0) $x"
+          done | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 | cut -d' ' -f2-)
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
@@ -66,6 +74,33 @@ jobs:
           else
             echo "DT_OVERRIDE=" >> "$GITHUB_ENV"
           fi
+
+      # Once only, while the app learns the iPhone Duo: the new SDK's exact signatures, since
+      # Apple's documentation pages do not load from where the code is written.
+      - name: iPhone Duo SDK probe
+        continue-on-error: true
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          PLAT=$(xcrun --sdk iphonesimulator --show-sdk-platform-path)
+          echo "SDK $SDK"
+          PATTERN='reservedRegion|ReservedRegion|ArrangementView|arrangementViewStyle|ArrangementStyle|onHingeChange|HingeContext|HingeStatus|struct Hinge|toolbarVerticalBehavior|ToolbarVerticalBehavior|axisBehavior|AxisBehavior|defaultTabBarPlacement|TabBarPlacement|toolbarVerticalEdge|overlayArrangementZIndex|toolbarVerticalCompressionBehavior|visibilityPriority'
+          for f in $(find "$SDK/System/Library/Frameworks" -maxdepth 4 -path '*SwiftUI*' -name '*.swiftinterface' | grep -E 'arm64e?-apple-ios\.swiftinterface$'); do
+            echo "== $f"
+            grep -n -B3 -E "$PATTERN" "$f" | cut -c1-260 | head -400
+          done
+          echo "== UIKit headers"
+          grep -rn -E 'ReservedRegion|reservedRegions|UIHingeInteraction|UIHinge|verticalBarEdge|UIVerticalBarBehavior|preferredVerticalBarBehavior|axisBehavior' "$SDK/System/Library/Frameworks/UIKit.framework/Headers" | cut -c1-260 | head -120
+          echo "== XCTest and XCUIAutomation"
+          grep -rn -i -E 'hinge|fold|posture|devicePose|XCUIDevicePose|display' "$PLAT/Developer/Library/Frameworks/XCTest.framework/Headers" "$PLAT/Developer/Library/Frameworks/XCUIAutomation.framework/Headers" 2>/dev/null | cut -c1-260 | head -80
+          for f in $(find "$PLAT/Developer/Library/Frameworks" -maxdepth 5 -name '*.swiftinterface' | grep -i -E 'XCUIAutomation|XCTest' | grep -E 'arm64-apple-ios-simulator'); do
+            echo "== $f"
+            grep -n -i -E 'hinge|fold|posture|pose\b|Pose ' "$f" | cut -c1-260 | head -60
+          done
+          echo "== simctl"
+          xcrun simctl help 2>&1 | head -70
+          xcrun simctl list devicetypes 2>&1 | grep -i -E 'duo|fold' || true
+          xcrun simctl help io 2>&1 | head -40
+          xcrun simctl help ui 2>&1 | head -40
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -129,9 +164,29 @@ jobs:
             -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
             -derivedDataPath build \
             -resultBundlePath results/iphone.xcresult \
+            -skip-testing:SundaeUITests/LandscapeScreenshotTests \
             SCREENSHOT_DIR="$PWD/screenshots" \
             2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
+
+      - name: Every screen on iPhone Duo, upright and sideways
+        if: env.FULL == 'true' && env.DUO_UDID != ''
+        run: |
+          set -o pipefail
+          xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DUO_UDID" -b || true
+          APP=$(find build/Build/Products -maxdepth 2 -name "Sundae.app" | head -1)
+          [ -n "$APP" ] && xcrun simctl install "$DUO_UDID" "$APP" || true
+          xcrun simctl privacy "$DUO_UDID" grant photos com.jonmooreai.sundae || true
+          ls seed-photos/*.jpg >/dev/null 2>&1 && xcrun simctl addmedia "$DUO_UDID" seed-photos/*.jpg || true
+          xcodebuild test-without-building \
+            -project Sundae.xcodeproj -scheme Sundae \
+            -destination "platform=iOS Simulator,id=$DUO_UDID" \
+            -derivedDataPath build \
+            -resultBundlePath results/duo.xcresult \
+            -only-testing:SundaeUITests \
+            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-duo.log
 
       - name: Export screenshots from result bundles
         if: always() && env.FULL == 'true'

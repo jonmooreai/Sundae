@@ -268,6 +268,7 @@ struct PickPhotosStep: View {
 struct LibraryThumbnail: View {
     let library: PhotoLibrary
     let asset: PHAsset
+    @Environment(\.displayScale) private var displayScale
     @State private var image: UIImage?
 
     var body: some View {
@@ -280,7 +281,7 @@ struct LibraryThumbnail: View {
             }
             .clipped()
             .task(id: asset.localIdentifier) {
-                image = await library.thumbnail(for: asset, side: 160)
+                image = await library.thumbnail(for: asset, side: 160, scale: displayScale)
             }
     }
 }
