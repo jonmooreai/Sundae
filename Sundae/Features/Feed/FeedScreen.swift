@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Sunday's home. Compact width is a plain stack; regular width (iPad) is two columns with the
-/// feed on the left and the open dump or profile on the right.
+/// Sunday's home. A plain stack on a phone; two columns, the feed on the left and the open post
+/// or profile on the right, wherever there is room for two (SundayShell decides: an iPad, or an
+/// iPhone Duo open on its side).
 struct FeedScreen: View {
-    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.splitLayout) private var splitLayout
     @State private var path: [Route] = []
     @State private var selection: Route?
     @State private var scrollSignal = 0
@@ -12,7 +13,7 @@ struct FeedScreen: View {
     var reselects = 0
 
     var body: some View {
-        if sizeClass == .regular {
+        if splitLayout {
             NavigationSplitView {
                 FeedList(open: { selection = $0 }, onPost: onPost)
                     .environment(\.scrollToTop, scrollSignal)

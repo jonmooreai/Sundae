@@ -45,7 +45,8 @@ Sundae/
                          NetworkMonitor, PendingPostStore (offline compose queue)
   Services/Live/         HTTPClient (bearer auth, single-flight refresh), TokenStore (Keychain),
                          DTOs, LiveSundaeAPI, BackgroundUploader (background URLSession to pre-signed URLs)
-  Components/            PhotoView, AvatarView, PhotoCarousel, LikesLabel, UserRow, buttons
+  Components/            PhotoView, AvatarView, PhotoCarousel, LikesLabel, UserRow, buttons, FoldAwareLayout
+                         (two panes laid out around an iPhone Duo's crease, or by the shape of the screen)
   Features/
     Weekday/             The weekday screen and its store
     Feed/                Sunday feed, post card, "Post your week" card
@@ -64,6 +65,8 @@ docs/API.md              The REST contract the live client expects
 ## How the pieces fit
 
 **The Sunday gate.** `SundayClock` decides what to draw from the device clock and zone. `AppModel.phase` is `.sunday` or `.weekday(daysUntilSunday:)` and flips itself at the next midnight boundary. `RootView` shows the weekday screen or the Sunday tab shell from that. The server (and the mock) is the authority for every read and write; the client never relies on its own gate for security.
+
+**Every pose of an iPhone Duo.** Layouts go by size class and by shape, never by orientation, since the inner display ignores the app's supported orientations. Closed, the Duo is a wider, shorter iPhone (466 by 678 points) with the system's bars down the right side; on its side, the weekday screen and the Sunday prompt put their buttons beside the words (`FoldAwareLayout`), and the feed's photos take a wide frame. Open, it is regular width like an iPad, but at 669 points wide the feed stays one column; two columns need 820 (`splitLayout` in `SundayShell`). Part open, SwiftUI's division region says where the crease is: `FoldAwareLayout` puts one pane on each page (book) or above and below the crease (laptop), and the tab bar leaves the crease empty so Post is never in it. Built with Xcode 27.1 so the app fills the inner display; the division region and the rest of the Duo API are iOS 27.1, behind `#available`.
 
 **State lives in stores, not views.** `FeedStore`, `ComposeStore`, `ApprovalsStore` and `WeekdayStore` hang off `AppModel`, so switching tabs, moving between the iPad sidebar and the iPhone tab bar, or unfolding an iPhone Duo mid-compose keeps the draft, the scroll position's data and the selection.
 

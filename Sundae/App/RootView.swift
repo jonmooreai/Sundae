@@ -33,8 +33,11 @@ enum SundayTab: Hashable, CaseIterable {
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var tab: SundayTab = .feed
     @State private var barHeight: CGFloat = 50
+    /// The shell's width: two columns need room for two, which regular width alone does not promise.
+    @State private var width: CGFloat = 0
     /// A pinched photo, drawn over everything including the bar.
     @State private var zoom = PhotoZoom()
     /// Taps on a tab that is already showing, by tab: back to its first screen, then to the top.
@@ -66,6 +69,8 @@ struct SundayShell: View {
         }
         .overlay { PhotoZoomLayer() }
         .environment(zoom)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .environment(\.splitLayout, sizeClass == .regular && width >= 820)
         .filmGrain()
         .onChange(of: model.requestedTab) { _, requested in
             guard let requested else { return }
@@ -113,6 +118,20 @@ struct SundayShell: View {
             await compose.load(weekStart: model.currentWeekStart)
             compose.present(compose.hasPosted ? .arrange : .pick)
         }
+    }
+}
+
+/// Two columns, feed beside the open post: an iPad, or an iPhone Duo open and on its side. The
+/// Duo open and upright is regular width too, but at 669 points two columns would leave the post
+/// a sliver, so it reads as one column, like a phone.
+private struct SplitLayoutKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var splitLayout: Bool {
+        get { self[SplitLayoutKey.self] }
+        set { self[SplitLayoutKey.self] = newValue }
     }
 }
 
@@ -169,27 +188,48 @@ struct SundaeTabBar: View {
     /// The tab that was already showing was tapped again.
     var onReselect: (SundayTab) -> Void = { _ in }
     @State private var bumped: SundayTab?
+    /// The bar's width and where an iPhone Duo's crease crosses it, when the phone is part open.
+    @State private var creased = Creased(width: 0, fold: nil)
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Creased: Equatable {
+        var width: CGFloat
+        var fold: CGRect?
+    }
+
+    /// Held like a book, the crease runs down the middle of the bar, right where Post would be.
+    /// The two left items keep the left page and the other three take the right, with the crease
+    /// left empty between them. The sides of the padded bar are 8 in from its edges.
+    private var pages: (left: CGFloat, right: CGFloat)? {
+        guard let fold = creased.fold, fold.height > fold.width else { return nil }
+        let left = fold.minX - 8 - 6
+        let right = creased.width - 8 - fold.maxX - 6
+        guard left >= 96, right >= 140 else { return nil }
+        return (left, right)
+    }
 
     var body: some View {
         HStack(spacing: 0) {
-            item(.feed, Glyph.feed, "Feed")
-            item(.search, Glyph.search, "Search")
-            Button {
-                Haptics.light()
-                onPost()
-            } label: {
-                Icon(Glyph.post, size: 27)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .contentShape(Rectangle())
+            if let pages {
+                HStack(spacing: 0) {
+                    item(.feed, Glyph.feed, "Feed")
+                    item(.search, Glyph.search, "Search")
+                }
+                .frame(width: pages.left)
+                Spacer(minLength: 0)
+                HStack(spacing: 0) {
+                    postItem
+                    item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+                    profileItem
+                }
+                .frame(width: pages.right)
+            } else {
+                item(.feed, Glyph.feed, "Feed")
+                item(.search, Glyph.search, "Search")
+                postItem
+                item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+                profileItem
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Share your week")
-            .accessibilityIdentifier("tab-post")
-            item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
-            profileItem
         }
         .padding(.horizontal, 8)
         .background {
@@ -197,6 +237,27 @@ struct SundaeTabBar: View {
                 .overlay(alignment: .top) { Hairline() }
                 .ignoresSafeArea(edges: .bottom)
         }
+        .background {
+            Color.clear.onGeometryChange(for: Creased.self) { proxy in
+                Creased(width: proxy.size.width, fold: Fold.frame(in: proxy))
+            } action: { creased = $0 }
+        }
+    }
+
+    private var postItem: some View {
+        Button {
+            Haptics.light()
+            onPost()
+        } label: {
+            Icon(Glyph.post, size: 27)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Share your week")
+        .accessibilityIdentifier("tab-post")
     }
 
     private func item(_ which: SundayTab, _ glyph: Ph, _ label: String, badge: Int = 0) -> some View {

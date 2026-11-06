@@ -27,19 +27,24 @@ struct WeekdayView: View {
             Theme.background.ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
-                Spacer(minLength: 24)
-                ZStack(alignment: .leading) {
-                    suggestionBlock
+                // The idea, then the buttons: below it upright, beside it on a phone turned on its
+                // side, and on either side of the crease on an iPhone Duo held like a book or set
+                // down like a laptop.
+                FoldAwareLayout(primaryShare: 0.56) {
+                    ZStack(alignment: .leading) {
+                        suggestionBlock
+                    }
+                    .frame(maxWidth: 560, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Clipped so a shuffle slides in tidily, with room around it for the card's shadow.
+                    .padding(20)
+                    .clipped()
+                    .padding(-20)
+                } secondary: {
+                    actions
+                        .frame(maxWidth: 560)
                 }
-                .frame(maxWidth: 560, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Clipped so a shuffle slides in tidily, with room around it for the card's shadow.
-                .padding(20)
-                .clipped()
-                .padding(-20)
-                Spacer(minLength: 24)
-                actions
-                    .frame(maxWidth: 560)
+                .padding(.top, 12)
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 24)
