@@ -165,6 +165,9 @@ jobs:
             -derivedDataPath build \
             -resultBundlePath results/iphone.xcresult \
             -skip-testing:SundaeUITests/LandscapeScreenshotTests \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             SCREENSHOT_DIR="$PWD/screenshots" \
             2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
@@ -173,18 +176,25 @@ jobs:
         if: env.FULL == 'true' && env.DUO_UDID != ''
         run: |
           set -o pipefail
+          # Nothing here may wait forever: the first run hung for 44 minutes with no word. Each
+          # wait has a limit (perl's alarm, since macOS has no timeout command), each test is
+          # allowed five minutes, and the whole pass forty.
           xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
-          xcrun simctl bootstatus "$DUO_UDID" -b || true
+          perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl bootstatus "$DUO_UDID" -b || echo "::warning::iPhone Duo did not finish booting in 5 minutes"
+          xcrun simctl list devices | grep -i "duo" || true
           APP=$(find build/Build/Products -maxdepth 2 -name "Sundae.app" | head -1)
-          [ -n "$APP" ] && xcrun simctl install "$DUO_UDID" "$APP" || true
+          [ -n "$APP" ] && perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl install "$DUO_UDID" "$APP" || echo "::warning::install did not finish"
           xcrun simctl privacy "$DUO_UDID" grant photos com.jonmooreai.sundae || true
           ls seed-photos/*.jpg >/dev/null 2>&1 && xcrun simctl addmedia "$DUO_UDID" seed-photos/*.jpg || true
-          xcodebuild test-without-building \
+          perl -e 'alarm shift; exec @ARGV' 2400 xcodebuild test-without-building \
             -project Sundae.xcodeproj -scheme Sundae \
             -destination "platform=iOS Simulator,id=$DUO_UDID" \
             -derivedDataPath build \
             -resultBundlePath results/duo.xcresult \
             -only-testing:SundaeUITests \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 300 \
+            -maximum-test-execution-time-allowance 600 \
             2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-duo.log
 

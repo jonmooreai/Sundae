@@ -42,12 +42,13 @@ class ScreenshotTests: XCTestCase {
 
     private func snap(_ app: XCUIApplication, _ name: String, settle: TimeInterval = 1.2) {
         Thread.sleep(forTimeInterval: settle)
-        if name.hasPrefix("00-onboarding-intro-film") {
-            // Once per run, for the record: how many displays the device shows, and their sizes.
-            let sizes = XCUIScreen.screens.map { "\($0.screenshot().image.size)" }
-            print("[screens] \(device): \(XCUIScreen.screens.count) \(sizes) window \(app.windows.firstMatch.frame)")
-        }
         let screenshot = XCUIScreen.main.screenshot()
+        if name.hasPrefix("00-onboarding-intro-film") {
+            // Once per run, for the record: how many displays the device shows, and the size of the
+            // one the app is on. Only the main screen is photographed: asking a display that is off
+            // for a picture can wait forever.
+            print("[screens] \(device): \(XCUIScreen.screens.count) main \(screenshot.image.size) window \(app.windows.firstMatch.frame)")
+        }
         let fileName = "\(device)-\(name).png"
         let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = fileName
