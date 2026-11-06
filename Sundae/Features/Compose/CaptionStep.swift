@@ -57,6 +57,7 @@ struct CaptionStep: View {
             }
             .scrollDismissesKeyboard(.interactively)
         }
+        .centeredColumn()
         .background(Theme.background)
         .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {

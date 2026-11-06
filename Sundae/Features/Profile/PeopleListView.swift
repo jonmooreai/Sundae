@@ -33,6 +33,10 @@ struct PeopleListView: View {
     private var isOwn: Bool { userID == model.currentUser?.id }
 
     var body: some View {
+        peopleBody.centeredColumn()
+    }
+
+    private var peopleBody: some View {
         VStack(spacing: 0) {
             ScreenHeader(title: username, showsBack: true) { EmptyView() }
             tabs

@@ -14,6 +14,10 @@ enum Theme {
     /// Gap between photo cards in a week row.
     static let gap: CGFloat = 8
     static let pagePadding: CGFloat = 16
+    /// The widest any screen's content gets: on an iPhone Duo open, or an iPad, everything sits in
+    /// one centered column this wide with room on either side, the way a feed reads best. Narrower
+    /// screens are simply full width.
+    static let columnWidth: CGFloat = 640
 
     /// Cream paper by day, warm charcoal at night. Same cream as the app icon.
     static var background: Color { warm((251, 248, 243), (25, 23, 20)) }
@@ -344,5 +348,13 @@ enum SeedColor {
             startPoint: seed % 2 == 0 ? .topLeading : .top,
             endPoint: seed % 2 == 0 ? .bottomTrailing : .bottom
         )
+    }
+}
+
+extension View {
+    /// Centers this screen's content in one column, `Theme.columnWidth` at most, with the space
+    /// to either side left empty.
+    func centeredColumn(_ width: CGFloat = Theme.columnWidth) -> some View {
+        frame(maxWidth: width).frame(maxWidth: .infinity)
     }
 }

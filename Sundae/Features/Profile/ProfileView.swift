@@ -94,8 +94,7 @@ struct ProfileView: View {
                 }
             }
             .padding(.vertical, 12)
-            .frame(maxWidth: 720)
-            .frame(maxWidth: .infinity)
+            .centeredColumn()
             // Loading or empty: the state sits in the middle of the space under the header.
             .fillsVisibleHeight(!showsWeeks && (profile != nil || errorMessage == nil))
         }

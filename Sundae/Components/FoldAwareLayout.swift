@@ -1,10 +1,11 @@
 import SwiftUI
 
-/// Two panes, laid out around the iPhone Duo's fold and otherwise by the shape of the screen.
+/// Two panes, laid out around the iPhone Duo's fold, or beside each other on a phone on its side.
 ///
-/// Flat, or on any other iPhone, it goes by shape: one pane above the other when the screen is
-/// taller than wide, the primary taking the room and the secondary its own height, as the screens
-/// always have; side by side when wider than tall, so a phone on its side is not a squeeze.
+/// Flat, one pane above the other, the primary taking the room and the secondary its own height,
+/// as the screens always have: on any phone upright, and on an iPhone Duo open, wide or not, where
+/// the screen reads as one centered column. Side by side only when there is little height (a
+/// phone turned on its side, compact height), so the buttons are not squeezed off the bottom.
 ///
 /// Partly folded, the fold itself decides (SwiftUI's division region, iOS 27.1). Held like a
 /// book, the fold runs top to bottom: the primary takes the left page and the secondary the right.
@@ -16,11 +17,13 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
     var spacing: CGFloat = 24
     @ViewBuilder var primary: () -> Primary
     @ViewBuilder var secondary: () -> Secondary
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            switch Self.arrangement(size: size, fold: Self.fold(in: proxy), share: primaryShare, spacing: spacing) {
+            switch Self.arrangement(size: size, fold: Self.fold(in: proxy), share: primaryShare, spacing: spacing,
+                                    short: verticalSizeClass == .compact) {
             case .stacked:
                 VStack(spacing: spacing) {
                     primary().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,14 +53,14 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
         case stacked
         /// A fold across the screen: the primary above it, the secondary below.
         case rows(top: CGFloat, bottom: CGFloat)
-        /// A fold down the screen, or a flat screen wider than tall: the primary on the left.
+        /// A fold down the screen, or a short screen wider than tall: the primary on the left.
         case columns(left: CGFloat, right: CGFloat)
     }
 
     /// The fold's frame in the layout's own space, when the device is partly folded.
     static func fold(in proxy: GeometryProxy) -> CGRect? { Fold.frame(in: proxy) }
 
-    static func arrangement(size: CGSize, fold: CGRect?, share: CGFloat, spacing: CGFloat) -> Arrangement {
+    static func arrangement(size: CGSize, fold: CGRect?, share: CGFloat, spacing: CGFloat, short: Bool) -> Arrangement {
         if let fold, fold.width > 0, fold.height > 0 {
             let margin = spacing / 2
             if fold.height >= fold.width {
@@ -72,7 +75,7 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
                 if top >= 120, bottom >= 100 { return .rows(top: top, bottom: bottom) }
             }
         }
-        if size.width > size.height {
+        if short, size.width > size.height {
             let left = (size.width - spacing) * share
             return .columns(left: left, right: size.width - spacing - left)
         }

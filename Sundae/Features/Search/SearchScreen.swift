@@ -36,6 +36,10 @@ struct SearchView: View {
     @Environment(\.scrollToTop) private var scrollToTop
 
     var body: some View {
+        searchBody.centeredColumn()
+    }
+
+    private var searchBody: some View {
         VStack(spacing: 0) {
             ScreenHeader(title: "Search") { EmptyView() }
             SearchField(text: $query, placeholder: "Name or username")

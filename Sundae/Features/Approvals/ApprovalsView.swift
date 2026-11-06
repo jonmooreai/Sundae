@@ -63,8 +63,7 @@ struct ApprovalsView: View {
                 }
             }
             .padding(.bottom, 24)
-            .frame(maxWidth: 560)
-            .frame(maxWidth: .infinity)
+            .centeredColumn()
             // Nothing waiting: the state sits in the middle of the space under the header.
             .fillsVisibleHeight(store.requests.isEmpty)
         }
