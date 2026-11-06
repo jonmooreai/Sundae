@@ -75,33 +75,6 @@ jobs:
             echo "DT_OVERRIDE=" >> "$GITHUB_ENV"
           fi
 
-      # Once only, while the app learns the iPhone Duo: the new SDK's exact signatures, since
-      # Apple's documentation pages do not load from where the code is written.
-      - name: iPhone Duo SDK probe
-        continue-on-error: true
-        run: |
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          PLAT=$(xcrun --sdk iphonesimulator --show-sdk-platform-path)
-          echo "SDK $SDK"
-          PATTERN='reservedRegion|ReservedRegion|ArrangementView|arrangementViewStyle|ArrangementStyle|onHingeChange|HingeContext|HingeStatus|struct Hinge|toolbarVerticalBehavior|ToolbarVerticalBehavior|axisBehavior|AxisBehavior|defaultTabBarPlacement|TabBarPlacement|toolbarVerticalEdge|overlayArrangementZIndex|toolbarVerticalCompressionBehavior|visibilityPriority'
-          for f in $(find "$SDK/System/Library/Frameworks" -maxdepth 4 -path '*SwiftUI*' -name '*.swiftinterface' | grep -E 'arm64e?-apple-ios\.swiftinterface$'); do
-            echo "== $f"
-            grep -n -B3 -E "$PATTERN" "$f" | cut -c1-260 | head -400
-          done
-          echo "== UIKit headers"
-          grep -rn -E 'ReservedRegion|reservedRegions|UIHingeInteraction|UIHinge|verticalBarEdge|UIVerticalBarBehavior|preferredVerticalBarBehavior|axisBehavior' "$SDK/System/Library/Frameworks/UIKit.framework/Headers" | cut -c1-260 | head -120
-          echo "== XCTest and XCUIAutomation"
-          grep -rn -i -E 'hinge|fold|posture|devicePose|XCUIDevicePose|display' "$PLAT/Developer/Library/Frameworks/XCTest.framework/Headers" "$PLAT/Developer/Library/Frameworks/XCUIAutomation.framework/Headers" 2>/dev/null | cut -c1-260 | head -80
-          for f in $(find "$PLAT/Developer/Library/Frameworks" -maxdepth 5 -name '*.swiftinterface' | grep -i -E 'XCUIAutomation|XCTest' | grep -E 'arm64-apple-ios-simulator'); do
-            echo "== $f"
-            grep -n -i -E 'hinge|fold|posture|pose\b|Pose ' "$f" | cut -c1-260 | head -60
-          done
-          echo "== simctl"
-          xcrun simctl help 2>&1 | head -70
-          xcrun simctl list devicetypes 2>&1 | grep -i -E 'duo|fold' || true
-          xcrun simctl help io 2>&1 | head -40
-          xcrun simctl help ui 2>&1 | head -40
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -182,10 +155,24 @@ jobs:
           xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
           perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl bootstatus "$DUO_UDID" -b || echo "::warning::iPhone Duo did not finish booting in 5 minutes"
           xcrun simctl list devices | grep -i "duo" || true
+          # What the simulator can say about its displays and the fold, for the record.
+          xcrun simctl io "$DUO_UDID" enumerate 2>&1 | head -60 || true
+          xcrun simctl help io 2>&1 | sed -n 38,120p || true
+          strings "$(xcrun -f simctl)" 2>/dev/null | grep -i -E 'hinge|fold|posture|clamshell' | head -30 || true
+          strings /Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/CoreSimulator 2>/dev/null | grep -i -E 'hinge|fold|posture|clamshell' | head -40 || true
           APP=$(find build/Build/Products -maxdepth 2 -name "Sundae.app" | head -1)
           [ -n "$APP" ] && perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl install "$DUO_UDID" "$APP" || echo "::warning::install did not finish"
           xcrun simctl privacy "$DUO_UDID" grant photos com.jonmooreai.sundae || true
           ls seed-photos/*.jpg >/dev/null 2>&1 && xcrun simctl addmedia "$DUO_UDID" seed-photos/*.jpg || true
+          # Every forty seconds, a sample of the app's threads: when a test cannot get an answer
+          # from the app, these say what the app was doing instead.
+          mkdir -p samples
+          (for i in $(seq 1 60); do
+            sleep 40
+            pid=$(pgrep -x Sundae | head -1)
+            [ -n "$pid" ] && sample "$pid" 2 -file "samples/sundae-$i.txt" >/dev/null 2>&1
+          done) &
+          SAMPLER=$!
           perl -e 'alarm shift; exec @ARGV' 2400 xcodebuild test-without-building \
             -project Sundae.xcodeproj -scheme Sundae \
             -destination "platform=iOS Simulator,id=$DUO_UDID" \
@@ -196,6 +183,13 @@ jobs:
             -default-test-execution-time-allowance 300 \
             -maximum-test-execution-time-allowance 600 \
             2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
+          kill "$SAMPLER" 2>/dev/null || true
+          # The main thread of each sample, so a stuck layout shows in the log itself.
+          for f in samples/*.txt; do
+            [ -f "$f" ] || continue
+            echo "== $f"
+            awk '/com.apple.main-thread/{p=1} p&&NF==0{exit} p' "$f" | head -40 | cut -c1-170
+          done
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-duo.log
 
       - name: Export screenshots from result bundles
@@ -220,6 +214,7 @@ jobs:
             docs/screenshots
             build.log
             test-*.log
+            samples
           if-no-files-found: ignore
 
   commit-screenshots:

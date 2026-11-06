@@ -153,6 +153,15 @@ final class AppModel {
 
     init() {
         let defaults = UserDefaults.standard
+        // A UI test launch starts from nothing on the phone: no saved ideas, no idea shuffled to, no
+        // moment shown. The simulator keeps every store in these defaults (SharedStore falls back to
+        // them unsigned), and the arguments a test passes (-debugDay, -appearance) live in the
+        // arguments domain, which this leaves alone.
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-uiTestSignedIn") || arguments.contains("-uiTestSignedOut"),
+           let bundle = Bundle.main.bundleIdentifier {
+            defaults.removePersistentDomain(forName: bundle)
+        }
         let appearance = Appearance(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .system
         let debugDay = DebugDay(rawValue: defaults.string(forKey: Keys.debugDay) ?? "") ?? .real
         let clock = Self.makeClock(for: debugDay)

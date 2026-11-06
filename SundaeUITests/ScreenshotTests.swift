@@ -93,7 +93,12 @@ class ScreenshotTests: XCTestCase {
         let app = launch(day: "weekday")
         XCTAssertTrue(app.buttons["Shuffle"].waitForExistence(timeout: 15))
         snap(app, "01-weekday")
-        app.buttons["Save"].tap()
+        let save = app.buttons["Save"].firstMatch
+        guard save.waitForExistence(timeout: 3) else {
+            XCTFail("No Save button: the idea was already saved, so the launch did not start clean")
+            return
+        }
+        save.tap()
         // The first Save slides up a short explainer; one shot of it, then one of the saved idea.
         snap(app, "01-weekday-saved-intro", settle: 1.2)
         for title in ["Got it", "Not now"] {
@@ -112,8 +117,10 @@ class ScreenshotTests: XCTestCase {
     func testSunday() {
         let app = launch(day: "sunday")
 
-        // Sunday opens on the prompt.
-        XCTAssertTrue(app.buttons["Pick your photos"].waitForExistence(timeout: 20))
+        // Sunday opens on the prompt. If the app never answers, a picture of whatever it shows.
+        let prompt = app.buttons["Pick your photos"].waitForExistence(timeout: 20)
+        if !prompt { snap(app, "02-sunday-prompt-missing", settle: 0) }
+        XCTAssertTrue(prompt)
         snap(app, "02-sunday-prompt", settle: 1.5)
         app.buttons["Pick your photos"].tap()
 
@@ -219,6 +226,8 @@ class ScreenshotTests: XCTestCase {
         if later.waitForExistence(timeout: 20) {
             snap(app, "02-sunday-prompt-dark", settle: 1.5)
             later.tap()
+        } else {
+            snap(app, "02-sunday-prompt-dark-missing", settle: 0)
         }
         XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))
         snap(app, "02-feed-dark", settle: 5)
