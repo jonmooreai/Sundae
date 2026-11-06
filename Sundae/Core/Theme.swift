@@ -18,6 +18,10 @@ enum Theme {
     /// one centered column this wide with room on either side, the way a feed reads best. Narrower
     /// screens are simply full width.
     static let columnWidth: CGFloat = 640
+    /// Posts are narrower, the width of a post in a feed on the web: a photo as wide as the column
+    /// would be taller than an iPhone Duo held open, one post to a screen. At this width the next
+    /// one starts to show.
+    static let postWidth: CGFloat = 500
 
     /// Cream paper by day, warm charcoal at night. Same cream as the app icon.
     static var background: Color { warm((251, 248, 243), (25, 23, 20)) }

@@ -61,7 +61,7 @@ struct DumpDetailView: View {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
                 }
             }
-            .centeredColumn()
+            .centeredColumn(Theme.postWidth)
             .padding(.bottom, 24)
         }
         .background(Theme.background)
