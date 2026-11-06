@@ -145,8 +145,12 @@ jobs:
             2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
 
+      # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
+      # pictures it takes are how the layouts get checked without a Mac. A failure here is a
+      # warning on the run, and the build still ships.
       - name: Every screen on iPhone Duo, upright and sideways
         if: env.FULL == 'true' && env.DUO_UDID != ''
+        continue-on-error: true
         run: |
           set -o pipefail
           # Nothing here may wait forever: the first run hung for 44 minutes with no word. Each
