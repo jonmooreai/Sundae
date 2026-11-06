@@ -30,11 +30,17 @@ enum SundayTab: Hashable, CaseIterable {
 /// Familiar skeleton with our own bottom bar: Feed, Search, Post, Approvals, Profile.
 /// The system TabView does the paging (so every tab keeps its scroll position and navigation)
 /// with its own bar hidden; the bar you see is `SundaeTabBar`.
+///
+/// Where the system lays its bars out down the side of the screen instead (an iPhone Duo closed,
+/// or open on its side), the system's own tab bar shows instead of ours: the Duo moves it into the
+/// strip it keeps for the clock and the camera, and the pages get the whole screen beside it.
 struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var tab: SundayTab = .feed
+    /// True while the system's bars run down the side of the screen (iOS 27.1 and an iPhone Duo).
+    @State private var sideBars = false
     @State private var barHeight: CGFloat = 50
     /// The shell's width: two columns need room for two, which regular width alone does not promise.
     @State private var width: CGFloat = 0
@@ -45,21 +51,59 @@ struct SundayShell: View {
 
     private var compose: ComposeStore { model.compose }
 
+    /// The tab the system bar asks for. Post is a button, not a page: it opens the posting flow
+    /// and the page you were on stays. The tab already showing, tapped again, goes back to its
+    /// first screen, then to the top, as in our own bar.
+    private var systemSelection: Binding<SundayTab> {
+        Binding(get: { tab }, set: { next in
+            if next == .post {
+                Haptics.light()
+                openCompose()
+            } else if next == tab {
+                reselects[next, default: 0] += 1
+            } else {
+                tab = next
+            }
+        })
+    }
+
+    private var pageInset: CGFloat { sideBars ? 0 : barHeight }
+
     var body: some View {
-        TabView(selection: $tab) {
-            Tab(value: .feed) { FeedScreen(onPost: openCompose, reselects: reselects[.feed, default: 0]).tabPage(barHeight: barHeight) }
-            Tab(value: .search) { SearchScreen(reselects: reselects[.search, default: 0]).tabPage(barHeight: barHeight) }
-            Tab(value: .approvals) { ApprovalsScreen(reselects: reselects[.approvals, default: 0]).tabPage(barHeight: barHeight) }
-            Tab(value: .profile) { ProfileScreen(reselects: reselects[.profile, default: 0]).tabPage(barHeight: barHeight) }
+        TabView(selection: systemSelection) {
+            Tab(value: SundayTab.feed) {
+                FeedScreen(onPost: openCompose, reselects: reselects[.feed, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Feed") } icon: { TabIcon.image(Glyph.feed) } }
+            Tab(value: SundayTab.search) {
+                SearchScreen(reselects: reselects[.search, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Search") } icon: { TabIcon.image(Glyph.search) } }
+            // Never shown: choosing it opens the posting flow (systemSelection).
+            Tab(value: SundayTab.post) {
+                Color.clear.tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Share your week") } icon: { TabIcon.image(Glyph.post) } }
+            Tab(value: SundayTab.approvals) {
+                ApprovalsScreen(reselects: reselects[.approvals, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Approvals") } icon: { TabIcon.image(Glyph.approvals) } }
+            .badge(model.pendingApprovalCount)
+            Tab(value: SundayTab.profile) {
+                ProfileScreen(reselects: reselects[.profile, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Profile") } icon: { TabIcon.image(Glyph.profile) } }
         }
         // The bar is an overlay and every page reserves its height. A safe area inset on the
         // TabView itself never reached the pages, so a screen's bottom composer sat under the bar.
         .overlay(alignment: .bottom) {
-            SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
-                         onReselect: { reselects[$0, default: 0] += 1 })
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
-                // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
-                .ignoresSafeArea(.keyboard, edges: .bottom)
+            if !sideBars {
+                SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
+                             onReselect: { reselects[$0, default: 0] += 1 })
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
+                    // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
+        }
+        .background {
+            if #available(iOS 27.1, *) {
+                SideBarsReader { sideBars = $0 }
+            }
         }
         .overlay(alignment: .top) {
             Theme.background.opacity(0.94)
@@ -171,10 +215,43 @@ extension View {
 }
 
 private extension View {
-    /// A tab page under our own bar: the system bar hidden, our height in the environment.
-    func tabPage(barHeight: CGFloat) -> some View {
-        toolbar(.hidden, for: .tabBar)
+    /// A tab page under our own bar: the system bar hidden, our height in the environment. Where
+    /// the system's bars run down the side, the system bar shows and the page needs no room for ours.
+    func tabPage(barHeight: CGFloat, systemBar: Bool) -> some View {
+        toolbar(systemBar ? .automatic : .hidden, for: .tabBar)
             .environment(\.bottomBarInset, barHeight)
+    }
+}
+
+/// Says whether the system lays its bars out down the side of the screen: an iPhone Duo closed,
+/// with the clock and the camera in a strip down one edge, or open on its side.
+@available(iOS 27.1, *)
+private struct SideBarsReader: View {
+    @Environment(\.toolbarVerticalEdge) private var edge
+    let report: (Bool) -> Void
+
+    var body: some View {
+        Color.clear
+            .onAppear { report(edge != nil) }
+            .onChange(of: edge) { _, now in report(now != nil) }
+    }
+}
+
+/// Our Phosphor icons at the size a system tab bar draws them. The artwork is 256 points square,
+/// which the bar would show at full size, so each is drawn once at 26 points and kept.
+@MainActor
+enum TabIcon {
+    private static var drawn: [Ph: UIImage] = [:]
+
+    static func image(_ glyph: Ph) -> Image {
+        if let image = drawn[glyph] { return Image(uiImage: image) }
+        guard let source = UIImage(named: glyph.rawValue) else { return Image(systemName: "circle") }
+        let size = CGSize(width: 26, height: 26)
+        let image = UIGraphicsImageRenderer(size: size)
+            .image { _ in source.draw(in: CGRect(origin: .zero, size: size)) }
+            .withRenderingMode(.alwaysTemplate)
+        drawn[glyph] = image
+        return Image(uiImage: image)
     }
 }
 
