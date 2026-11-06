@@ -94,7 +94,7 @@ struct FeedList: View {
                 }
             }
             .padding(.bottom, 24)
-            .centeredColumn()
+            .centeredColumn(Theme.postWidth)
             // Nothing posted yet: the spinner or the quiet Sunday sits in the middle of the space left.
             .fillsVisibleHeight(feed.dumps.isEmpty)
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
