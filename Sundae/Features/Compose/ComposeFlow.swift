@@ -213,6 +213,7 @@ struct FannedPhotos: View {
 /// The first thing you see on Sunday: a greeting and one button.
 struct SundayPromptStep: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.displayScale) private var displayScale
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
     @State private var previews: [UIImage] = []
@@ -333,7 +334,7 @@ struct SundayPromptStep: View {
         let picks = fromSaved.isEmpty ? Array(library.assets.suffix(3)) : Array(fromSaved.prefix(3))
         var images: [UIImage] = []
         for asset in picks {
-            if let image = await library.thumbnail(for: asset, side: 300) { images.append(image) }
+            if let image = await library.thumbnail(for: asset, side: 300, scale: displayScale) { images.append(image) }
         }
         previews = images
     }
