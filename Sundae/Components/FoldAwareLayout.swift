@@ -85,8 +85,8 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
 enum Fold {
     static func frame(in proxy: GeometryProxy) -> CGRect? {
         guard #available(iOS 27.1, *) else { return nil }
-        guard let region = proxy.reservedRegions(kind: .division).first else { return nil }
-        let frame = region.frame(in: CoordinateSpace.local)
+        // The region's frame is already in the proxy's own space, mirrored for right to left.
+        guard let frame = proxy.reservedRegions(kind: .division).first?.frame else { return nil }
         return frame.width > 0 && frame.height > 0 ? frame : nil
     }
 }
