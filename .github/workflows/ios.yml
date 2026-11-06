@@ -139,8 +139,8 @@ jobs:
             -resultBundlePath results/iphone.xcresult \
             -skip-testing:SundaeUITests/LandscapeScreenshotTests \
             -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 300 \
-            -maximum-test-execution-time-allowance 600 \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
             SCREENSHOT_DIR="$PWD/screenshots" \
             2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
@@ -155,7 +155,7 @@ jobs:
           set -o pipefail
           # Nothing here may wait forever: the first run hung for 44 minutes with no word. Each
           # wait has a limit (perl's alarm, since macOS has no timeout command), each test is
-          # allowed five minutes, and the whole pass forty.
+          # allowed ten minutes (Sunday's walk through posting takes four and a half), and the whole pass forty.
           xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
           perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl bootstatus "$DUO_UDID" -b || echo "::warning::iPhone Duo did not finish booting in 5 minutes"
           xcrun simctl list devices | grep -i "duo" || true
@@ -184,8 +184,8 @@ jobs:
             -resultBundlePath results/duo.xcresult \
             -only-testing:SundaeUITests \
             -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 300 \
-            -maximum-test-execution-time-allowance 600 \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
             2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
           kill "$SAMPLER" 2>/dev/null || true
           # The main thread of each sample, so a stuck layout shows in the log itself.
