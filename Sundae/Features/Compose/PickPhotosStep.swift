@@ -21,7 +21,8 @@ struct PickPhotosStep: View {
     @State private var showsCamera = false
 
     private var compose: ComposeStore { model.compose }
-    private var columns: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 2), count: 3) }
+    /// Three columns on a phone, five across the Duo open: as many as fit at 125 or wider.
+    private var columns: [GridItem] { [GridItem(.adaptive(minimum: 125), spacing: 2)] }
     private var total: Int { selected.count + compose.nonLibraryPhotoCount }
     private var remaining: Int { max(0, DumpDraft.maxPhotos - total) }
 

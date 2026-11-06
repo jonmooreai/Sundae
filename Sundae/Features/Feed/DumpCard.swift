@@ -14,12 +14,13 @@ struct DumpCard: View {
     @State private var showPeople = false
     @State private var showComments = false
     @State private var focusComposer = false
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header.padding(.horizontal, Theme.pagePadding)
 
-            PhotoCarousel(photos: dump.photos, index: $page, onTap: { position in
+            PhotoCarousel(photos: dump.photos, index: $page, cornerRadius: PhotoCarousel.radius(sizeClass), onTap: { position in
                 guard dump.photos.indices.contains(position) else { return }
                 open(.dump(dump.id, photo: dump.photos[position].id))
             }, onDoubleTap: {

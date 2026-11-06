@@ -251,38 +251,22 @@ struct SundayPromptStep: View {
             // The words and the photos, then the buttons: below them upright, beside them on a
             // phone on its side, and on either side of an iPhone Duo's crease when it is part open.
             FoldAwareLayout(primaryShare: 0.58, spacing: 20) {
-                VStack(spacing: 20) {
-                    Spacer(minLength: 0)
-                    VStack(alignment: .leading, spacing: 18) {
-                        Text(dateLine)
-                            .font(.footnote.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .textCase(.uppercase)
-                            .tracking(0.8)
-                        Text("\(greeting)\n\(compose.hasPosted ? "Thanks for sharing your week." : "Come share your week.")")
-                            .font(Theme.display(verticalSizeClass == .compact ? 32 : 44).leading(.tight))
-                            .minimumScaleFactor(0.7)
-                        Text(compose.hasPosted
-                             ? "Want to add a photo, tweak the caption, or tag someone you missed? It's all yours until midnight."
-                             : startsFromSaved ? savedLine
-                             : "Pick your favorite photos, tag who was there, and tell everyone how it went. No rush, you have until midnight.")
-                            .font(verticalSizeClass == .compact ? .body : .title3)
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // A phone on its side has no room for the photos under the words.
-                    if verticalSizeClass != .compact {
+                // The words, with the photos under them where there is room (an iPhone upright,
+                // the Duo open) and without them where there is not (the Duo closed, any phone
+                // on its side): the words are never cut short to make room for a picture.
+                ViewThatFits(in: .vertical) {
+                    VStack(spacing: 20) {
                         Spacer(minLength: 0)
-                        Group {
-                            if previews.isEmpty {
-                                PhotoStackIcon(size: 96)
-                            } else {
-                                FannedPhotos(images: previews)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
+                        words
+                        Spacer(minLength: 0)
+                        photos
+                        Spacer(minLength: 0)
                     }
-                    Spacer(minLength: 0)
+                    VStack(spacing: 0) {
+                        Spacer(minLength: 0)
+                        words
+                        Spacer(minLength: 0)
+                    }
                 }
             } secondary: {
                 VStack(spacing: 4) {
@@ -301,6 +285,7 @@ struct SundayPromptStep: View {
                     Button(compose.hasPosted ? "See the feed" : "Show me the feed first") { notNow() }
                         .buttonStyle(.pill(.quiet, fullWidth: true))
                 }
+                .frame(maxWidth: Theme.actionsWidth)
             }
             .padding(.top, 12)
         }
@@ -309,6 +294,39 @@ struct SundayPromptStep: View {
         .background(Theme.background)
         .toolbar(.hidden, for: .navigationBar)
         .task { await loadPreviews() }
+    }
+
+    private var words: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text(dateLine)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.8)
+            Text("\(greeting)\n\(compose.hasPosted ? "Thanks for sharing your week." : "Come share your week.")")
+                .font(Theme.display(verticalSizeClass == .compact ? 32 : 44).leading(.tight))
+                .fixedSize(horizontal: false, vertical: true)
+            Text(compose.hasPosted
+                 ? "Want to add a photo, tweak the caption, or tag someone you missed? It's all yours until midnight."
+                 : startsFromSaved ? savedLine
+                 : "Pick your favorite photos, tag who was there, and tell everyone how it went. No rush, you have until midnight.")
+                .font(verticalSizeClass == .compact ? .body : .title3)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var photos: some View {
+        Group {
+            if previews.isEmpty {
+                PhotoStackIcon(size: 96)
+            } else {
+                FannedPhotos(images: previews)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var dateLine: String {
@@ -381,16 +399,19 @@ struct PostedStep: View {
             DraftThumbnailStrip(photos: compose.draft.photos, side: 64, centered: true)
                 .padding(.top, 8)
             Spacer()
-            PrimaryButton(title: "See the feed") {
-                compose.dismiss()
-                model.requestedTab = .feed
+            VStack(spacing: 18) {
+                PrimaryButton(title: "See the feed") {
+                    compose.dismiss()
+                    model.requestedTab = .feed
+                }
+                Button("Edit") {
+                    compose.entry = .arrange
+                    path = []
+                }
+                .buttonStyle(.pill(.quiet, fullWidth: true))
+                .padding(.top, 2)
             }
-            Button("Edit") {
-                compose.entry = .arrange
-                path = []
-            }
-            .buttonStyle(.pill(.quiet, fullWidth: true))
-            .padding(.top, 2)
+            .frame(maxWidth: Theme.actionsWidth)
         }
         .padding(24)
         .centeredColumn(Theme.columnWidth + 48)

@@ -18,15 +18,23 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
     @ViewBuilder var primary: () -> Primary
     @ViewBuilder var secondary: () -> Secondary
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
             switch Self.arrangement(size: size, fold: Self.fold(in: proxy), share: primaryShare, spacing: spacing,
-                                    short: verticalSizeClass == .compact) {
+                                    short: verticalSizeClass == .compact,
+                                    big: verticalSizeClass == .regular && horizontalSizeClass == .regular) {
             case .stacked:
                 VStack(spacing: spacing) {
                     primary().frame(maxWidth: .infinity, maxHeight: .infinity)
+                    secondary().frame(maxWidth: .infinity)
+                }
+                .frame(width: size.width, height: size.height)
+            case .grouped:
+                VStack(spacing: spacing * 1.5) {
+                    primary().frame(maxWidth: .infinity)
                     secondary().frame(maxWidth: .infinity)
                 }
                 .frame(width: size.width, height: size.height)
@@ -49,8 +57,12 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
     }
 
     enum Arrangement: Equatable {
-        /// Taller than wide and flat: the primary takes the room, the secondary its own height.
+        /// Taller than wide and flat: the primary takes the room, the secondary its own height,
+        /// at the foot where a thumb reaches it.
         case stacked
+        /// Taller still (the Duo open, an iPad): the two sit together in the middle of the screen,
+        /// since a button at the foot of a tall screen is a long way from the words it goes with.
+        case grouped
         /// A fold across the screen: the primary above it, the secondary below.
         case rows(top: CGFloat, bottom: CGFloat)
         /// A fold down the screen, or a short screen wider than tall: the primary on the left.
@@ -60,7 +72,9 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
     /// The fold's frame in the layout's own space, when the device is partly folded.
     static func fold(in proxy: GeometryProxy) -> CGRect? { Fold.frame(in: proxy) }
 
-    static func arrangement(size: CGSize, fold: CGRect?, share: CGFloat, spacing: CGFloat, short: Bool) -> Arrangement {
+    /// `short` is compact height (a phone on its side); `big` is regular in both directions (the
+    /// Duo open, an iPad), where the panes sit together in the middle rather than at the foot.
+    static func arrangement(size: CGSize, fold: CGRect?, share: CGFloat, spacing: CGFloat, short: Bool, big: Bool) -> Arrangement {
         if let fold, fold.width > 0, fold.height > 0 {
             let margin = spacing / 2
             if fold.height >= fold.width {
@@ -79,7 +93,7 @@ struct FoldAwareLayout<Primary: View, Secondary: View>: View {
             let left = (size.width - spacing) * share
             return .columns(left: left, right: size.width - spacing - left)
         }
-        return .stacked
+        return big ? .grouped : .stacked
     }
 }
 

@@ -307,6 +307,10 @@ struct SundaeTabBar: View {
                 profileItem
             }
         }
+        // On a wide screen (the Duo open, an iPad) the five keep together in the middle instead
+        // of spreading to the corners; around a crease the pages above say where they go.
+        .frame(maxWidth: pages == nil ? Theme.actionsWidth + 40 : .infinity)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
         .background {
             // Edge to edge, under the strip an iPhone Duo keeps down one side for the clock and

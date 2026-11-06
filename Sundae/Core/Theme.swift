@@ -22,6 +22,8 @@ enum Theme {
     /// would be taller than an iPhone Duo held open, one post to a screen. At this width the next
     /// one starts to show.
     static let postWidth: CGFloat = 500
+    /// The widest a row of buttons gets: wider than this they stop reading as buttons.
+    static let actionsWidth: CGFloat = 440
 
     /// Cream paper by day, warm charcoal at night. Same cream as the app icon.
     static var background: Color { warm((251, 248, 243), (25, 23, 20)) }
