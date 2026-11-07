@@ -184,8 +184,10 @@ struct WeekdayView: View {
                             .transition(.opacity)
                     }
                 } else {
+                    // With a place card under them the words lead into it from the left; without
+                    // one they stand on their own, centered on the screen.
                     VStack(alignment: .leading, spacing: 18) {
-                        words(suggestion)
+                        words(suggestion, centered: suggestion.place == nil)
                         if let place = suggestion.place {
                             PlaceCard(place: place, distance: distanceLine(place),
                                       showsPicture: verticalSizeClass != .compact && height >= 740)
@@ -204,13 +206,15 @@ struct WeekdayView: View {
         } else {
             Text("Go enjoy your day.")
                 .font(Theme.display(36))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
     }
 
     /// The day line, the idea and the why. They read as one; the card's buttons stay buttons of
     /// their own.
-    private func words(_ suggestion: Suggestion) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+    private func words(_ suggestion: Suggestion, centered: Bool = false) -> some View {
+        VStack(alignment: centered ? .center : .leading, spacing: 18) {
             HStack(spacing: 6) {
                 if store.isCurrentSaved {
                     Icon(Glyph.saved, weight: .fill, size: 16)
@@ -233,8 +237,9 @@ struct WeekdayView: View {
                 .font(.title3)
                 .foregroundStyle(.secondary)
         }
+        .multilineTextAlignment(centered ? .center : .leading)
         .accessibilityElement(children: .combine)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
     }
 
     /// "8 min walk" close by, "32 mi" when it is worth the trip.
