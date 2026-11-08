@@ -528,19 +528,38 @@ final class AppModel {
     /// where it is changed, changes at once with everything under it. A sheet is given its own look
     /// when it opens, which the window's does not reach, so each one is set too. Only on a change:
     /// at launch the root's preference is enough, and the intro film's light one is left alone.
+    ///
+    /// Back to the system's: windows follow the phone again, but a sheet that is already open
+    /// keeps the look it had unless told one, so open sheets are given the phone's look now.
     private func applyAppearance() {
         let style = appearance.interfaceStyle
+        let phone: UIUserInterfaceStyle = systemColorScheme == .dark ? .dark : .light
         for scene in UIApplication.shared.connectedScenes {
             guard let scene = scene as? UIWindowScene else { continue }
             for window in scene.windows {
                 window.overrideUserInterfaceStyle = style
                 var controller = window.rootViewController
+                var isRoot = true
                 while let shown = controller {
-                    shown.overrideUserInterfaceStyle = style
+                    shown.overrideUserInterfaceStyle = style == .unspecified && !isRoot ? phone : style
                     controller = shown.presentedViewController
+                    isRoot = false
                 }
             }
         }
+    }
+
+    /// The phone's own light or dark, whatever this app is set to: the screen's, which no
+    /// setting in the app changes.
+    var systemColorScheme: ColorScheme {
+        let screen = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.screen }.first
+        return screen?.traitCollection.userInterfaceStyle == .dark ? .dark : .light
+    }
+
+    /// The look a sheet should ask for: the one chosen, or the phone's when set to follow it.
+    /// A sheet asking for none keeps whatever look it had before.
+    var sheetColorScheme: ColorScheme {
+        appearance.colorScheme ?? systemColorScheme
     }
 
     func setDebugDay(_ value: DebugDay) {

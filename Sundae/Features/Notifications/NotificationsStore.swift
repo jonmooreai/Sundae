@@ -66,7 +66,7 @@ final class NotificationsStore {
             tagRequests = tagged.filter { !answered.contains($0.id) }
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
         // Activity is extra: when it cannot load, what was there stays.
         if let items = try? await recent { activity = items }
@@ -93,7 +93,7 @@ final class NotificationsStore {
         do {
             try await api.respondToTag(id: request.tag.id, approve: approve)
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
             answered.remove(request.id)
             await load()
         }
@@ -112,7 +112,7 @@ final class NotificationsStore {
             try await api.respondToFollowRequest(from: person.id, accept: accept)
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
             answered.remove(person.id)
             await load()
             return false

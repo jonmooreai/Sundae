@@ -191,8 +191,9 @@ struct SettingsView: View {
         } message: {
             Text("Give it another try once you're online.")
         }
-        // Settings is a sheet, and a sheet keeps the look it opened with unless it asks for its own.
-        .preferredColorScheme(model.appearance.colorScheme)
+        // Settings is a sheet, and a sheet keeps the look it had unless it asks for one, so it
+        // always asks: the one chosen, or the phone's when following the system.
+        .preferredColorScheme(model.sheetColorScheme)
     }
 
     /// Asks the server for the account's settings. Until it answers, the switches stay hidden.

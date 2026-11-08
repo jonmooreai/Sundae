@@ -10,6 +10,9 @@ struct WidgetGalleryView: View {
     @State private var mode: WidgetSnapshot.Mode = .weekday
     @State private var photos: (thumbnails: [Data], count: Int) = ([], 0)
     @State private var photosArePosted = false
+    /// The width the page has for the previews: on a narrow screen (an iPhone Duo closed, with
+    /// its side strip) less than a real large widget, which then shows a little smaller.
+    @State private var room: CGFloat = 0
     @State private var photoStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
 
     var body: some View {
@@ -21,11 +24,14 @@ struct WidgetGalleryView: View {
         SettingsScreen(title: "Widgets") {
             SegmentedChoice(options: [(WidgetSnapshot.Mode.weekday, "Monday to Saturday"), (.sunday, "Sundae")],
                             selection: $mode)
+                .frame(maxWidth: .infinity)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { room = $0 }
 
+            let scale = room > 0 ? min(1, (room - 28) / sizes.large.width) : 1
             VStack(alignment: .leading, spacing: 18) {
-                preview(snapshot, family: .systemSmall, size: sizes.small, label: "Small")
-                preview(snapshot, family: .systemMedium, size: sizes.medium, label: "Wide")
-                preview(snapshot, family: .systemLarge, size: sizes.large, label: "Large")
+                preview(snapshot, family: .systemSmall, size: sizes.small, scale: scale, label: "Small")
+                preview(snapshot, family: .systemMedium, size: sizes.medium, scale: scale, label: "Wide")
+                preview(snapshot, family: .systemLarge, size: sizes.large, scale: scale, label: "Large")
             }
             .padding(14)
             .frame(maxWidth: .infinity)
@@ -48,9 +54,13 @@ struct WidgetGalleryView: View {
         .task { await loadPhotos() }
     }
 
-    private func preview(_ snapshot: WidgetSnapshot, family: WidgetFamily, size: CGSize, label: String) -> some View {
+    /// One size, drawn exactly as on the Home Screen, made smaller as a whole only when the page
+    /// is narrower than the widget, so its words and photos keep their places.
+    private func preview(_ snapshot: WidgetSnapshot, family: WidgetFamily, size: CGSize, scale: CGFloat, label: String) -> some View {
         VStack(spacing: 8) {
             WidgetPreview(snapshot: snapshot, family: family, size: size)
+                .scaleEffect(scale)
+                .frame(width: size.width * scale, height: size.height * scale)
                 .id("\(label)-\(snapshot.mode.rawValue)")
                 .transition(.opacity)
             Text(label)
@@ -117,6 +127,25 @@ struct WidgetGalleryView: View {
             WidgetPhotos.thisWeek(weekStart: start, until: Date(), limit: 4)
         }.value
         photosArePosted = false
+    }
+}
+
+/// A widget preview at its real size, or smaller as a whole when the page is narrower than it
+/// (an iPhone Duo closed, beside its side strip), so it is never cut off.
+struct FittedWidgetPreview: View {
+    let snapshot: WidgetSnapshot
+    let family: WidgetFamily
+    let size: CGSize
+
+    var body: some View {
+        GeometryReader { geo in
+            let scale = min(1, max(0.1, (geo.size.width - 32) / size.width))
+            WidgetPreview(snapshot: snapshot, family: family, size: size)
+                .scaleEffect(scale)
+                .frame(width: size.width * scale, height: size.height * scale)
+                .frame(maxWidth: .infinity, alignment: .top)
+        }
+        .frame(height: size.height)
     }
 }
 

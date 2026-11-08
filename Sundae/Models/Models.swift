@@ -513,3 +513,12 @@ enum SundaeError: LocalizedError, Equatable {
         }
     }
 }
+
+extension Error {
+    /// A request given up because the screen that asked for it moved on: not something to show.
+    var isCancellation: Bool {
+        if self is CancellationError { return true }
+        if let url = self as? URLError, url.code == .cancelled { return true }
+        return false
+    }
+}

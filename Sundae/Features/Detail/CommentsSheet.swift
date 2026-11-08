@@ -341,7 +341,7 @@ struct CommentsSheet: View {
             comments = try await model.api.comments(dumpID: dump.id)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
         hasLoaded = true
         if focusOnOpen { composing = true }
@@ -368,7 +368,7 @@ struct CommentsSheet: View {
             composing = false
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 
@@ -383,7 +383,7 @@ struct CommentsSheet: View {
             replace(settled)
         } catch {
             replace(comment)
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 
@@ -463,7 +463,7 @@ struct CommentsSheet: View {
         do {
             try await model.api.deleteComment(id: comment.id)
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
             await load()
             publishCount()
         }

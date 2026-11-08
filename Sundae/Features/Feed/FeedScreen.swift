@@ -204,10 +204,12 @@ struct PostYourWeekRow: View {
                 Text(compose.hasPosted ? "Thanks for sharing your week" : "Come share your week")
                     .font(.body.weight(.semibold))
                     .lineLimit(2)
-                Text(compose.hasPosted ? "You can make changes until midnight." : "\(compose.draft.photos.isEmpty ? "Pick your favorites" : "Finish your draft") from this week.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                if !compose.hasPosted {
+                    Text("\(compose.draft.photos.isEmpty ? "Pick your favorites" : "Finish your draft") from this week.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
             Spacer(minLength: 8)
             Button(compose.hasPosted ? "Edit" : "Post", action: onPost)

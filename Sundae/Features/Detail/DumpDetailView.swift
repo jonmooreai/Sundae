@@ -255,7 +255,7 @@ struct DumpDetailView: View {
             dump = loaded
             comments = try await model.api.comments(dumpID: dumpID)
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 
@@ -265,7 +265,7 @@ struct DumpDetailView: View {
             dump = try await model.api.setLike(dumpID: current.id, liked: !current.likedByMe)
             if let dump { model.feed.replace(dump) }
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 

@@ -157,7 +157,7 @@ struct ProfileView: View {
             profile = try await model.api.profile(userID: userID)
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 
@@ -185,7 +185,7 @@ struct ProfileView: View {
             model.followsChanged += 1
             Task { await model.compose.refreshTaggable() }
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 }
