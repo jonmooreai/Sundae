@@ -71,6 +71,8 @@ struct SundaeProvider: TimelineProvider {
             let posted = WidgetPhotos.posted(ids, limit: limit)
             if !posted.isEmpty { return (posted, ids.count, true) }
         }
+        // The large size shows only the post's photos, so it never reads the library otherwise.
+        if family == .systemLarge { return ([], 0, false) }
         let library = WidgetPhotos.thisWeek(weekStart: week, until: date, limit: limit)
         return (library.thumbnails, library.count, false)
     }

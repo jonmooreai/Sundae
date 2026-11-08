@@ -208,6 +208,11 @@ struct SundaeWidgetView: View {
         }
     }
 
+    /// The large widget's photos are the post's own, or none.
+    static func largeShowsPhotos(_ snapshot: WidgetSnapshot) -> Bool {
+        snapshot.photosArePosted && !snapshot.photos.isEmpty
+    }
+
     private var sundayLarge: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
@@ -224,11 +229,13 @@ struct SundaeWidgetView: View {
                 Spacer(minLength: 4)
                 CherryArt(size: 40, image: snapshot.piece)
             }
-            if snapshot.photos.isEmpty {
+            // Only ever the photos in your post: before it is up, or when none of them can be
+            // read from the library (an edit, the camera), the sundae.
+            if Self.largeShowsPhotos(snapshot) {
+                WidgetPhotoGrid(photos: snapshot.photos, corner: 14)
+            } else {
                 SundaeArt()
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            } else {
-                WidgetPhotoGrid(photos: snapshot.photos, corner: 14)
             }
         }
         .padding(inset)

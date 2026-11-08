@@ -102,6 +102,19 @@ struct FeedAndNotificationsTests {
         }
     }
 
+    /// The large widget shows only the post's photos: a week's library photos never.
+    @Test func theLargeWidgetShowsOnlyPostedPhotos() {
+        var snapshot = WidgetSnapshot.placeholder
+        snapshot.mode = .sunday
+        snapshot.photos = [Data([1]), Data([2]), Data([3]), Data([4])]
+        snapshot.photosArePosted = false
+        #expect(!SundaeWidgetView.largeShowsPhotos(snapshot), "library photos, not the post")
+        snapshot.photosArePosted = true
+        #expect(SundaeWidgetView.largeShowsPhotos(snapshot))
+        snapshot.photos = []
+        #expect(!SundaeWidgetView.largeShowsPhotos(snapshot))
+    }
+
     @Test func theWidgetSaysHowManyPhotosArePosted() {
         var snapshot = WidgetSnapshot.placeholder
         snapshot.mode = .sunday
