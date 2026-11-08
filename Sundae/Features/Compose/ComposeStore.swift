@@ -47,6 +47,8 @@ final class ComposeStore {
     private(set) var libraryPhotoIDs: [String: ID] = [:]
     var justPosted = false
     var errorMessage: String?
+    /// The library photos in the post just saved, in its order, for the widget.
+    private(set) var postedAssetIDs: [String] = []
 
     init(api: any SundaeAPI) {
         self.api = api
@@ -306,9 +308,24 @@ final class ComposeStore {
         defer { isSaving = false }
         errorMessage = nil
         do {
+            let sent = draft.photos.map(\.id)
+            let edited = Set(draft.photos.filter { $0.edits != nil }.map(\.id))
             let dump = try await api.saveDump(draft, weekStart: weekStart)
             existingDump = dump
             draft = DumpDraft(from: dump)
+            // The photos now have the server's ids, in the same order: the camera roll photos
+            // follow them, so the grid still shows them picked and the widget knows them.
+            let saved = draft.photos.map(\.id)
+            if sent.count == saved.count {
+                let renamed = Dictionary(zip(sent, saved), uniquingKeysWith: { first, _ in first })
+                libraryPhotoIDs = libraryPhotoIDs.compactMapValues { renamed[$0] }
+                // An edited photo is not the library's picture any more, so the widget leaves it out.
+                postedAssetIDs = zip(sent, saved).compactMap { old, new in
+                    edited.contains(old) ? nil : libraryPhotoIDs.first { $0.value == new }?.key
+                }
+            } else {
+                postedAssetIDs = []
+            }
             justPosted = true
             queuedOffline = false
             pendingStore.clear()

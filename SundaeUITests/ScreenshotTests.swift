@@ -146,6 +146,22 @@ class ScreenshotTests: XCTestCase {
             XCTAssertTrue(app.staticTexts["Arrange and tag"].waitForExistence(timeout: 30))
             snap(app, "06-compose-arrange", settle: 3)
 
+            // The photo editor: open it, look at the crop and a slider, keep the change.
+            let edit = app.buttons["Edit photo"].firstMatch
+            XCTAssertTrue(edit.waitForExistence(timeout: 5), "every photo has Edit")
+            edit.tap()
+            XCTAssertTrue(app.staticTexts["Edit photo"].waitForExistence(timeout: 15))
+            snap(app, "06-compose-edit-crop", settle: 2)
+            let warmth = app.buttons["Warmth"].firstMatch
+            if warmth.waitForExistence(timeout: 3) {
+                warmth.tap()
+                let slider = app.sliders["Warmth"].firstMatch
+                if slider.waitForExistence(timeout: 3) { slider.adjust(toNormalizedSliderPosition: 0.8) }
+                snap(app, "06-compose-edit-warmth", settle: 1.5)
+            }
+            app.buttons["Done"].firstMatch.tap()
+            XCTAssertTrue(app.staticTexts["Arrange and tag"].waitForExistence(timeout: 20), "back to arranging once kept")
+
             let tag = app.buttons["tag-friends"].firstMatch
             if tag.waitForExistence(timeout: 3) {
                 tag.tap()
@@ -185,6 +201,17 @@ class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Sundae"].waitForExistence(timeout: 20))
         snap(app, "02-feed", settle: 5)
 
+        // This week only, then earlier weeks once asked for, at the bottom.
+        let earlier = app.buttons["show-earlier-weeks"].firstMatch
+        for _ in 0..<12 where !earlier.exists { app.swipeUp() }
+        XCTAssertTrue(earlier.waitForExistence(timeout: 5), "the feed ends with a way to earlier weeks")
+        snap(app, "02-feed-end-of-week", settle: 1.5)
+        earlier.tap()
+        app.swipeUp()
+        snap(app, "02-feed-earlier-weeks", settle: 3)
+        tab(app, "Feed")
+        tab(app, "Feed")
+
         // Open the first friend's profile from a feed header.
         let author = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'author-'")).firstMatch
         if author.waitForExistence(timeout: 8) {
@@ -202,7 +229,16 @@ class ScreenshotTests: XCTestCase {
         }
 
         tab(app, "Notifications")
+        XCTAssertTrue(app.staticTexts["Notifications"].waitForExistence(timeout: 10))
         snap(app, "07-notifications", settle: 4)
+        // Riley asked to follow. Confirming lets Riley follow you, and follows nobody back:
+        // the row says so and offers Follow back as its own button.
+        let confirm = app.buttons["Confirm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "follow requests are under the heart")
+        confirm.tap()
+        XCTAssertTrue(app.staticTexts["Follows you now"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Follow back"].firstMatch.exists, "following back is a choice")
+        snap(app, "07-notifications-confirmed", settle: 1.5)
 
         tab(app, "Profile")
         snap(app, "08-profile-own", settle: 5)

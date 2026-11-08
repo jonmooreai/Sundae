@@ -9,7 +9,9 @@
 // 7: when a request to follow was accepted (empty for a follow that needed none) and when a comment
 //    was liked (COLUMNS), for the activity list; requests to accounts already public accepted, as
 //    following a public account needs no yes.
-export const SCHEMA_VERSION = '7';
+// 8: a fingerprint on each photo and, on each tag, whether its photo is one the person tagged
+//    posted themselves that week (COLUMNS).
+export const SCHEMA_VERSION = '8';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -47,11 +49,12 @@ export const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS dumps_created ON dumps (created_at)`,
   `CREATE TABLE IF NOT EXISTS photos (
      id TEXT PRIMARY KEY, dump_id TEXT NOT NULL, ord INTEGER NOT NULL, object_key TEXT NOT NULL,
-     width INTEGER NOT NULL, height INTEGER NOT NULL, alt_text TEXT, upload_id TEXT UNIQUE, caption TEXT)`,
+     width INTEGER NOT NULL, height INTEGER NOT NULL, alt_text TEXT, upload_id TEXT UNIQUE, caption TEXT, fingerprint TEXT)`,
   `CREATE INDEX IF NOT EXISTS photos_dump ON photos (dump_id)`,
   `CREATE TABLE IF NOT EXISTS tags (
      id TEXT PRIMARY KEY, photo_id TEXT NOT NULL, tagger_id TEXT NOT NULL, tagged_user_id TEXT NOT NULL,
-     status TEXT NOT NULL, responded_at TEXT, created_at TEXT NOT NULL, UNIQUE (photo_id, tagged_user_id))`,
+     status TEXT NOT NULL, responded_at TEXT, created_at TEXT NOT NULL, duplicate INTEGER NOT NULL DEFAULT 0,
+     UNIQUE (photo_id, tagged_user_id))`,
   `CREATE INDEX IF NOT EXISTS tags_tagged ON tags (tagged_user_id, status)`,
   `CREATE INDEX IF NOT EXISTS tags_tagger ON tags (tagger_id, status)`,
   `CREATE TABLE IF NOT EXISTS likes (dump_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (dump_id, user_id))`,
@@ -80,6 +83,8 @@ export const COLUMNS = [
   { table: 'comments', column: 'parent_id', sql: 'ALTER TABLE comments ADD COLUMN parent_id TEXT' },
   { table: 'follows', column: 'accepted_at', sql: 'ALTER TABLE follows ADD COLUMN accepted_at TEXT' },
   { table: 'comment_likes', column: 'created_at', sql: 'ALTER TABLE comment_likes ADD COLUMN created_at TEXT' },
+  { table: 'photos', column: 'fingerprint', sql: 'ALTER TABLE photos ADD COLUMN fingerprint TEXT' },
+  { table: 'tags', column: 'duplicate', sql: 'ALTER TABLE tags ADD COLUMN duplicate INTEGER NOT NULL DEFAULT 0' },
 ];
 
 let ready = null;

@@ -411,6 +411,8 @@ enum DTO {
         let uploadId: String?
         /// For a posted photo edited: the id of the one it takes the place of, so its tags carry over.
         let replaces: String?
+        /// A new photo's fingerprint (`PhotoFingerprint`), so a tag on the same picture is not added twice.
+        var fingerprint: String? = nil
         let order: Int
         let width: Int
         let height: Int

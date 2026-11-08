@@ -133,7 +133,8 @@ actor LiveSundaeAPI: SundaeAPI {
             case .data(let data):
                 let uploadID = try await upload(data, for: photo)
                 inputs.append(DTO.PhotoInput(id: nil, uploadId: uploadID, replaces: photo.replaces, order: order, width: photo.width,
-                                             height: photo.height, altText: alt, caption: photo.caption, taggedUserIds: tagged))
+                                             height: photo.height, altText: alt, caption: photo.caption, taggedUserIds: tagged,
+                                             fingerprint: PhotoFingerprint.of(data)))
             case .placeholder:
                 continue
             }

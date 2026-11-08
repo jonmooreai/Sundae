@@ -861,7 +861,8 @@ async function feed(ctx) {
   const { results } = await ctx.db.prepare(`
     SELECT d.* FROM dumps d
     WHERE (d.author_id = ?1 OR d.author_id IN (SELECT followee_id FROM follows WHERE follower_id = ?1 AND status = 'accepted')
-        OR d.id IN (SELECT p.dump_id FROM tags t JOIN photos p ON p.id = t.photo_id WHERE t.tagged_user_id = ?1 AND t.status = 'approved'))
+        OR d.id IN (SELECT p.dump_id FROM tags t JOIN photos p ON p.id = t.photo_id
+          WHERE t.tagged_user_id = ?1 AND t.status = 'approved' AND t.duplicate = 0))
       AND d.author_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
       AND d.author_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)
       AND (?2 IS NULL OR d.created_at < ?2)
@@ -933,8 +934,8 @@ async function saveDump(ctx, week) {
           // The photo's id comes from its upload's, so saves sent together that each add this
           // upload add one photo, and none of them takes the others' away.
           row = { id: `p_${uploadId.replace(/^up_/, '')}`, object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
-          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?)`)
-            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption));
+          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption, fingerprint) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption, fingerprintOf(photo.fingerprint)));
         }
         existing.push(row);
       }
@@ -978,7 +979,50 @@ async function saveDump(ctx, week) {
     db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE author_id = ? AND week_start = ?').bind(caption, commentsEnabled, nowIso, me.id, week),
   ]);
   await storage(ctx.env).deleteMany(removed.map((p) => p.object_key));
+  await markDuplicates(ctx, week);
   return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first()));
+}
+
+/** A photo's fingerprint as the app sends it: 64 bits of a tiny grey version, in hex. A flat
+ * picture (all one way) says nothing, so it counts as none. */
+function fingerprintOf(value) {
+  const hex = typeof value === 'string' ? value.toLowerCase() : '';
+  if (!/^[0-9a-f]{16}$/.test(hex) || /^(0{16}|f{16})$/.test(hex)) return null;
+  return hex;
+}
+
+/** How many of the 64 bits differ. */
+function bitsApart(a, b) {
+  let x = BigInt(`0x${a}`) ^ BigInt(`0x${b}`);
+  let n = 0;
+  while (x) { n += Number(x & 1n); x >>= 1n; }
+  return n;
+}
+
+const SAME_PHOTO_BITS = 6;
+
+/** Someone tagged in a photo they posted themselves that week (the same picture, shared between
+ * friends) keeps the tag, but the photo is not added to their week or their feed a second time.
+ * Worked out again for the week whenever the caller saves it: the tags on their photos, and the
+ * tags of them on anyone's. A few queries. */
+async function markDuplicates(ctx, week) {
+  const db = ctx.db;
+  const { results: tags } = await db.prepare(`
+    SELECT t.id, t.tagged_user_id, t.duplicate, p.fingerprint FROM tags t
+      JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
+    WHERE d.week_start = ?2 AND (d.author_id = ?1 OR t.tagged_user_id = ?1)`).bind(ctx.me.id, week).all();
+  if (!tags.length) return;
+  const people = [...new Set(tags.map((t) => t.tagged_user_id))];
+  const { results: own } = await db.prepare(`
+    SELECT d.author_id, p.fingerprint FROM photos p JOIN dumps d ON d.id = p.dump_id
+    WHERE d.week_start = ?1 AND p.fingerprint IS NOT NULL AND d.author_id IN (SELECT value FROM json_each(?2))`)
+    .bind(week, JSON.stringify(people)).all();
+  const changes = [];
+  for (const tag of tags) {
+    const same = Boolean(tag.fingerprint) && own.some((o) => o.author_id === tag.tagged_user_id && bitsApart(o.fingerprint, tag.fingerprint) <= SAME_PHOTO_BITS);
+    if (Number(tag.duplicate) !== (same ? 1 : 0)) changes.push(db.prepare('UPDATE tags SET duplicate = ? WHERE id = ?').bind(same ? 1 : 0, tag.id));
+  }
+  if (changes.length) await db.batch(changes);
 }
 
 /** The writes that bring one photo's tags in line with who is tagged now. Someone still tagged
@@ -1271,7 +1315,7 @@ async function profile(ctx, userId) {
     const { results: taggedRows } = await ctx.db.prepare(`
       SELECT t.*, d.week_start AS week_start, d.author_id AS author_id, d.id AS dump_id FROM tags t
         JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
-      WHERE t.tagged_user_id = ? AND t.status = 'approved' AND d.author_id != ? AND d.week_start >= ?
+      WHERE t.tagged_user_id = ? AND t.status = 'approved' AND t.duplicate = 0 AND d.author_id != ? AND d.week_start >= ?
       ORDER BY t.responded_at`).bind(user.id, user.id, oldest).all();
     // Someone looking at their own profile sees every tag of them, even on a week they cannot
     // open, so they can remove it; never from anyone blocked either way.

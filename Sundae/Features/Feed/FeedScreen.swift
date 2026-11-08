@@ -52,6 +52,42 @@ struct FeedList: View {
     let onPost: () -> Void
 
     private var feed: FeedStore { model.feed }
+    private var weekStart: Date { model.currentWeekStart }
+    private var thisWeek: [Dump] { feed.thisWeek(weekStart) }
+
+    private func card(_ dump: Dump) -> some View {
+        DumpCard(
+            dump: dump,
+            open: open,
+            onLike: { Task { await feed.toggleLike(dump, me: model.currentUser) } }
+        )
+        .padding(.top, 18)
+        .padding(.bottom, 10)
+        .transition(.opacity)
+        .task { await feed.loadMoreIfNeeded(current: dump, weekStart: weekStart) }
+    }
+
+    /// At the bottom of this week: earlier weeks, only for whoever wants them.
+    @ViewBuilder
+    private var earlierButton: some View {
+        if feed.hasLoaded, !feed.showsEarlier, feed.mayHaveEarlier(weekStart) {
+            VStack(spacing: 12) {
+                if !thisWeek.isEmpty {
+                    Text("That's everyone's week so far.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Show earlier weeks") {
+                    Task { await feed.showEarlier(weekStart: weekStart) }
+                }
+                .buttonStyle(.pill(.secondary, size: .small))
+                .accessibilityIdentifier("show-earlier-weeks")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, thisWeek.isEmpty ? 0 : 28)
+            .padding(.bottom, 12)
+        }
+    }
 
     var body: some View {
         ScrollView {
@@ -68,35 +104,33 @@ struct FeedList: View {
                         ErrorBanner(message: message).padding(Theme.pagePadding)
                     }
 
-                    ForEach(feed.dumps) { dump in
-                        DumpCard(
-                            dump: dump,
-                            open: open,
-                            onLike: { Task { await feed.toggleLike(dump, me: model.currentUser) } }
-                        )
-                        .padding(.top, 18)
-                        .padding(.bottom, 10)
-                        .transition(.opacity)
-                        .task { await feed.loadMoreIfNeeded(current: dump) }
+                    ForEach(thisWeek) { dump in card(dump) }
+
+                    if feed.showsEarlier {
+                        ForEach(feed.earlierWeeks(weekStart), id: \.weekStart) { week in
+                            WeekDivider(label: model.clock.rangeLabel(weekStart: week.weekStart))
+                            ForEach(week.dumps) { dump in card(dump) }
+                        }
                     }
 
                     if feed.isLoading && !feed.dumps.isEmpty {
                         ProgressView().padding(32)
                     }
                 }
-                if feed.dumps.isEmpty {
-                    if feed.isLoading {
+                if thisWeek.isEmpty {
+                    if feed.isLoading && !feed.hasLoaded {
                         LoadingState()
                     } else if feed.hasLoaded {
                         EmptyState("Quiet Sundae", glyph: Glyph.sun,
-                                   message: "Nobody you follow has posted yet. Post your week, or find your friends in Search.")
+                                   message: "Nobody you follow has posted this week yet. Post yours, or find your friends in Search.")
                     }
                 }
+                earlierButton
             }
             .padding(.bottom, 24)
             .centeredColumn(Theme.postWidth)
             // Nothing posted yet: the spinner or the quiet Sunday sits in the middle of the space left.
-            .fillsVisibleHeight(feed.dumps.isEmpty)
+            .fillsVisibleHeight(thisWeek.isEmpty && !feed.showsEarlier)
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
         }
         .scrollsToTopOnTabTap()
@@ -148,5 +182,25 @@ struct PostYourWeekRow: View {
         .overlay(alignment: .bottom) {
             Hairline().padding(.horizontal, Theme.pagePadding)
         }
+    }
+}
+
+/// Where an earlier week starts in the feed: its dates, between two hairlines.
+struct WeekDivider: View {
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Hairline()
+            Text(label)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .fixedSize()
+            Hairline()
+        }
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.top, 28)
+        .padding(.bottom, 4)
+        .accessibilityAddTraits(.isHeader)
     }
 }

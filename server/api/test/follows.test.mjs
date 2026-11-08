@@ -267,3 +267,73 @@ test('an edited photo, sent as a new upload in place of the old one, keeps its t
   ] } });
   assert.deepEqual(retagged.body.photos[0].tags.map((t) => t.status), ['pending']);
 });
+
+test('a photo you posted yourself, tagged again by a friend: the tag counts, the photo is not added twice', async () => {
+  const s = await server();
+  const jon = await s.signUp('apple-jon', 'jon', 'Jon Doe');
+  const maya = await s.signUp('apple-maya', 'maya', 'Maya Doe');
+  // Maya follows Jon, so she can tag him; Jon does not follow Maya, so only a tag brings her week to him.
+  await s.call('POST', `v1/users/${jon.user.id}/follow`, { token: maya.token });
+  await s.call('POST', `v1/me/follow-requests/${maya.user.id}`, { token: jon.token, json: { accept: true } });
+  const save = async (who, photos) => {
+    const body = { caption: '', photos: [] };
+    for (const p of photos) body.photos.push({ upload_id: await uploadPhoto(s, who), fingerprint: p.fingerprint, tagged_user_ids: (p.tagged || []).map((u) => u.user.id) });
+    const r = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: who.token, json: body });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    return r.body;
+  };
+  const approveAll = async (who) => {
+    for (const r of (await s.call('GET', 'v1/me/tag-requests', { token: who.token })).body) {
+      await s.call('POST', `v1/tags/${r.tag.id}/respond`, { token: who.token, json: { approve: true } });
+    }
+  };
+  const taggedOnProfile = async () => (await s.call('GET', `v1/users/${jon.user.id}/profile`, { token: jon.token })).body.weeks
+    .find((w) => w.week_start === '2026-10-19').tagged.length;
+
+  // Jon posts the sunset. Maya posts her copy (a few bits off from being sent again) and another photo.
+  await save(jon, [{ fingerprint: 'f0e1d2c3b4a59687' }]);
+  const mayas = await save(maya, [{ fingerprint: 'f0e1d2c3b4a59684', tagged: [jon] }, { fingerprint: '0123456789abcdef', tagged: [jon] }]);
+  await approveAll(jon);
+
+  const tags = (await s.call('GET', `v1/dumps/${mayas.id}`, { token: maya.token })).body.photos.map((p) => p.tags.map((t) => t.status));
+  assert.deepEqual(tags, [['approved'], ['approved']], 'both tags count');
+  assert.equal(await taggedOnProfile(), 1, 'only the other photo joins his week');
+  const own = (await s.call('GET', 'v1/me/dumps/2026-10-19', { token: jon.token })).body.id;
+  assert.deepEqual((await feedIds(s, jon)).sort(), [own, mayas.id].sort(), 'her week is in his feed for the other photo');
+
+  // Maya takes the other photo out: the sunset alone is no reason to put her week in his feed.
+  const only = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: maya.token, json: { caption: '', photos: [
+    { id: mayas.photos[0].id, tagged_user_ids: [jon.user.id] },
+  ] } });
+  assert.equal(only.status, 200);
+  assert.equal(await taggedOnProfile(), 0);
+  assert.ok(!(await feedIds(s, jon)).includes(mayas.id));
+});
+
+test('posting the same photo after being tagged in it takes the tagged copy off your week', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const up = await uploadPhoto(s, maya);
+  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: maya.token, json: { caption: '', photos: [
+    { upload_id: up, fingerprint: 'aaaabbbbccccdddd', tagged_user_ids: [jon.user.id] },
+  ] } });
+  const [request] = (await s.call('GET', 'v1/me/tag-requests', { token: jon.token })).body;
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: jon.token, json: { approve: true } });
+  const tagged = async () => (await s.call('GET', `v1/users/${jon.user.id}/profile`, { token: jon.token })).body.weeks[0].tagged.length;
+  assert.equal(await tagged(), 1);
+
+  const mine = await uploadPhoto(s, jon);
+  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: mine, fingerprint: 'aaaabbbbccccdddd' }] } });
+  assert.equal(await tagged(), 0, 'his own post has it');
+
+  // Taken out of his own post again, her copy is back on his week.
+  const other = await uploadPhoto(s, jon);
+  await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: other, fingerprint: '1111222233334444' }] } });
+  assert.equal(await tagged(), 1);
+
+  // A flat picture's fingerprint says nothing and matches nothing.
+  const flat = await uploadPhoto(s, jon);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [{ upload_id: flat, fingerprint: '0000000000000000' }] } });
+  assert.equal(saved.status, 200);
+  assert.equal(s.env.DB.sqlite.prepare('SELECT fingerprint FROM photos WHERE id = ?').get(saved.body.photos[0].id).fingerprint, null);
+});

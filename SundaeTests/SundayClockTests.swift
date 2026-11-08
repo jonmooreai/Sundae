@@ -47,8 +47,12 @@ struct SundayClockTests {
 
     @Test func rangeLabels() {
         let c = clock(at: date(2026, 10, 25))
-        #expect(c.rangeLabel(weekStart: date(2026, 10, 19, hour: 0)) == "Oct 19 to 25")
-        #expect(c.rangeLabel(weekStart: date(2026, 10, 26, hour: 0)) == "Oct 26 to Nov 1")
+        #expect(c.rangeLabel(weekStart: date(2026, 10, 19, hour: 0)) == "Oct 19th - Oct 25th")
+        #expect(c.rangeLabel(weekStart: date(2026, 10, 26, hour: 0)) == "Oct 26th - Nov 1st")
+        #expect(c.rangeLabel(weekStart: date(2026, 11, 2, hour: 0)) == "Nov 2nd - Nov 8th")
+        #expect(c.rangeLabel(weekStart: date(2026, 11, 16, hour: 0)) == "Nov 16th - Nov 22nd")
+        #expect(c.rangeLabel(weekStart: date(2026, 11, 9, hour: 0)) == "Nov 9th - Nov 15th")
+        #expect(c.dayLabel(date(2026, 11, 11)) == "Nov 11th", "not 11st")
     }
 
     @Test func recentWeeksAreNewestFirst() {

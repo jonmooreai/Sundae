@@ -289,7 +289,7 @@ struct ActivityRow: View {
             NavigationLink(value: destination) {
                 HStack(spacing: 12) {
                     AvatarView(user: item.actor, size: 44)
-                    Text(sentence)
+                    sentence
                         .font(.subheadline)
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
