@@ -70,10 +70,7 @@ struct ArrangeStep: View {
                 FlowBottomBar(title: "Next") {
                     path.append(.caption)
                 } leading: {
-                    Text(photos.count > 1 ? "Hold a photo below to move it" : "")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                    EmptyView()
                 }
             }
         }
@@ -212,11 +209,6 @@ struct ArrangeStep: View {
 
             thumbnails
 
-            Text("Tap Tag friends to add the people who were there.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, Theme.pagePadding)
-                .padding(.top, 2)
             Spacer(minLength: 0)
         }
     }
@@ -255,7 +247,6 @@ struct ArrangeStep: View {
                         .frame(width: 60, height: 60)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .opacity(dragging == photo.id ? 0.3 : (dragging == nil && index != page ? 0.6 : 1))
-                        .scaleEffect(dragging == nil && index == page ? 1.06 : 1)
                         // The ghost under the finger keeps the thumbnail's rounded corners.
                         .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .onTapGesture {

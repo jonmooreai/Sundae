@@ -15,7 +15,7 @@ struct CaptionStep: View {
             FlowHeader(title: "Caption", isRoot: false, onClose: { compose.dismiss() }) { EmptyView() }
             ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                DraftThumbnailStrip(photos: compose.draft.photos)
+                DraftThumbnailStrip(photos: compose.draft.photos, side: 72)
                     .padding(.horizontal, -Theme.pagePadding)
 
                 Text("How was your week?")
@@ -24,7 +24,7 @@ struct CaptionStep: View {
                 VStack(alignment: .trailing, spacing: 6) {
                     TextField("Say a little about it", text: $store.draft.caption, axis: .vertical)
                         .font(.title3)
-                        .lineLimit(3...10)
+                        .lineLimit(5...10)
                         .textFieldStyle(.plain)
                         .focused($captionFocused)
                         .padding(16)
@@ -42,16 +42,28 @@ struct CaptionStep: View {
 
                 donePrompt
 
-                Toggle("Allow comments", isOn: $store.draft.commentsEnabled)
-                    .font(.subheadline)
+                // The app's own switch, the same sage as Settings.
+                Button {
+                    store.draft.commentsEnabled.toggle()
+                    Haptics.light()
+                } label: {
+                    HStack {
+                        Text("Allow comments")
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        SundaeSwitch(isOn: compose.draft.commentsEnabled)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityRepresentation {
+                    Toggle("Allow comments", isOn: $store.draft.commentsEnabled)
+                }
 
                 if let message = compose.errorMessage {
                     ErrorBanner(message: message)
                 }
-
-                Text("Your post goes to the top of your friends' feeds and into this week on your profile. Tagged friends get a request to approve.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
             .padding(Theme.pagePadding)
             }
@@ -65,9 +77,7 @@ struct CaptionStep: View {
                           isEnabled: compose.canPost, isLoading: compose.isSaving) {
                 Task { await post() }
             } leading: {
-                Text(compose.draft.caption.isEmpty ? "Caption is optional" : "")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                EmptyView()
             }
         }
         .overlay {
