@@ -271,6 +271,16 @@ actor LiveSundaeAPI: SundaeAPI {
         }
     }
 
+    func setFingerprints(_ fingerprints: [ID: String]) async throws {
+        guard !fingerprints.isEmpty else { return }
+        let body = DTO.Fingerprints(photos: fingerprints.map { DTO.Fingerprints.Item(id: $0.key, fingerprint: $0.value) })
+        do {
+            let _: HTTPClient.Empty = try await client.put("v1/me/fingerprints", body: body)
+        } catch SundaeError.notFound {
+            // A server from before fingerprints: nothing to do.
+        }
+    }
+
     func respondToTag(id: ID, approve: Bool) async throws {
         let _: HTTPClient.Empty = try await client.post("v1/tags/\(id)/respond", body: DTO.Respond(approve: approve))
     }

@@ -337,3 +337,45 @@ test('posting the same photo after being tagged in it takes the tagged copy off 
   assert.equal(saved.status, 200);
   assert.equal(s.env.DB.sqlite.prepare('SELECT fingerprint FROM photos WHERE id = ?').get(saved.body.photos[0].id).fingerprint, null);
 });
+
+test('the same picture posted by both before fingerprints: once both phones send them, it shows once, with the tag on her copy', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  // Both post the sunset, from builds that sent no fingerprint. Jon tags Maya in his; she says yes.
+  const mine = await uploadPhoto(s, jon);
+  const jons = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    { upload_id: mine, tagged_user_ids: [maya.user.id] },
+  ] } })).body;
+  const hers = await uploadPhoto(s, maya);
+  const other = await uploadPhoto(s, maya);
+  const mayas = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: maya.token, json: { caption: '', photos: [
+    { upload_id: hers }, { upload_id: other },
+  ] } })).body;
+  const [request] = (await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body;
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: maya.token, json: { approve: true } });
+  const herWeek = async () => (await s.call('GET', `v1/users/${maya.user.id}/profile`, { token: jon.token })).body.weeks
+    .find((w) => w.week_start === '2026-10-19');
+  assert.equal((await herWeek()).tagged.length, 1, 'shown twice, as it was');
+  assert.deepEqual(mayas.photos.map((p) => p.has_fingerprint), [false, false]);
+
+  // Each phone sends fingerprints for its own photos; someone else's are not theirs to set.
+  assert.equal((await s.call('PUT', 'v1/me/fingerprints', { token: maya.token, json: { photos: [
+    { id: mayas.photos[0].id, fingerprint: '9a8b7c6d5e4f3021' }, { id: mayas.photos[1].id, fingerprint: '0f0f0f0f0f0f0f0f' },
+    { id: jons.photos[0].id, fingerprint: '1111111111111111' },
+  ] } })).status, 204);
+  assert.equal(s.env.DB.sqlite.prepare('SELECT fingerprint FROM photos WHERE id = ?').get(jons.photos[0].id).fingerprint, null);
+  await s.call('PUT', 'v1/me/fingerprints', { token: jon.token, json: { photos: [{ id: jons.photos[0].id, fingerprint: '9a8b7c6d5e4f3023' }] } });
+
+  const week = await herWeek();
+  assert.equal(week.tagged.length, 0, 'once');
+  const sunset = week.dump.photos.find((p) => p.id === mayas.photos[0].id);
+  assert.deepEqual(sunset.tags.map((t) => [t.tagged_user.username, t.status, t.shared]), [['jon', 'approved', true]], 'his tag is on her copy');
+  assert.deepEqual(week.dump.photos.find((p) => p.id === mayas.photos[1].id).tags, []);
+  assert.ok(week.dump.photos.every((p) => p.has_fingerprint));
+  // His own post is unchanged: Maya tagged on his copy.
+  const his = (await s.call('GET', `v1/dumps/${jons.id}`, { token: jon.token })).body;
+  assert.deepEqual(his.photos[0].tags.map((t) => [t.tagged_user.username, Boolean(t.shared)]), [['maya', false]]);
+  // A fingerprint already set stays as it is.
+  await s.call('PUT', 'v1/me/fingerprints', { token: maya.token, json: { photos: [{ id: mayas.photos[0].id, fingerprint: 'ffff0000ffff0000' }] } });
+  assert.equal(s.env.DB.sqlite.prepare('SELECT fingerprint FROM photos WHERE id = ?').get(mayas.photos[0].id).fingerprint, '9a8b7c6d5e4f3021');
+});

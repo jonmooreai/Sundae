@@ -130,8 +130,26 @@ final class ComposeStore {
         if let dump = try? await api.myDump(weekStart: weekStart) {
             existingDump = dump
             if draft.isEmpty { draft = DumpDraft(from: dump) }
+            Task { await sendMissingFingerprints(of: dump) }
         }
         if queuedOffline { _ = await save(weekStart: weekStart) }
+    }
+
+    /// Photos posted before the app sent fingerprints get them now, worked out on this phone from
+    /// the posted pictures, so a friend's tag on the same picture shows on this copy instead of a
+    /// second one. Once each; quietly does nothing when offline.
+    func sendMissingFingerprints(of dump: Dump) async {
+        var found: [ID: String] = [:]
+        for photo in dump.photos where photo.hasFingerprint == false {
+            guard case .remote(let url) = photo.source,
+                  let loaded = try? await URLSession.shared.data(from: url) else { continue }
+            if let response = loaded.1 as? HTTPURLResponse, response.statusCode >= 400 { continue }
+            let data = loaded.0
+            if let fingerprint = await Task.detached(priority: .utility, operation: { PhotoFingerprint.of(data) }).value {
+                found[photo.id] = fingerprint
+            }
+        }
+        try? await api.setFingerprints(found)
     }
 
     func refreshTaggable() async {
@@ -376,7 +394,8 @@ extension DumpDraft {
     init(from dump: Dump) {
         photos = dump.photos.sorted { $0.order < $1.order }.map { photo in
             DraftPhoto(id: photo.id, source: photo.source, width: photo.width, height: photo.height,
-                       taggedUsers: photo.visibleTags.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil,
+                       // A friend's tag shown on this copy is theirs, not one to send back as the author's.
+                       taggedUsers: photo.visibleTags.filter { !$0.isShared }.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil,
                        caption: photo.caption ?? "")
         }
         caption = dump.caption

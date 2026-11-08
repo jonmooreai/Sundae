@@ -56,6 +56,11 @@ struct Tag: Identifiable, Hashable, Codable, Sendable {
     var taggedUser: User
     var status: Status
     var respondedAt: Date?
+    /// Shown here because the tagger posted this same picture and tagged this photo's author in
+    /// theirs: their tag, on the author's own copy. Only for showing; never sent back as a tag.
+    var shared: Bool? = nil
+
+    var isShared: Bool { shared == true }
 }
 
 struct Photo: Identifiable, Hashable, Codable, Sendable {
@@ -69,6 +74,8 @@ struct Photo: Identifiable, Hashable, Codable, Sendable {
     /// A line or two under this photo. One idea's photos carry the same one.
     var caption: String? = nil
     var tags: [Tag]
+    /// Whether the server has this photo's fingerprint. Nil from a server that does not say.
+    var hasFingerprint: Bool? = nil
 
     var aspectRatio: CGFloat { height == 0 ? 1 : CGFloat(width) / CGFloat(height) }
     /// Tags that should be drawn: pending and approved. Declined and removed tags vanish everywhere.

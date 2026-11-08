@@ -68,6 +68,8 @@ protocol SundaeAPI: Sendable {
     /// while the account is private.
     func removeFollower(userID: ID) async throws
     func pendingTagRequests() async throws -> [TagRequest]
+    /// Fingerprints for the user's own photos posted before the app sent them, by photo id.
+    func setFingerprints(_ fingerprints: [ID: String]) async throws
     /// What happened around the user lately, newest first: four weeks back, up to sixty. Empty
     /// from a server that does not have it yet.
     func activity() async throws -> [ActivityItem]

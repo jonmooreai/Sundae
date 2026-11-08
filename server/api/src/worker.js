@@ -169,6 +169,7 @@ async function route(ctx, method, parts) {
     case 'DELETE me/followers/:': return removeFollower(ctx, c);
     case 'GET me/tag-requests': return tagRequests(ctx);
     case 'GET me/activity': return activity(ctx);
+    case 'PUT me/fingerprints': return setFingerprints(ctx);
     case 'GET me/suggestions/done': return suggestionsDone(ctx);
     case 'PUT me/suggestions/:/done': return markDone(ctx, c);
     case 'POST tags/:/respond': return respondToTag(ctx, b);
@@ -767,13 +768,19 @@ function lockedAt(dump, author, now) {
 /** Photos with their visible tags, keyed by photo id. Nobody blocked either way shows up tagged. */
 async function photosJSON(ctx, photos) {
   if (!photos.length) return new Map();
-  const [{ results: tags }, blocked] = await Promise.all([
+  const ids = JSON.stringify(photos.map((p) => p.id));
+  const [{ results: tags }, { results: shared }, blocked] = await Promise.all([
     ctx.db.prepare(`
       SELECT * FROM tags WHERE photo_id IN (SELECT value FROM json_each(?)) AND status IN ('pending', 'approved') ORDER BY created_at`)
-      .bind(JSON.stringify(photos.map((p) => p.id))).all(),
+      .bind(ids).all(),
+    // The same picture, posted by a friend who tagged this photo's author in it: their tag
+    // shows here, on the author's own copy, which is the only one shown to them.
+    ctx.db.prepare(`
+      SELECT * FROM tags WHERE duplicate_of IN (SELECT value FROM json_each(?)) AND status = 'approved' ORDER BY responded_at`)
+      .bind(ids).all(),
     blockedIds(ctx),
   ]);
-  const people = await usersById(ctx, tags.map((t) => t.tagged_user_id));
+  const people = await usersById(ctx, [...tags.map((t) => t.tagged_user_id), ...shared.map((t) => t.tagger_id)]);
   const out = new Map();
   for (const photo of photos) {
     const photoTags = [];
@@ -781,10 +788,16 @@ async function photosJSON(ctx, photos) {
       const tagged = !blocked.has(tag.tagged_user_id) && people.get(tag.tagged_user_id);
       if (tagged) photoTags.push(await tagJSON(ctx, tag, tagged));
     }
+    for (const tag of shared.filter((t) => t.duplicate_of === photo.id)) {
+      const from = !blocked.has(tag.tagger_id) && people.get(tag.tagger_id);
+      if (from && !photoTags.some((t) => t.tagged_user.id === from.id)) {
+        photoTags.push({ ...(await tagJSON(ctx, { ...tag, photo_id: photo.id }, from)), shared: true });
+      }
+    }
     out.set(photo.id, {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
       width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null,
-      caption: photo.caption || null, tags: photoTags,
+      caption: photo.caption || null, tags: photoTags, has_fingerprint: Boolean(photo.fingerprint),
     });
   }
   return out;
@@ -983,6 +996,25 @@ async function saveDump(ctx, week) {
   return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first()));
 }
 
+/** Fingerprints for photos the caller posted before the app sent them: only their own, only
+ * ones without one. Then the weeks they are in are looked at again for the same picture. */
+async function setFingerprints(ctx) {
+  const input = await body(ctx.request);
+  const given = (Array.isArray(input.photos) ? input.photos : []).slice(0, MAX_PHOTOS * 4)
+    .map((p) => ({ id: clean(p?.id, 80), fingerprint: fingerprintOf(p?.fingerprint) }))
+    .filter((p) => p.id && p.fingerprint);
+  if (!given.length) return empty();
+  const { results: mine } = await ctx.db.prepare(`
+    SELECT p.id, d.week_start FROM photos p JOIN dumps d ON d.id = p.dump_id
+    WHERE d.author_id = ? AND p.fingerprint IS NULL AND p.id IN (SELECT value FROM json_each(?))`)
+    .bind(ctx.me.id, JSON.stringify(given.map((p) => p.id))).all();
+  if (!mine.length) return empty();
+  await ctx.db.batch(mine.map((row) => ctx.db.prepare('UPDATE photos SET fingerprint = ? WHERE id = ? AND fingerprint IS NULL')
+    .bind(given.find((p) => p.id === row.id).fingerprint, row.id)));
+  for (const week of new Set(mine.map((r) => r.week_start))) await markDuplicates(ctx, week);
+  return empty();
+}
+
 /** A photo's fingerprint as the app sends it: 64 bits of a tiny grey version, in hex. A flat
  * picture (all one way) says nothing, so it counts as none. */
 function fingerprintOf(value) {
@@ -1008,19 +1040,28 @@ const SAME_PHOTO_BITS = 6;
 async function markDuplicates(ctx, week) {
   const db = ctx.db;
   const { results: tags } = await db.prepare(`
-    SELECT t.id, t.tagged_user_id, t.duplicate, p.fingerprint FROM tags t
+    SELECT t.id, t.tagged_user_id, t.duplicate, t.duplicate_of, p.fingerprint FROM tags t
       JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
     WHERE d.week_start = ?2 AND (d.author_id = ?1 OR t.tagged_user_id = ?1)`).bind(ctx.me.id, week).all();
   if (!tags.length) return;
   const people = [...new Set(tags.map((t) => t.tagged_user_id))];
   const { results: own } = await db.prepare(`
-    SELECT d.author_id, p.fingerprint FROM photos p JOIN dumps d ON d.id = p.dump_id
+    SELECT d.author_id, p.id, p.fingerprint FROM photos p JOIN dumps d ON d.id = p.dump_id
     WHERE d.week_start = ?1 AND p.fingerprint IS NOT NULL AND d.author_id IN (SELECT value FROM json_each(?2))`)
     .bind(week, JSON.stringify(people)).all();
   const changes = [];
   for (const tag of tags) {
-    const same = Boolean(tag.fingerprint) && own.some((o) => o.author_id === tag.tagged_user_id && bitsApart(o.fingerprint, tag.fingerprint) <= SAME_PHOTO_BITS);
-    if (Number(tag.duplicate) !== (same ? 1 : 0)) changes.push(db.prepare('UPDATE tags SET duplicate = ? WHERE id = ?').bind(same ? 1 : 0, tag.id));
+    // Their own photo closest to this one, if it is the same picture.
+    let match = null;
+    let best = SAME_PHOTO_BITS + 1;
+    for (const o of own) {
+      if (!tag.fingerprint || o.author_id !== tag.tagged_user_id) continue;
+      const apart = bitsApart(o.fingerprint, tag.fingerprint);
+      if (apart < best) { best = apart; match = o.id; }
+    }
+    if (Number(tag.duplicate) !== (match ? 1 : 0) || (tag.duplicate_of || null) !== match) {
+      changes.push(db.prepare('UPDATE tags SET duplicate = ?, duplicate_of = ? WHERE id = ?').bind(match ? 1 : 0, match, tag.id));
+    }
   }
   if (changes.length) await db.batch(changes);
 }
