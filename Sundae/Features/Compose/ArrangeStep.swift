@@ -123,6 +123,9 @@ struct ArrangeStep: View {
                     PhotoView(source: photo.source)
                         .aspectRatio(Self.shape(of: photo), contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        // On the photo itself, so the Edit button over it stays its own button.
+                        .accessibilityElement()
+                        .accessibilityLabel(photo.altText.isEmpty ? "Photo \(index + 1) of \(photos.count)" : photo.altText)
                         .overlay(alignment: .bottomLeading) {
                             // A few faces and a short line, never one chip per person.
                             if !photo.taggedUsers.isEmpty {
@@ -158,12 +161,12 @@ struct ArrangeStep: View {
                                 .buttonStyle(.plain)
                                 .padding(12)
                                 .accessibilityLabel("Edit photo")
+                                .accessibilityIdentifier("edit-photo")
                             }
                         }
                         .padding(.horizontal, Theme.pagePadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .tag(index)
-                        .accessibilityLabel(photo.altText.isEmpty ? "Photo \(index + 1) of \(photos.count)" : photo.altText)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))

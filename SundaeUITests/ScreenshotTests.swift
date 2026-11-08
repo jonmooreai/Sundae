@@ -147,7 +147,7 @@ class ScreenshotTests: XCTestCase {
             snap(app, "06-compose-arrange", settle: 3)
 
             // The photo editor: open it, look at the crop and a slider, keep the change.
-            let edit = app.buttons["Edit photo"].firstMatch
+            let edit = app.buttons["edit-photo"].firstMatch
             XCTAssertTrue(edit.waitForExistence(timeout: 5), "every photo has Edit")
             edit.tap()
             XCTAssertTrue(app.staticTexts["Edit photo"].waitForExistence(timeout: 15))
@@ -236,7 +236,8 @@ class ScreenshotTests: XCTestCase {
         let confirm = app.buttons["Confirm"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), "follow requests are under the heart")
         confirm.tap()
-        XCTAssertTrue(app.staticTexts["Follows you now"].waitForExistence(timeout: 5))
+        let followsYou = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Follows you now'")).firstMatch
+        XCTAssertTrue(followsYou.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Follow back"].firstMatch.exists, "following back is a choice")
         snap(app, "07-notifications-confirmed", settle: 1.5)
 
