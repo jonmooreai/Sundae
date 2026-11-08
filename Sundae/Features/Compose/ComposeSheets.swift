@@ -87,42 +87,6 @@ struct TagPickerSheet: View {
     }
 }
 
-/// Drag to reorder. Default order is chronological; this is for the rest.
-struct ReorderSheet: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                ForEach(model.compose.draft.photos) { photo in
-                    HStack(spacing: 12) {
-                        PhotoView(source: photo.source)
-                            .frame(width: 56, height: 56)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.chipRadius, style: .continuous))
-                        if photo.taggedUsers.isEmpty {
-                            Text("No tags").foregroundStyle(.secondary)
-                        } else {
-                            Text("with " + ListFormatter.localizedString(byJoining: photo.taggedUsers.map(\.firstName)))
-                        }
-                    }
-                }
-                .onMove { from, to in model.compose.move(from: from, to: to) }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Theme.background)
-            .presentationBackground(Theme.background)
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("Reorder")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() }.textButtonTint() }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-}
-
 /// Per-photo alt text for VoiceOver. Optional, short, plain.
 struct AltTextSheet: View {
     let photo: DraftPhoto
