@@ -430,9 +430,9 @@ struct OnboardingView: View {
             heading("On your Home Screen", "Today's idea, without opening the app. Swipe to see the sizes, and add one any time from your Home Screen.")
 
             TabView {
-                widgetPage(WidgetPreview(snapshot: snapshot, family: .systemSmall, size: sizes.small), "Small")
-                widgetPage(WidgetPreview(snapshot: snapshot, family: .systemMedium, size: sizes.medium), "Wide")
-                widgetPage(WidgetPreview(snapshot: snapshot, family: .systemLarge, size: sizes.large), "Large: a few ideas, nearby ones a tap from Maps")
+                widgetPage(FittedWidgetPreview(snapshot: snapshot, family: .systemSmall, size: sizes.small), "Small")
+                widgetPage(FittedWidgetPreview(snapshot: snapshot, family: .systemMedium, size: sizes.medium), "Wide")
+                widgetPage(FittedWidgetPreview(snapshot: snapshot, family: .systemLarge, size: sizes.large), "Large: a few ideas, nearby ones a tap from Maps")
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
@@ -447,7 +447,7 @@ struct OnboardingView: View {
         }
     }
 
-    private func widgetPage(_ preview: WidgetPreview, _ label: String) -> some View {
+    private func widgetPage(_ preview: FittedWidgetPreview, _ label: String) -> some View {
         VStack(spacing: 10) {
             preview
             Text(label)
