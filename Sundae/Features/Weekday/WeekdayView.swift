@@ -184,10 +184,12 @@ struct WeekdayView: View {
                             .transition(.opacity)
                     }
                 } else {
-                    // With a place card under them the words lead into it from the left; without
-                    // one they stand on their own, centered on the screen.
+                    // With a place card under them the words lead into it from the left. Without
+                    // one, on a big screen (the Duo open, an iPad) they stand on their own,
+                    // centered; on a phone-sized screen (the Duo closed, any iPhone) they stay
+                    // left, where a short column reads best.
                     VStack(alignment: .leading, spacing: 18) {
-                        words(suggestion, centered: suggestion.place == nil)
+                        words(suggestion, centered: suggestion.place == nil && horizontalSizeClass == .regular)
                         if let place = suggestion.place {
                             PlaceCard(place: place, distance: distanceLine(place),
                                       showsPicture: verticalSizeClass != .compact && height >= 740)
