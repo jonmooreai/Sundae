@@ -16,6 +16,9 @@ final class NotificationsStore {
     var errorMessage: String?
     /// The newest activity already looked at.
     private(set) var seenThrough: Date?
+    /// Requests and tags answered here. A load that set out before the answer would bring them
+    /// back; these stay gone.
+    private var answered: Set<ID> = []
 
     private static let seenKey = "notifications.seenThrough"
 
@@ -37,6 +40,7 @@ final class NotificationsStore {
         followRequests = []
         tagRequests = []
         activity = []
+        answered = []
         hasLoaded = false
         errorMessage = nil
     }
@@ -58,8 +62,8 @@ final class NotificationsStore {
         async let recent = client.activity()
         do {
             let (waiting, tagged) = try await (follows, tags)
-            followRequests = waiting
-            tagRequests = tagged
+            followRequests = waiting.filter { !answered.contains($0.id) }
+            tagRequests = tagged.filter { !answered.contains($0.id) }
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -80,6 +84,7 @@ final class NotificationsStore {
 
     /// Takes the request off the list. Wrap in `withAnimation` to let the card leave gracefully.
     func dismiss(_ request: TagRequest) {
+        answered.insert(request.id)
         tagRequests.removeAll { $0.id == request.id }
     }
 
@@ -89,6 +94,7 @@ final class NotificationsStore {
             try await api.respondToTag(id: request.tag.id, approve: approve)
         } catch {
             errorMessage = error.localizedDescription
+            answered.remove(request.id)
             await load()
         }
     }
@@ -96,6 +102,7 @@ final class NotificationsStore {
     // MARK: - Follow requests
 
     func dismiss(_ person: ListedPerson) {
+        answered.insert(person.id)
         followRequests.removeAll { $0.id == person.id }
     }
 
@@ -106,6 +113,7 @@ final class NotificationsStore {
             return true
         } catch {
             errorMessage = error.localizedDescription
+            answered.remove(person.id)
             await load()
             return false
         }

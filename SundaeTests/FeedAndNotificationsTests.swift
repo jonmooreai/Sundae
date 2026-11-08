@@ -72,6 +72,22 @@ struct FeedAndNotificationsTests {
         store.forget()
     }
 
+    /// A load that set out before an answer never brings the request back.
+    @Test func anAnsweredRequestStaysAnswered() async throws {
+        let (api, _) = try await signedIn()
+        let store = NotificationsStore(api: api)
+        await store.load()
+        let riley = try #require(store.followRequests.first { $0.user.username == "riley" })
+        let tag = try #require(store.tagRequests.first)
+        store.dismiss(riley)
+        store.dismiss(tag)
+        // The server has not heard yet, so it still lists both: they stay off the list.
+        await store.load()
+        #expect(!store.followRequests.contains { $0.id == riley.id })
+        #expect(!store.tagRequests.contains { $0.id == tag.id })
+        store.forget()
+    }
+
     @Test func activityLinesAreWarmAndQuoteWhatWasSaid() {
         let pat = User(id: "u_pat", username: "patdoe", name: "Pat Doe", bio: "", avatar: nil, isPublic: false, timezone: "UTC")
         func item(_ kind: ActivityItem.Kind, _ body: String? = nil) -> ActivityItem {

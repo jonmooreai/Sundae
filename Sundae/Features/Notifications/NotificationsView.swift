@@ -110,8 +110,9 @@ struct NotificationsView: View {
             sectionHeader("Follow requests")
             ForEach(accepted) { person in
                 acceptedRow(person)
+                    .id("accepted-\(person.id)")
             }
-            ForEach(waiting) { person in
+            ForEach(waiting.filter { person in !accepted.contains { $0.id == person.id } }) { person in
                 requestRow(person)
                     .transition(.opacity)
             }
