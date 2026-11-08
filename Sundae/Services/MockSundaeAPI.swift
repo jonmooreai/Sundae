@@ -586,6 +586,11 @@ actor MockSundaeAPI: SundaeAPI {
         return Array(items.filter { $0.at <= now && $0.at > monthAgo }.sorted { $0.at > $1.at }.prefix(60))
     }
 
+    /// The demo has no pictures to compare.
+    func setFingerprints(_ fingerprints: [ID: String]) async throws {
+        _ = try requireSignedIn()
+    }
+
     private func updateTag(id: ID, _ change: (inout Tag) -> Void) throws {
         for (dumpID, var dump) in dumps {
             for p in dump.photos.indices {

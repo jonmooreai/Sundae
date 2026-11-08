@@ -151,6 +151,9 @@ class ScreenshotTests: XCTestCase {
             XCTAssertTrue(edit.waitForExistence(timeout: 5), "every photo has Edit")
             edit.tap()
             XCTAssertTrue(app.staticTexts["Edit photo"].waitForExistence(timeout: 15))
+            let straighten = app.sliders["Straighten"].firstMatch
+            XCTAssertTrue(straighten.waitForExistence(timeout: 5), "fine rotation in the crop tool")
+            straighten.adjust(toNormalizedSliderPosition: 0.65)
             snap(app, "06-compose-edit-crop", settle: 2)
             let warmth = app.buttons["Warmth"].firstMatch
             if warmth.waitForExistence(timeout: 3) {
@@ -206,7 +209,10 @@ class ScreenshotTests: XCTestCase {
         for _ in 0..<12 where !earlier.exists { app.swipeUp() }
         XCTAssertTrue(earlier.waitForExistence(timeout: 5), "the feed ends with a way to earlier weeks")
         snap(app, "02-feed-end-of-week", settle: 1.5)
-        earlier.tap()
+        // Pulled up past the end and let go: the earlier weeks load, as a pull down refreshes.
+        let low = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+        low.press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+        if earlier.waitForExistence(timeout: 2) { earlier.tap() }
         app.swipeUp()
         snap(app, "02-feed-earlier-weeks", settle: 3)
         tab(app, "Feed")

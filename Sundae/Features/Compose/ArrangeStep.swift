@@ -1,4 +1,5 @@
 import PhotosUI
+import UniformTypeIdentifiers
 import SwiftUI
 
 /// Step two: see each photo large, edit it, give it a caption, tag the friends who were there,
@@ -21,13 +22,12 @@ struct ArrangeStep: View {
         }
     }
     @State private var altPhoto: DraftPhoto?
-    @State private var showReorder = false
     @State private var confirmDelete = false
     @State private var showsPhotosPicker = false
     @State private var showsCamera = false
     @State private var editing: DraftPhoto?
-    /// The photo in the strip a dragged one is over.
-    @State private var dropTarget: ID?
+    /// The photo being dragged in the strip, shown faint where it will land.
+    @State private var dragging: ID?
 
     private var compose: ComposeStore { model.compose }
     private var photos: [DraftPhoto] { compose.draft.photos }
@@ -70,16 +70,10 @@ struct ArrangeStep: View {
                 FlowBottomBar(title: "Next") {
                     path.append(.caption)
                 } leading: {
-                    Button {
-                        showReorder = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Icon(Glyph.reorder, size: 18)
-                            Text("Reorder")
-                        }
-                    }
-                    .buttonStyle(.pill(.quiet, size: .small))
-                    .disabled(photos.count < 2)
+                    Text(photos.count > 1 ? "Hold a photo below to move it" : "")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                 }
             }
         }
@@ -90,9 +84,6 @@ struct ArrangeStep: View {
         }
         .sheet(item: $altPhoto) { photo in
             AltTextSheet(photo: photo) { text in compose.setAltText(for: photo.id, text: text) }
-        }
-        .sheet(isPresented: $showReorder) {
-            ReorderSheet()
         }
         .fullScreenCover(item: $editing) { photo in
             PhotoEditorView(photo: photo, load: { await compose.editableData(for: photo) }) { edits, rendered in
@@ -109,6 +100,8 @@ struct ArrangeStep: View {
         } message: {
             Text("Your photos and any tags on them are removed. Friends keep the photos they posted.")
         }
+        // A drag let go anywhere but the strip still ends.
+        .onDrop(of: [.text], delegate: EndDrag(dragging: $dragging))
         .onChange(of: photos.count) { _, count in
             page = min(page, max(0, count - 1))
         }
@@ -219,9 +212,7 @@ struct ArrangeStep: View {
 
             thumbnails
 
-            Text(photos.count > 1
-                 ? "Hold a photo in the strip and drag it to change the order."
-                 : "Tap Tag friends to add the people who were there.")
+            Text("Tap Tag friends to add the people who were there.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, Theme.pagePadding)
@@ -253,6 +244,9 @@ struct ArrangeStep: View {
         .buttonStyle(.pill(.secondary, size: .small, fullWidth: true))
     }
 
+    /// The strip: the photo on screen at full strength, the rest a little quieter. Hold one and
+    /// drag: a ghost of it follows the finger, the others slide aside as it passes, and the faint
+    /// space left in the strip is where it lands.
     private var thumbnails: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
@@ -260,30 +254,29 @@ struct ArrangeStep: View {
                     PhotoView(source: photo.source)
                         .frame(width: 60, height: 60)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(index == page || dropTarget == photo.id ? Color.accentColor : .clear, lineWidth: 2.5)
+                        .opacity(dragging == photo.id ? 0.3 : (dragging == nil && index != page ? 0.6 : 1))
+                        .scaleEffect(dragging == nil && index == page ? 1.06 : 1)
+                        .onTapGesture {
+                            dragging = nil
+                            withAnimation(.snappy) { page = index }
                         }
-                        .scaleEffect(dropTarget == photo.id ? 1.08 : 1)
-                        .animation(.snappy(duration: 0.2), value: dropTarget)
-                        .onTapGesture { withAnimation(.snappy) { page = index } }
-                        // Hold and drag onto another photo: it takes that photo's place.
-                        .draggable(photo.id) {
+                        .onDrag {
+                            dragging = photo.id
+                            Haptics.light()
+                            return NSItemProvider(object: photo.id as NSString)
+                        } preview: {
                             PhotoView(source: photo.source)
                                 .frame(width: 60, height: 60)
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
-                        .dropDestination(for: String.self) { ids, _ in
-                            dropTarget = nil
-                            guard let moved = ids.first, moved != photo.id, photos.contains(where: { $0.id == moved }) else { return false }
-                            withAnimation(.snappy) { compose.movePhoto(moved, to: photo.id) }
+                        .onDrop(of: [.text], delegate: StripDrop(target: photo.id, dragging: $dragging) { moved, target in
+                            withAnimation(.snappy(duration: 0.25)) { compose.movePhoto(moved, to: target) }
                             if let at = compose.draft.photos.firstIndex(where: { $0.id == moved }) { page = at }
                             Haptics.light()
-                            return true
-                        } isTargeted: { over in
-                            if over { dropTarget = photo.id } else if dropTarget == photo.id { dropTarget = nil }
-                        }
+                        })
                         .accessibilityLabel("Photo \(index + 1)")
+                        .accessibilityAction(named: "Move earlier") { move(photo.id, by: -1) }
+                        .accessibilityAction(named: "Move later") { move(photo.id, by: 1) }
                 }
                 if compose.draft.canAddMore {
                     Menu {
@@ -298,10 +291,18 @@ struct ArrangeStep: View {
                 }
             }
             .padding(.horizontal, Theme.pagePadding)
+            .animation(.snappy(duration: 0.25), value: photos.map(\.id))
         }
         .scrollIndicators(.hidden)
-        .frame(height: 64)
+        .frame(height: 68)
         .photoSources(compose: compose, showsPicker: $showsPhotosPicker, showsCamera: $showsCamera)
+    }
+
+    /// One place earlier or later, for VoiceOver, where dragging is hard.
+    private func move(_ id: ID, by step: Int) {
+        guard let from = photos.firstIndex(where: { $0.id == id }), photos.indices.contains(from + step) else { return }
+        compose.movePhoto(id, to: photos[from + step].id)
+        page = from + step
     }
 
     private var empty: some View {
@@ -343,5 +344,43 @@ struct ArrangeStep: View {
         } else {
             path.append(.pick)
         }
+    }
+}
+
+/// A photo in the strip, as one being dragged passes over it: the dragged one takes its place
+/// there and then, so the strip shows where it will land. A move, so no plus badge.
+private struct StripDrop: DropDelegate {
+    let target: ID
+    @Binding var dragging: ID?
+    let move: @MainActor (ID, ID) -> Void
+
+    func dropEntered(info: DropInfo) {
+        MainActor.assumeIsolated {
+            guard let moved = dragging, moved != target else { return }
+            move(moved, target)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        MainActor.assumeIsolated { dragging = nil }
+        return true
+    }
+}
+
+/// Anywhere else on the screen: a drag let go outside the strip ends, the photo where it last was.
+private struct EndDrag: DropDelegate {
+    @Binding var dragging: ID?
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        MainActor.assumeIsolated { dragging = nil }
+        return true
     }
 }

@@ -45,10 +45,12 @@ enum DTO {
         let taggedUser: User
         let status: String
         let respondedAt: Date?
+        let shared: Bool?
 
         var model: Sundae.Tag {
             Sundae.Tag(id: id, photoID: photoId, taggerID: taggerId, taggedUser: taggedUser.model,
-                       status: Sundae.Tag.Status(rawValue: status) ?? .pending, respondedAt: respondedAt)
+                       status: Sundae.Tag.Status(rawValue: status) ?? .pending, respondedAt: respondedAt,
+                       shared: shared == true ? true : nil)
         }
     }
 
@@ -62,14 +64,15 @@ enum DTO {
         let altText: String?
         let caption: String?
         let tags: [Tag]
+        let hasFingerprint: Bool?
 
         private enum CodingKeys: String, CodingKey {
-            case id, dumpId, order, url, width, height, altText, caption, tags
+            case id, dumpId, order, url, width, height, altText, caption, tags, hasFingerprint
         }
 
         var model: Sundae.Photo {
             Sundae.Photo(id: id, dumpID: dumpId, order: order, source: .remote(url), width: width, height: height,
-                         altText: altText, caption: caption, tags: tags.map(\.model))
+                         altText: altText, caption: caption, tags: tags.map(\.model), hasFingerprint: hasFingerprint)
         }
 
         /// Width and height only shape the frame, so an odd value (a fraction, a huge number,
@@ -422,6 +425,14 @@ enum DTO {
         var fingerprint: String? = nil
     }
 
+    struct Fingerprints: Encodable {
+        struct Item: Encodable {
+            let id: String
+            let fingerprint: String
+        }
+        let photos: [Item]
+    }
+
     struct SaveDump: Encodable {
         let caption: String
         let commentsEnabled: Bool
@@ -470,6 +481,7 @@ extension DTO.Photo {
         altText = try container.decodeIfPresent(String.self, forKey: .altText)
         caption = try? container.decodeIfPresent(String.self, forKey: .caption)
         tags = try container.decode([DTO.Tag].self, forKey: .tags)
+        hasFingerprint = try? container.decodeIfPresent(Bool.self, forKey: .hasFingerprint)
     }
 }
 

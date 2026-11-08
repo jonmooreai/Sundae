@@ -43,6 +43,7 @@ struct PhotoEditorView: View {
     /// What changes the picture itself; moving the crop only moves it.
     private struct Look: Equatable {
         var quarterTurns: Int
+        var straighten: Double
         var brightness: Double
         var contrast: Double
         var saturation: Double
@@ -50,6 +51,7 @@ struct PhotoEditorView: View {
 
         init(_ edits: PhotoEdits) {
             quarterTurns = edits.quarterTurns
+            straighten = edits.straighten
             brightness = edits.brightness
             contrast = edits.contrast
             saturation = edits.saturation
@@ -76,7 +78,7 @@ struct PhotoEditorView: View {
             canvas
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             controls
-                .frame(height: 104)
+                .frame(height: 132)
                 .padding(.horizontal, Theme.pagePadding)
             tools
         }
@@ -205,42 +207,47 @@ struct PhotoEditorView: View {
     private var controls: some View {
         switch tool {
         case .crop:
-            VStack(spacing: 14) {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 6) {
-                        ForEach(PhotoEdits.Aspect.allCases, id: \.self) { aspect in
-                            chip(aspect.label, isOn: edits.aspect == aspect) {
-                                withAnimation(reduceMotion ? nil : .snappy) {
-                                    edits.aspect = aspect
-                                    edits.zoom = 1
-                                    edits.offsetX = 0
-                                    edits.offsetY = 0
+            VStack(spacing: 12) {
+                straightenSlider
+                HStack(spacing: 8) {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: 6) {
+                            ForEach(PhotoEdits.Aspect.allCases, id: \.self) { aspect in
+                                chip(aspect.label, isOn: edits.aspect == aspect) {
+                                    withAnimation(reduceMotion ? nil : .snappy) {
+                                        edits.aspect = aspect
+                                        edits.zoom = 1
+                                        edits.offsetX = 0
+                                        edits.offsetY = 0
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                .scrollIndicators(.hidden)
-                HStack(spacing: 10) {
+                    .scrollIndicators(.hidden)
                     Button {
                         Haptics.light()
                         edits.quarterTurns = (edits.quarterTurns + 1) % 4
                     } label: {
-                        HStack(spacing: 6) {
-                            Icon(Glyph.rotate, size: 18)
-                            Text("Turn")
-                        }
+                        Icon(Glyph.rotate, size: 20)
+                            .frame(width: 40, height: 40)
+                            .background(Theme.fill, in: Circle())
+                            .contentShape(Circle())
                     }
-                    .buttonStyle(.pill(.secondary, size: .small))
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Turn a quarter")
+                }
+                HStack {
                     Spacer()
                     Button("Start over") {
                         withAnimation(reduceMotion ? nil : .snappy) { edits = PhotoEdits() }
                     }
-                    .buttonStyle(.pill(.quiet, size: .small))
+                    .font(.subheadline)
+                    .textButtonTint()
                     .disabled(edits.isUntouched)
                 }
             }
-            .padding(.top, 10)
+            .padding(.top, 8)
         default:
             VStack(spacing: 8) {
                 HStack {
@@ -265,6 +272,38 @@ struct PhotoEditorView: View {
             }
             .padding(.top, 18)
         }
+    }
+
+    /// A fine turn, from the middle: right turns the photo clockwise, a few degrees at most, in
+    /// half degrees. Back at the middle it settles there with a tap of feedback.
+    private var straightenSlider: some View {
+        HStack(spacing: 10) {
+            Text("Straighten")
+                .font(.subheadline.weight(.semibold))
+            Slider(value: Binding(get: { edits.straighten }, set: { raw in
+                let value = abs(raw) < 0.3 ? 0 : raw
+                if value == 0, edits.straighten != 0 { Haptics.light() }
+                edits.straighten = value
+            }), in: PhotoEdits.straightenRange, step: 0.5)
+            .tint(Color.accentColor)
+            .accessibilityLabel("Straighten")
+            .accessibilityValue(Self.degrees(edits.straighten))
+            Text(Self.degrees(edits.straighten))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .frame(minWidth: 44, alignment: .trailing)
+                .onTapGesture(count: 2) { edits.straighten = 0 }
+        }
+    }
+
+    /// "+2.5°", "0°", "-4°".
+    private static func degrees(_ value: Double) -> String {
+        let rounded = (value * 2).rounded() / 2
+        let number = rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", abs(rounded))
+        if rounded > 0 { return "+\(number)\u{00B0}" }
+        if rounded < 0 { return rounded == rounded.rounded() ? "\(number)\u{00B0}" : "-\(number)\u{00B0}" }
+        return "0\u{00B0}"
     }
 
     private func chip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
@@ -312,7 +351,7 @@ struct PhotoEditorView: View {
 
     private func isChanged(_ tool: Tool) -> Bool {
         switch tool {
-        case .crop: edits.quarterTurns != 0 || edits.aspect != .original || edits.zoom != 1 || edits.offsetX != 0 || edits.offsetY != 0
+        case .crop: edits.quarterTurns != 0 || edits.straighten != 0 || edits.aspect != .original || edits.zoom != 1 || edits.offsetX != 0 || edits.offsetY != 0
         default: value(for: tool) != 0
         }
     }

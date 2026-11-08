@@ -71,9 +71,9 @@ struct CaptionStep: View {
             }
         }
         .overlay {
-            // Uploading takes a moment: a sundae builds itself until the week is up.
+            // Uploading takes a moment: the week's own photos pile up until it is in.
             if compose.isSaving {
-                PostingSundae(photoCount: compose.draft.photos.count)
+                PostingStack(photos: compose.draft.photos.map(\.source))
                     .transition(.opacity)
             }
         }

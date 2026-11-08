@@ -46,6 +46,33 @@ struct PhotoEditingTests {
         #expect(square.width == 300 && square.height == 300)
     }
 
+    @Test func straighteningKeepsTheSizeAndFillsTheCorners() throws {
+        let data = jpeg(400, 300, color: .systemRed)
+        var edits = PhotoEdits()
+        edits.straighten = 7.5
+        let turned = try #require(PhotoEditing.render(data, edits))
+        #expect(turned.width == 400 && turned.height == 300, "same size")
+        // A corner pixel is the photo's red, never an empty edge.
+        let image = try #require(UIImage(data: turned.data)?.cgImage)
+        let corner = try #require(image.cropping(to: CGRect(x: 0, y: 0, width: 1, height: 1)))
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let drawn = pixel.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            context.draw(corner, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+        #expect(drawn)
+        #expect(pixel[0] > 180 && pixel[3] > 250, "the corner is filled with the photo")
+    }
+
+    @Test func editsSavedBeforeStraighteningStillOpen() throws {
+        let old = #"{"quarterTurns":1,"aspect":"square","zoom":1.5,"offsetX":0,"offsetY":0,"brightness":0.2,"contrast":0,"saturation":0,"warmth":0}"#
+        let edits = try JSONDecoder().decode(PhotoEdits.self, from: Data(old.utf8))
+        #expect(edits.quarterTurns == 1 && edits.aspect == .square && edits.straighten == 0 && edits.brightness == 0.2)
+    }
+
     @Test func photosKeepTheOrderTheyWerePicked() async throws {
         let compose = ComposeStore(api: MockSundaeAPI(clock: SundayClock()))
         let early = Date(timeIntervalSince1970: 1_000)

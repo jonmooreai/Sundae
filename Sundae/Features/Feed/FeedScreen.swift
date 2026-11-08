@@ -53,6 +53,10 @@ struct FeedList: View {
 
     private var feed: FeedStore { model.feed }
     private var weekStart: Date { model.currentWeekStart }
+    /// Pulled far enough past the end of this week that letting go loads earlier weeks.
+    @State private var releaseToLoad = false
+    @State private var scrollPhase: ScrollPhase = .idle
+    private static let pullDistance: CGFloat = 70
     private var thisWeek: [Dump] { feed.thisWeek(weekStart) }
 
     private func card(_ dump: Dump) -> some View {
@@ -67,6 +71,10 @@ struct FeedList: View {
         .task { await feed.loadMoreIfNeeded(current: dump, weekStart: weekStart) }
     }
 
+    private var canPullForEarlier: Bool {
+        feed.hasLoaded && !feed.showsEarlier && feed.mayHaveEarlier(weekStart)
+    }
+
     /// At the bottom of this week: earlier weeks, only for whoever wants them.
     @ViewBuilder
     private var earlierButton: some View {
@@ -77,10 +85,14 @@ struct FeedList: View {
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
-                Button("Show earlier weeks") {
+                Button {
                     Task { await feed.showEarlier(weekStart: weekStart) }
+                } label: {
+                    Text(releaseToLoad ? "Release to load\u{2026}" : "Show earlier weeks")
+                        .contentTransition(.opacity)
+                        .animation(.easeInOut(duration: 0.15), value: releaseToLoad)
                 }
-                .buttonStyle(.pill(.secondary, size: .small))
+                .buttonStyle(.pill(releaseToLoad ? .primary : .secondary, size: .small))
                 .accessibilityIdentifier("show-earlier-weeks")
             }
             .frame(maxWidth: .infinity)
@@ -134,6 +146,30 @@ struct FeedList: View {
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
         }
         .scrollsToTopOnTabTap()
+        // Pulled up past the end of this week: the button says to let go, and letting go loads
+        // the weeks before, as a pull down refreshes.
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            let restingEnd = max(geometry.contentSize.height + geometry.contentInsets.bottom - geometry.containerSize.height,
+                                 -geometry.contentInsets.top)
+            return geometry.contentOffset.y - restingEnd
+        } action: { _, pulled in
+            guard scrollPhase == .interacting, canPullForEarlier else {
+                if releaseToLoad, scrollPhase != .interacting { return }
+                releaseToLoad = false
+                return
+            }
+            let armed = pulled > Self.pullDistance
+            if armed != releaseToLoad {
+                releaseToLoad = armed
+                if armed { Haptics.light() }
+            }
+        }
+        .onScrollPhaseChange { _, phase in
+            scrollPhase = phase
+            guard phase != .interacting, releaseToLoad else { return }
+            releaseToLoad = false
+            if canPullForEarlier { Task { await feed.showEarlier(weekStart: weekStart) } }
+        }
         .background(Theme.background)
         .goldenHour(calendar: model.clock.calendar)
         .birthdayPaper(calendar: model.clock.calendar)

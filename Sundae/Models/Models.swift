@@ -56,6 +56,11 @@ struct Tag: Identifiable, Hashable, Codable, Sendable {
     var taggedUser: User
     var status: Status
     var respondedAt: Date?
+    /// Shown here because the tagger posted this same picture and tagged this photo's author in
+    /// theirs: their tag, on the author's own copy. Only for showing; never sent back as a tag.
+    var shared: Bool? = nil
+
+    var isShared: Bool { shared == true }
 }
 
 struct Photo: Identifiable, Hashable, Codable, Sendable {
@@ -69,6 +74,8 @@ struct Photo: Identifiable, Hashable, Codable, Sendable {
     /// A line or two under this photo. One idea's photos carry the same one.
     var caption: String? = nil
     var tags: [Tag]
+    /// Whether the server has this photo's fingerprint. Nil from a server that does not say.
+    var hasFingerprint: Bool? = nil
 
     var aspectRatio: CGFloat { height == 0 ? 1 : CGFloat(width) / CGFloat(height) }
     /// Tags that should be drawn: pending and approved. Declined and removed tags vanish everywhere.
@@ -287,6 +294,9 @@ struct PhotoEdits: Hashable, Codable, Sendable {
 
     /// Quarter turns clockwise, 0 to 3.
     var quarterTurns = 0
+    /// Fine turn after the quarter turns, in degrees, -15 to 15: right is clockwise. The photo
+    /// grows just enough that no corner of the frame goes empty.
+    var straighten: Double = 0
     var aspect: Aspect = .original
     /// 1 shows the whole of the chosen shape; more is closer in.
     var zoom: Double = 1
@@ -300,6 +310,25 @@ struct PhotoEdits: Hashable, Codable, Sendable {
     var warmth: Double = 0
 
     var isUntouched: Bool { self == PhotoEdits() }
+
+    static let straightenRange: ClosedRange<Double> = -15...15
+}
+
+extension PhotoEdits {
+    /// Edits saved by a build with fewer of them still open: anything missing is untouched.
+    init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        quarterTurns = try c.decodeIfPresent(Int.self, forKey: .quarterTurns) ?? 0
+        straighten = try c.decodeIfPresent(Double.self, forKey: .straighten) ?? 0
+        aspect = try c.decodeIfPresent(Aspect.self, forKey: .aspect) ?? .original
+        zoom = try c.decodeIfPresent(Double.self, forKey: .zoom) ?? 1
+        offsetX = try c.decodeIfPresent(Double.self, forKey: .offsetX) ?? 0
+        offsetY = try c.decodeIfPresent(Double.self, forKey: .offsetY) ?? 0
+        brightness = try c.decodeIfPresent(Double.self, forKey: .brightness) ?? 0
+        contrast = try c.decodeIfPresent(Double.self, forKey: .contrast) ?? 0
+        saturation = try c.decodeIfPresent(Double.self, forKey: .saturation) ?? 0
+        warmth = try c.decodeIfPresent(Double.self, forKey: .warmth) ?? 0
+    }
 }
 
 extension DraftPhoto {

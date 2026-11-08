@@ -21,6 +21,9 @@ enum PhotoEditing {
         }
         out = out.transformed(by: CGAffineTransform(translationX: -out.extent.minX, y: -out.extent.minY))
         let extent = out.extent
+        if edits.straighten != 0 {
+            out = straightened(out, degrees: edits.straighten)
+        }
         if edits.brightness != 0 || edits.contrast != 0 || edits.saturation != 0 {
             let colors = CIFilter.colorControls()
             colors.inputImage = out
@@ -39,6 +42,23 @@ enum PhotoEditing {
             out = temperature.outputImage ?? out
         }
         return out.cropped(to: extent)
+    }
+
+    /// Turned by a few degrees about its middle and made just large enough to fill its own
+    /// frame again, so the picture keeps its size and no corner shows empty.
+    nonisolated static func straightened(_ image: CIImage, degrees: Double) -> CIImage {
+        let extent = image.extent
+        let w = extent.width, h = extent.height
+        guard w > 0, h > 0 else { return image }
+        let angle = CGFloat(-degrees * .pi / 180)
+        let c = abs(cos(angle)), s = abs(sin(angle))
+        let grow = max(c + (h / w) * s, c + (w / h) * s)
+        let middle = CGPoint(x: extent.midX, y: extent.midY)
+        let turn = CGAffineTransform(translationX: middle.x, y: middle.y)
+            .rotated(by: angle)
+            .scaledBy(x: grow, y: grow)
+            .translatedBy(x: -middle.x, y: -middle.y)
+        return image.transformed(by: turn).cropped(to: extent)
     }
 
     /// Width over height once turned.
