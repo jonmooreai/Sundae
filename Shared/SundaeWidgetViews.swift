@@ -162,7 +162,7 @@ struct SundaeWidgetView: View {
         if snapshot.photosArePosted {
             return snapshot.weekPhotoCount == 1 ? "1 photo in your week" : "\(snapshot.weekPhotoCount) photos in your week"
         }
-        switch snapshot.weekPhotoCount {
+        return switch snapshot.weekPhotoCount {
         case 0: snapshot.hasPosted ? "Tweak it until midnight." : "Pick your favorites."
         case 1: "1 photo since Monday"
         default: "\(snapshot.weekPhotoCount) photos since Monday"
