@@ -256,6 +256,8 @@ struct ArrangeStep: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .opacity(dragging == photo.id ? 0.3 : (dragging == nil && index != page ? 0.6 : 1))
                         .scaleEffect(dragging == nil && index == page ? 1.06 : 1)
+                        // The ghost under the finger keeps the thumbnail's rounded corners.
+                        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .onTapGesture {
                             dragging = nil
                             withAnimation(.snappy) { page = index }

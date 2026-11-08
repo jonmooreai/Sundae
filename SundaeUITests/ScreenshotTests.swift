@@ -155,6 +155,10 @@ class ScreenshotTests: XCTestCase {
             XCTAssertTrue(straighten.waitForExistence(timeout: 5), "fine rotation in the crop tool")
             straighten.adjust(toNormalizedSliderPosition: 0.65)
             snap(app, "06-compose-edit-crop", settle: 2)
+            // Held on the photo, the before shows.
+            let canvas = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'The photo.'")).firstMatch
+            if canvas.waitForExistence(timeout: 3) { canvas.press(forDuration: 1.0) }
+            XCTAssertFalse(app.buttons["Start over"].exists, "no Start over")
             let warmth = app.buttons["Warmth"].firstMatch
             if warmth.waitForExistence(timeout: 3) {
                 warmth.tap()
