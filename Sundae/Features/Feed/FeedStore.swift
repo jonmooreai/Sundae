@@ -65,7 +65,7 @@ final class FeedStore {
             hasLoaded = true
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 
@@ -87,7 +87,7 @@ final class FeedStore {
             dumps.append(contentsOf: page)
             hasMore = !page.isEmpty
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
         }
     }
 

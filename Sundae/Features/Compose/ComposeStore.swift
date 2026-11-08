@@ -357,7 +357,7 @@ final class ComposeStore {
             errorMessage = nil
             return nil
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
             return nil
         }
     }
@@ -384,7 +384,7 @@ final class ComposeStore {
             loadedWeekStart = weekStart
             return dump.id
         } catch {
-            errorMessage = error.localizedDescription
+            if !error.isCancellation { errorMessage = error.localizedDescription }
             return nil
         }
     }

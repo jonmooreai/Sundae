@@ -137,6 +137,9 @@ actor HTTPClient {
             case .notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotFindHost,
                  .cannotConnectToHost, .dnsLookupFailed, .internationalRoamingOff, .dataNotAllowed:
                 throw SundaeError.offline
+            case .cancelled:
+                // The screen that asked moved on. Nothing went wrong, so nothing to tell anyone.
+                throw CancellationError()
             default:
                 throw error
             }
