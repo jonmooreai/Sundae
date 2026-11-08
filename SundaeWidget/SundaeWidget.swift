@@ -21,7 +21,7 @@ struct SundaeProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (SundaeEntry) -> Void) {
         let now = Date()
         // The widget gallery's preview stays light: it reads no photos.
-        completion(entry(at: now, photos: context.isPreview ? ([], 0) : weekPhotos(until: now, family: context.family)))
+        completion(entry(at: now, photos: context.isPreview ? ([], 0, false) : weekPhotos(until: now, family: context.family)))
     }
 
     /// Weekdays: an entry at midnight, noon and five each day until Sunday begins, then a fresh
@@ -52,18 +52,27 @@ struct SundaeProvider: TimelineProvider {
         completion(Timeline(entries: entries, policy: .after(refresh)))
     }
 
-    private func entry(at date: Date, photos: (thumbnails: [Data], count: Int)) -> SundaeEntry {
+    private func entry(at date: Date, photos: (thumbnails: [Data], count: Int, posted: Bool)) -> SundaeEntry {
         SundaeEntry(date: date, snapshot: WidgetSnapshotBuilder.snapshot(
-            at: date, catalog: catalog, shared: shared, photos: photos))
+            at: date, catalog: catalog, shared: shared, photos: (photos.thumbnails, photos.count), photosArePosted: photos.posted))
     }
 
     /// This week's photos, read only on Sunday, when they show, and only as many as the size
     /// shows. A widget gets very little memory, and going over it on a resize (to large, say)
     /// gets the widget stopped and put back the way it was, so the weekdays leave the library alone.
-    private func weekPhotos(until date: Date, family: WidgetFamily) -> (thumbnails: [Data], count: Int) {
+    /// Once the week is posted, the photos in the post, in its order; before, a few from the library.
+    private func weekPhotos(until date: Date, family: WidgetFamily) -> (thumbnails: [Data], count: Int, posted: Bool) {
         let clock = SundayClock(now: { date })
-        guard clock.isSunday(), family != .accessoryInline, family != .accessoryRectangular else { return ([], 0) }
-        return WidgetPhotos.thisWeek(weekStart: clock.weekStart(), until: date, limit: family == .systemSmall ? 1 : 3)
+        guard clock.isSunday(), family != .accessoryInline, family != .accessoryRectangular else { return ([], 0, false) }
+        let limit = family == .systemSmall ? 1 : family == .systemLarge ? 4 : 3
+        let week = clock.weekStart()
+        let ids = shared.postedAssetIDs(forWeekStarting: week)
+        if shared.postedWeekStart == week, !ids.isEmpty {
+            let posted = WidgetPhotos.posted(ids, limit: limit)
+            if !posted.isEmpty { return (posted, ids.count, true) }
+        }
+        let library = WidgetPhotos.thisWeek(weekStart: week, until: date, limit: limit)
+        return (library.thumbnails, library.count, false)
     }
 }
 
@@ -85,7 +94,7 @@ struct SundaeWidget: Widget {
                 .containerBackground(for: .widget) { WidgetPalette.paper }
         }
         .configurationDisplayName("Sundae")
-        .description("Monday to Saturday, ideas worth doing, some near you. On Sunday, a few of this week's photos and a nudge to post.")
+        .description("Monday to Saturday, ideas worth doing, some near you. On Sundae, a few of this week's photos and a nudge to post.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }

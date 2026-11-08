@@ -70,6 +70,14 @@ struct CaptionStep: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .overlay {
+            // Uploading takes a moment: a sundae builds itself until the week is up.
+            if compose.isSaving {
+                PostingSundae(photoCount: compose.draft.photos.count)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: compose.isSaving)
         .onAppear {
             if compose.draft.caption.isEmpty { captionFocused = true }
         }
@@ -121,6 +129,7 @@ struct CaptionStep: View {
         if let dump = await compose.save(weekStart: model.currentWeekStart) {
             model.feed.insertOwn(dump)
             model.shared.postedWeekStart = model.currentWeekStart
+            model.shared.setPostedAssetIDs(compose.postedAssetIDs, weekStart: model.currentWeekStart)
             model.scheduleReminders()
             WidgetCenter.shared.reloadAllTimelines()
             path.append(.posted)

@@ -168,6 +168,7 @@ async function route(ctx, method, parts) {
     case 'GET me/following': return following(ctx);
     case 'DELETE me/followers/:': return removeFollower(ctx, c);
     case 'GET me/tag-requests': return tagRequests(ctx);
+    case 'GET me/activity': return activity(ctx);
     case 'GET me/suggestions/done': return suggestionsDone(ctx);
     case 'PUT me/suggestions/:/done': return markDone(ctx, c);
     case 'POST tags/:/respond': return respondToTag(ctx, b);
@@ -232,7 +233,7 @@ async function auth(ctx) {
 function requireSunday(ctx) {
   // Admins can try the Sunday screens any day; nobody else sees a week before its Sunday.
   if (ctx.env.SUNDAY_EVERY_DAY === 'true' || ctx.me.is_admin) return;
-  if (!isSunday(ctx.now, ctx.me.timezone)) fail(423, 'sunday_closed', 'Come back Sunday.');
+  if (!isSunday(ctx.now, ctx.me.timezone)) fail(423, 'sunday_closed', 'Come back on Sundae.');
 }
 
 /** A new pair. Given the refresh token being swapped, the new one is written only while that one
@@ -456,8 +457,14 @@ async function updateSettings(ctx) {
     if (Array.isArray(v)) next[k] = Array.isArray(input[k]) ? [...new Set(input[k].filter(isUserId))].slice(0, 500) : v;
     else next[k] = Boolean(input[k]);
   }
-  await ctx.db.prepare('UPDATE users SET settings = ?, is_public = ? WHERE id = ?')
-    .bind(JSON.stringify(next), next.is_public ? 1 : 0, ctx.me.id).run();
+  const db = ctx.db;
+  // Going public says yes to everyone still waiting, as anyone can follow a public account
+  // straight away. Going private keeps the followers there are; new ones ask first.
+  await db.batch([
+    db.prepare('UPDATE users SET settings = ?, is_public = ? WHERE id = ?').bind(JSON.stringify(next), next.is_public ? 1 : 0, ctx.me.id),
+    ...(next.is_public ? [db.prepare(`UPDATE follows SET status = 'accepted', accepted_at = ? WHERE followee_id = ? AND status = 'requested'`)
+      .bind(ctx.now.toISOString(), ctx.me.id)] : []),
+  ]);
   return empty();
 }
 
@@ -541,6 +548,20 @@ async function relationship(ctx, user) {
 
 const NOT_BLOCKED = `id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1) AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)`;
 
+/** Columns for a list of people, beside users.*: how the caller (?1) stands with each one. */
+const HOW_THEY_STAND = `(SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = users.id) AS my_status,
+  EXISTS (SELECT 1 FROM follows WHERE follower_id = users.id AND followee_id = ?1 AND status = 'accepted') AS follows_me`;
+
+/** A person in a list, with how the caller stands with them, for Follow, Follow back, Requested
+ * and Following. Needs the HOW_THEY_STAND columns. */
+async function listedJSON(ctx, row) {
+  return {
+    ...(await userJSON(ctx, row)),
+    relationship: row.id === ctx.me.id ? 'me' : row.my_status === 'accepted' ? 'following' : row.my_status === 'requested' ? 'requested' : 'none',
+    follows_you: Boolean(row.follows_me),
+  };
+}
+
 /** People the caller follows or who follow them, both accepted. The only people they can tag. */
 async function taggable(ctx) {
   const { results } = await ctx.db.prepare(`
@@ -551,17 +572,21 @@ async function taggable(ctx) {
   return results;
 }
 
+/** People waiting on the caller, each with how the caller stands with them, so the app can offer
+ * Follow back once a request is accepted without guessing. Accepting never follows back. */
 async function followRequests(ctx) {
   const { results } = await ctx.db.prepare(`
-    SELECT * FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT follower_id FROM follows WHERE followee_id = ?1 AND status = 'requested')
+    SELECT users.*, ${HOW_THEY_STAND}
+    FROM users WHERE ${NOT_BLOCKED} AND id IN (SELECT follower_id FROM follows WHERE followee_id = ?1 AND status = 'requested')
     ORDER BY username`).bind(ctx.me.id).all();
-  return json(await usersJSON(ctx, results));
+  return json(await Promise.all(results.map((row) => listedJSON(ctx, row))));
 }
 
 async function respondToFollow(ctx, userId) {
   const input = await body(ctx.request);
   if (input.accept) {
-    await ctx.db.prepare(`UPDATE follows SET status = 'accepted' WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`).bind(userId, ctx.me.id).run();
+    await ctx.db.prepare(`UPDATE follows SET status = 'accepted', accepted_at = ? WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`)
+      .bind(ctx.now.toISOString(), userId, ctx.me.id).run();
   } else {
     await ctx.db.prepare(`DELETE FROM follows WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`).bind(userId, ctx.me.id).run();
   }
@@ -592,12 +617,18 @@ async function removeFollower(ctx, userId) {
   return empty();
 }
 
+/** Follows straight away when the account is public, and asks when it is private. Asking again
+ * changes nothing; a request still waiting on someone who has since gone public goes through. */
 async function follow(ctx, userId) {
   if (userId === ctx.me.id) fail(400, 'bad_request', 'That is you.');
   const user = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   if (!user || (await isBlockedBetween(ctx, ctx.me.id, userId))) fail(404, 'not_found');
-  await ctx.db.prepare('INSERT OR IGNORE INTO follows (follower_id, followee_id, status, created_at) VALUES (?, ?, ?, ?)')
-    .bind(ctx.me.id, userId, user.is_public ? 'accepted' : 'requested', ctx.now.toISOString()).run();
+  const now = ctx.now.toISOString();
+  await ctx.db.prepare(`
+    INSERT INTO follows (follower_id, followee_id, status, created_at) VALUES (?1, ?2, ?3, ?4)
+    ON CONFLICT (follower_id, followee_id) DO UPDATE SET status = 'accepted', accepted_at = excluded.created_at
+      WHERE follows.status = 'requested' AND excluded.status = 'accepted'`)
+    .bind(ctx.me.id, userId, user.is_public ? 'accepted' : 'requested', now).run();
   const status = await followStatus(ctx, ctx.me.id, userId);
   return json({ relationship: status === 'accepted' ? 'following' : 'requested' });
 }
@@ -645,19 +676,19 @@ async function search(ctx) {
   const q = clean(ctx.url.searchParams.get('q'), 40).toLowerCase().replace(/[%_\\]/g, '');
   if (!q) return json([]);
   const { results } = await ctx.db.prepare(`
-    SELECT * FROM users WHERE id != ?1 AND ${NOT_BLOCKED} AND (username LIKE ?2 OR lower(name) LIKE ?3)
+    SELECT users.*, ${HOW_THEY_STAND} FROM users WHERE id != ?1 AND ${NOT_BLOCKED} AND (username LIKE ?2 OR lower(name) LIKE ?3)
     ORDER BY username LIMIT 20`).bind(ctx.me.id, `${q}%`, `%${q}%`).all();
-  return json(await usersJSON(ctx, results));
+  return json(await Promise.all(results.map((row) => listedJSON(ctx, row))));
 }
 
 /** Public accounts the caller has not followed or asked to follow yet, newest first. Never built
  * from who anyone follows: that is for the person to look at on a profile, not for Sundae to use. */
 async function suggested(ctx) {
   const { results } = await ctx.db.prepare(`
-    SELECT * FROM users WHERE id != ?1 AND is_public = 1 AND ${NOT_BLOCKED}
+    SELECT users.*, ${HOW_THEY_STAND} FROM users WHERE id != ?1 AND is_public = 1 AND ${NOT_BLOCKED}
       AND id NOT IN (SELECT followee_id FROM follows WHERE follower_id = ?1)
     ORDER BY created_at DESC, username LIMIT 20`).bind(ctx.me.id).all();
-  return json(await usersJSON(ctx, results));
+  return json(await Promise.all(results.map((row) => listedJSON(ctx, row))));
 }
 
 // MARK: - Uploads and photos
@@ -808,18 +839,30 @@ async function dumpJSON(ctx, dump) {
   return (await dumpsJSON(ctx, [dump]))[0];
 }
 
+/** A week the caller can open: by someone whose weeks they can read, or with a photo of them in
+ * it, tagged and not turned down, so a tag can be looked at before it is answered and still opens
+ * once it is. Never from anyone blocked either way. */
 async function readableDump(ctx, id) {
-  const dump = await ctx.db.prepare('SELECT * FROM dumps WHERE id = ?').bind(id).first();
-  if (!dump || !(await readableAuthors(ctx, [dump.author_id])).has(dump.author_id)) fail(404, 'not_found');
+  const { tags_me: tagsMe, ...dump } = await ctx.db.prepare(`
+    SELECT d.*, EXISTS (SELECT 1 FROM tags t JOIN photos p ON p.id = t.photo_id
+      WHERE p.dump_id = d.id AND t.tagged_user_id = ?2 AND t.status IN ('pending', 'approved')) AS tags_me
+    FROM dumps d WHERE d.id = ?1`).bind(id, ctx.me.id).first() ?? {};
+  if (!dump.id) fail(404, 'not_found');
+  if ((await readableAuthors(ctx, [dump.author_id])).has(dump.author_id)) return dump;
+  if (!tagsMe || (await blockedIds(ctx)).has(dump.author_id)) fail(404, 'not_found');
   return dump;
 }
 
+/** Their own weeks, the weeks of people they follow, and weeks with a photo of them they said yes
+ * to, whoever posted them; never anyone blocked either way. */
 async function feed(ctx) {
   const limit = Math.min(Math.max(Number(ctx.url.searchParams.get('limit')) || 10, 1), 30);
   const before = ctx.url.searchParams.get('before');
   const { results } = await ctx.db.prepare(`
     SELECT d.* FROM dumps d
-    WHERE (d.author_id = ?1 OR d.author_id IN (SELECT followee_id FROM follows WHERE follower_id = ?1 AND status = 'accepted'))
+    WHERE (d.author_id = ?1 OR d.author_id IN (SELECT followee_id FROM follows WHERE follower_id = ?1 AND status = 'accepted')
+        OR d.id IN (SELECT p.dump_id FROM tags t JOIN photos p ON p.id = t.photo_id
+          WHERE t.tagged_user_id = ?1 AND t.status = 'approved' AND t.duplicate = 0))
       AND d.author_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
       AND d.author_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)
       AND (?2 IS NULL OR d.created_at < ?2)
@@ -891,8 +934,8 @@ async function saveDump(ctx, week) {
           // The photo's id comes from its upload's, so saves sent together that each add this
           // upload add one photo, and none of them takes the others' away.
           row = { id: `p_${uploadId.replace(/^up_/, '')}`, object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
-          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?)`)
-            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption));
+          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption, fingerprint) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption, fingerprintOf(photo.fingerprint)));
         }
         existing.push(row);
       }
@@ -904,7 +947,20 @@ async function saveDump(ctx, week) {
       writes.push(db.prepare(`UPDATE photos SET ord = ?, alt_text = ?, width = ?, height = ?${'caption' in photo ? ', caption = ?' : ''} WHERE id = ?`)
         .bind(...[index, alt, width || row.width, height || row.height, ...('caption' in photo ? [caption] : []), row.id]));
     }
-    writes.push(...tagWrites(ctx, row.id, currentTags.filter((t) => t.photo_id === row.id), photo.tagged_user_ids, allowed));
+    let current = currentTags.filter((t) => t.photo_id === row.id);
+    // An edited photo comes back as a new upload in place of the one already posted. Its tags,
+    // and each person's answer, move onto it, so nobody is asked again about the same moment.
+    const replaced = row.isNew && photo.replaces ? existing.find((p) => p.id === String(photo.replaces) && !p.isNew) : null;
+    if (replaced) {
+      const wanted = new Set((Array.isArray(photo.tagged_user_ids) ? photo.tagged_user_ids : []).map(String));
+      current = currentTags.filter((t) => t.photo_id === replaced.id && wanted.has(t.tagged_user_id) && allowed.has(t.tagged_user_id))
+        .map((t) => ({ ...t, id: newId('t'), photo_id: row.id }));
+      for (const tag of current) {
+        writes.push(db.prepare('INSERT OR IGNORE INTO tags (id, photo_id, tagger_id, tagged_user_id, status, responded_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .bind(tag.id, tag.photo_id, tag.tagger_id, tag.tagged_user_id, tag.status, tag.responded_at, tag.created_at));
+      }
+    }
+    writes.push(...tagWrites(ctx, row.id, current, photo.tagged_user_ids, allowed));
   }
   if (!kept.length) fail(400, 'bad_request', 'None of those photos finished uploading.');
 
@@ -923,7 +979,50 @@ async function saveDump(ctx, week) {
     db.prepare('UPDATE dumps SET caption = ?, comments_enabled = ?, updated_at = ? WHERE author_id = ? AND week_start = ?').bind(caption, commentsEnabled, nowIso, me.id, week),
   ]);
   await storage(ctx.env).deleteMany(removed.map((p) => p.object_key));
+  await markDuplicates(ctx, week);
   return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first()));
+}
+
+/** A photo's fingerprint as the app sends it: 64 bits of a tiny grey version, in hex. A flat
+ * picture (all one way) says nothing, so it counts as none. */
+function fingerprintOf(value) {
+  const hex = typeof value === 'string' ? value.toLowerCase() : '';
+  if (!/^[0-9a-f]{16}$/.test(hex) || /^(0{16}|f{16})$/.test(hex)) return null;
+  return hex;
+}
+
+/** How many of the 64 bits differ. */
+function bitsApart(a, b) {
+  let x = BigInt(`0x${a}`) ^ BigInt(`0x${b}`);
+  let n = 0;
+  while (x) { n += Number(x & 1n); x >>= 1n; }
+  return n;
+}
+
+const SAME_PHOTO_BITS = 6;
+
+/** Someone tagged in a photo they posted themselves that week (the same picture, shared between
+ * friends) keeps the tag, but the photo is not added to their week or their feed a second time.
+ * Worked out again for the week whenever the caller saves it: the tags on their photos, and the
+ * tags of them on anyone's. A few queries. */
+async function markDuplicates(ctx, week) {
+  const db = ctx.db;
+  const { results: tags } = await db.prepare(`
+    SELECT t.id, t.tagged_user_id, t.duplicate, p.fingerprint FROM tags t
+      JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
+    WHERE d.week_start = ?2 AND (d.author_id = ?1 OR t.tagged_user_id = ?1)`).bind(ctx.me.id, week).all();
+  if (!tags.length) return;
+  const people = [...new Set(tags.map((t) => t.tagged_user_id))];
+  const { results: own } = await db.prepare(`
+    SELECT d.author_id, p.fingerprint FROM photos p JOIN dumps d ON d.id = p.dump_id
+    WHERE d.week_start = ?1 AND p.fingerprint IS NOT NULL AND d.author_id IN (SELECT value FROM json_each(?2))`)
+    .bind(week, JSON.stringify(people)).all();
+  const changes = [];
+  for (const tag of tags) {
+    const same = Boolean(tag.fingerprint) && own.some((o) => o.author_id === tag.tagged_user_id && bitsApart(o.fingerprint, tag.fingerprint) <= SAME_PHOTO_BITS);
+    if (Number(tag.duplicate) !== (same ? 1 : 0)) changes.push(db.prepare('UPDATE tags SET duplicate = ? WHERE id = ?').bind(same ? 1 : 0, tag.id));
+  }
+  if (changes.length) await db.batch(changes);
 }
 
 /** The writes that bring one photo's tags in line with who is tagged now. Someone still tagged
@@ -1066,7 +1165,7 @@ async function deleteComment(ctx, id) {
 
 async function likeComment(ctx, id, liked) {
   const { row } = await commentFor(ctx, id);
-  if (liked) await ctx.db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id) VALUES (?, ?)').bind(id, ctx.me.id).run();
+  if (liked) await ctx.db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id, created_at) VALUES (?, ?, ?)').bind(id, ctx.me.id, ctx.now.toISOString()).run();
   else await ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?').bind(id, ctx.me.id).run();
   return json((await commentsJSON(ctx, [row]))[0]);
 }
@@ -1114,6 +1213,91 @@ async function removeTag(ctx, id) {
   return empty();
 }
 
+// MARK: - Activity
+
+const ACTIVITY_DAYS = 28;
+const MAX_ACTIVITY = 60;
+
+/** What happened around the caller lately, newest first: likes and comments on their weeks,
+ * replies to their comments, mentions, likes on their comments, new followers, requests of theirs
+ * that were accepted, and tags of theirs that were said yes to. Four weeks back, up to sixty,
+ * never from anyone blocked either way, and only on weeks the caller can still open. Seven
+ * queries however much there is. */
+async function activity(ctx) {
+  const me = ctx.me.id;
+  const since = new Date(ctx.now.getTime() - ACTIVITY_DAYS * 86_400_000).toISOString();
+  const { results: rows } = await ctx.db.prepare(`
+    SELECT * FROM (
+      SELECT 'like' AS kind, l.user_id AS actor_id, l.dump_id AS dump_id, NULL AS comment_id, NULL AS photo_id, l.created_at AS at
+        FROM likes l JOIN dumps d ON d.id = l.dump_id WHERE d.author_id = ?1 AND l.user_id != ?1 AND l.created_at >= ?2
+      UNION ALL
+      SELECT 'comment', c.author_id, c.dump_id, c.id, NULL, c.created_at
+        FROM comments c JOIN dumps d ON d.id = c.dump_id WHERE d.author_id = ?1 AND c.author_id != ?1 AND c.created_at >= ?2
+      UNION ALL
+      SELECT 'reply', c.author_id, c.dump_id, c.id, NULL, c.created_at
+        FROM comments c JOIN comments parent ON parent.id = c.parent_id JOIN dumps d ON d.id = c.dump_id
+        WHERE parent.author_id = ?1 AND c.author_id != ?1 AND d.author_id != ?1 AND c.created_at >= ?2
+      UNION ALL
+      SELECT 'mention', c.author_id, c.dump_id, c.id, NULL, c.created_at
+        FROM comments c JOIN dumps d ON d.id = c.dump_id
+        WHERE instr(lower(c.body), '@' || ?3) > 0 AND c.author_id != ?1 AND d.author_id != ?1 AND c.created_at >= ?2
+          AND (c.parent_id IS NULL OR c.parent_id NOT IN (SELECT id FROM comments WHERE author_id = ?1))
+      UNION ALL
+      SELECT 'comment_like', cl.user_id, c.dump_id, c.id, NULL, cl.created_at
+        FROM comment_likes cl JOIN comments c ON c.id = cl.comment_id
+        WHERE c.author_id = ?1 AND cl.user_id != ?1 AND cl.created_at >= ?2
+      UNION ALL
+      SELECT 'follow', f.follower_id, NULL, NULL, NULL, f.created_at FROM follows f
+        WHERE f.followee_id = ?1 AND f.status = 'accepted' AND f.accepted_at IS NULL AND f.created_at >= ?2
+      UNION ALL
+      SELECT 'follow_accepted', f.followee_id, NULL, NULL, NULL, f.accepted_at FROM follows f
+        WHERE f.follower_id = ?1 AND f.status = 'accepted' AND f.accepted_at >= ?2
+      UNION ALL
+      SELECT 'tag_approved', t.tagged_user_id, p.dump_id, NULL, t.photo_id, t.responded_at
+        FROM tags t JOIN photos p ON p.id = t.photo_id WHERE t.tagger_id = ?1 AND t.status = 'approved' AND t.responded_at >= ?2
+    ) WHERE actor_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
+        AND actor_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)
+    ORDER BY at DESC LIMIT ?4`).bind(me, since, ctx.me.username.toLowerCase(), MAX_ACTIVITY).all();
+  if (!rows.length) return json([]);
+  // "@jo" is in "@jon": a mention is the whole username, then something that cannot be part of one.
+  const mention = new RegExp(`@${ctx.me.username.replace(/[.]/g, '\\.')}(?![a-z0-9._])`, 'i');
+  const dumpIds = [...new Set(rows.map((r) => r.dump_id).filter(Boolean))];
+  const commentIds = [...new Set(rows.map((r) => r.comment_id).filter(Boolean))];
+  const [{ results: dumps }, { results: photos }, { results: comments }, { results: mine }] = await Promise.all([
+    ctx.db.prepare('SELECT id, author_id, week_start FROM dumps WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(dumpIds)).all(),
+    ctx.db.prepare('SELECT id, dump_id, ord, object_key FROM photos WHERE dump_id IN (SELECT value FROM json_each(?)) ORDER BY ord')
+      .bind(JSON.stringify(dumpIds)).all(),
+    ctx.db.prepare('SELECT id, body FROM comments WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(commentIds)).all(),
+    ctx.db.prepare('SELECT followee_id, status FROM follows WHERE follower_id = ? AND followee_id IN (SELECT value FROM json_each(?))')
+      .bind(me, JSON.stringify([...new Set(rows.map((r) => r.actor_id))])).all(),
+  ]);
+  const dumpMap = new Map(dumps.map((d) => [d.id, d]));
+  const readable = await readableAuthors(ctx, dumps.map((d) => d.author_id));
+  const people = await usersById(ctx, rows.map((r) => r.actor_id));
+  const out = [];
+  for (const row of rows) {
+    const actor = people.get(row.actor_id);
+    if (!actor) continue;
+    const dump = row.dump_id ? dumpMap.get(row.dump_id) : null;
+    if (row.dump_id && (!dump || !readable.has(dump.author_id))) continue;
+    const body = row.comment_id ? comments.find((c) => c.id === row.comment_id)?.body : null;
+    if (row.comment_id && body == null) continue;
+    if (row.kind === 'mention' && !mention.test(body)) continue;
+    const dumpPhotos = dump ? photos.filter((p) => p.dump_id === dump.id) : [];
+    const photo = dumpPhotos.find((p) => p.id === row.photo_id) || dumpPhotos[0];
+    const status = mine.find((f) => f.followee_id === row.actor_id)?.status;
+    out.push({
+      id: [row.kind, row.actor_id, row.dump_id, row.comment_id].filter(Boolean).join(':'),
+      kind: row.kind, actor: await userJSON(ctx, actor), at: row.at,
+      dump_id: dump?.id ?? null, week_start: dump?.week_start ?? null,
+      photo_url: photo ? await mediaUrl(ctx, photo.object_key) : null,
+      comment_id: row.comment_id || null, comment_body: body == null ? null : body.slice(0, 160),
+      relationship: status === 'accepted' ? 'following' : status === 'requested' ? 'requested' : 'none',
+    });
+  }
+  return json(out);
+}
+
 // MARK: - Profiles
 
 async function profile(ctx, userId) {
@@ -1131,7 +1315,7 @@ async function profile(ctx, userId) {
     const { results: taggedRows } = await ctx.db.prepare(`
       SELECT t.*, d.week_start AS week_start, d.author_id AS author_id, d.id AS dump_id FROM tags t
         JOIN photos p ON p.id = t.photo_id JOIN dumps d ON d.id = p.dump_id
-      WHERE t.tagged_user_id = ? AND t.status = 'approved' AND d.author_id != ? AND d.week_start >= ?
+      WHERE t.tagged_user_id = ? AND t.status = 'approved' AND t.duplicate = 0 AND d.author_id != ? AND d.week_start >= ?
       ORDER BY t.responded_at`).bind(user.id, user.id, oldest).all();
     // Someone looking at their own profile sees every tag of them, even on a week they cannot
     // open, so they can remove it; never from anyone blocked either way.
@@ -1183,17 +1367,11 @@ async function followList(ctx, userId, direction) {
   if (rel === 'blocked' || !(rel === 'me' || rel === 'following' || user.is_public)) fail(404, 'not_found');
   const [listed, owner] = direction === 'followers' ? ['follower_id', 'followee_id'] : ['followee_id', 'follower_id'];
   const { results } = await ctx.db.prepare(`
-    SELECT users.*,
-      (SELECT status FROM follows WHERE follower_id = ?1 AND followee_id = users.id) AS my_status,
-      EXISTS (SELECT 1 FROM follows WHERE follower_id = users.id AND followee_id = ?1 AND status = 'accepted') AS follows_me
+    SELECT users.*, ${HOW_THEY_STAND}
     FROM users WHERE ${NOT_BLOCKED}
       AND id IN (SELECT ${listed} FROM follows WHERE ${owner} = ?2 AND status = 'accepted')
     ORDER BY username LIMIT ${MAX_LISTED}`).bind(ctx.me.id, user.id).all();
-  return json(await Promise.all(results.map(async (row) => ({
-    ...(await userJSON(ctx, row)),
-    relationship: row.id === ctx.me.id ? 'me' : row.my_status === 'accepted' ? 'following' : row.my_status === 'requested' ? 'requested' : 'none',
-    follows_you: Boolean(row.follows_me),
-  }))));
+  return json(await Promise.all(results.map((row) => listedJSON(ctx, row))));
 }
 
 // MARK: - Suggestions done

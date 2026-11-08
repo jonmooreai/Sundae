@@ -171,6 +171,36 @@ struct TagRequest: Identifiable, Hashable, Sendable {
     var id: ID { tag.id }
 }
 
+/// Something that happened around you lately, for Notifications: a like, a comment, a new
+/// follower. Each knows who did it, when, and what it was on.
+struct ActivityItem: Identifiable, Hashable, Sendable {
+    enum Kind: String, Sendable {
+        /// On your week.
+        case like, comment
+        /// To your comment, or naming you, on someone else's week.
+        case reply, mention
+        case commentLike = "comment_like"
+        /// A new follower who needed no yes.
+        case follow
+        /// Your request to follow someone, said yes to.
+        case followAccepted = "follow_accepted"
+        /// Someone you tagged said yes.
+        case tagApproved = "tag_approved"
+    }
+
+    var id: String
+    var kind: Kind
+    var actor: User
+    var at: Date
+    var dumpID: ID?
+    var weekStart: Date?
+    var photo: PhotoSource?
+    var commentID: ID?
+    var commentBody: String?
+    /// How you stand with the actor, for the Follow back button on a new follower.
+    var relationship: Relationship
+}
+
 /// A photo that landed on someone's profile through an approved tag.
 struct TaggedPhoto: Identifiable, Hashable, Sendable {
     var photo: Photo
@@ -211,10 +241,69 @@ struct DraftPhoto: Identifiable, Hashable, Codable, Sendable {
     var altText: String = ""
     var takenAt: Date?
     var caption: String = ""
+    /// The photo as it was before the editor touched it, so it can be opened again from the
+    /// start, changed, or put back. Nil for a photo never edited.
+    var original: DraftOriginal? = nil
+    /// What the editor did, to open it again where it was left.
+    var edits: PhotoEdits? = nil
+    /// The posted photo an edited one takes the place of, so its tags and their answers carry over.
+    var replaces: ID? = nil
+}
+
+/// A photo's source and size before it was edited.
+struct DraftOriginal: Hashable, Codable, Sendable {
+    var source: PhotoSource
+    var width: Int
+    var height: Int
+}
+
+/// How a photo was changed in the editor. Applied in order: turned, then the light and color,
+/// then cropped. Every value at zero (and the original shape) is the photo as it was.
+struct PhotoEdits: Hashable, Codable, Sendable {
+    enum Aspect: String, Codable, Sendable, CaseIterable {
+        case original, square, portrait, landscape, wide
+
+        var label: String {
+            switch self {
+            case .original: "Original"
+            case .square: "Square"
+            case .portrait: "4:5"
+            case .landscape: "3:2"
+            case .wide: "16:9"
+            }
+        }
+
+        /// Width over height; nil keeps the photo's own.
+        var ratio: CGFloat? {
+            switch self {
+            case .original: nil
+            case .square: 1
+            case .portrait: 4.0 / 5.0
+            case .landscape: 3.0 / 2.0
+            case .wide: 16.0 / 9.0
+            }
+        }
+    }
+
+    /// Quarter turns clockwise, 0 to 3.
+    var quarterTurns = 0
+    var aspect: Aspect = .original
+    /// 1 shows the whole of the chosen shape; more is closer in.
+    var zoom: Double = 1
+    /// Where the crop sits in the room it has to move, -1 to 1 each way: right and down are positive.
+    var offsetX: Double = 0
+    var offsetY: Double = 0
+    /// Each -1 to 1, 0 untouched.
+    var brightness: Double = 0
+    var contrast: Double = 0
+    var saturation: Double = 0
+    var warmth: Double = 0
+
+    var isUntouched: Bool { self == PhotoEdits() }
 }
 
 extension DraftPhoto {
-    /// A draft saved before photos had captions (a post waiting for the network) still opens.
+    /// A draft saved before photos had captions or edits (a post waiting for the network) still opens.
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(ID.self, forKey: .id)
@@ -225,6 +314,9 @@ extension DraftPhoto {
         altText = try container.decodeIfPresent(String.self, forKey: .altText) ?? ""
         takenAt = try container.decodeIfPresent(Date.self, forKey: .takenAt)
         caption = try container.decodeIfPresent(String.self, forKey: .caption) ?? ""
+        original = try container.decodeIfPresent(DraftOriginal.self, forKey: .original)
+        edits = try container.decodeIfPresent(PhotoEdits.self, forKey: .edits)
+        replaces = try container.decodeIfPresent(ID.self, forKey: .replaces)
     }
 }
 
@@ -374,8 +466,8 @@ enum SundaeError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .sundayClosed: "The feed opens on Sunday. See you then."
-        case .dumpLocked: "Sunday has wrapped up, so this week is all set."
+        case .sundayClosed: "The feed opens on Sundae. See you then."
+        case .dumpLocked: "Sundae has wrapped up, so this week is all set."
         case .invalidPhoto: "We couldn't open that photo. Want to try another?"
         case .tooManyPhotos: "A week holds up to \(DumpDraft.maxPhotos) photos. Pick your favorites."
         case .tooManyTags: "You can tag up to \(DumpDraft.maxTagsPerPhoto) people per photo."

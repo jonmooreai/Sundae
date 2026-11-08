@@ -67,7 +67,7 @@ struct OnboardingIntro: View {
                 .padding(.top, 6)
             Spacer(minLength: 0)
             VStack(spacing: 14) {
-                Text("Sundays only. Social media should be a treat.")
+                Text("Sundaes only.\nSocial media should be a treat.")
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Self.ink.opacity(0.78))
                     .multilineTextAlignment(.center)

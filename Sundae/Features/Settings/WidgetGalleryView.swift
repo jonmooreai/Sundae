@@ -9,16 +9,17 @@ struct WidgetGalleryView: View {
     @Environment(AppModel.self) private var model
     @State private var mode: WidgetSnapshot.Mode = .weekday
     @State private var photos: (thumbnails: [Data], count: Int) = ([], 0)
+    @State private var photosArePosted = false
     @State private var photoStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
 
     var body: some View {
         let sizes = WidgetMetrics.current()
         let snapshot = WidgetSnapshotBuilder.snapshot(
             at: Date(), mode: mode, catalog: model.suggestions, shared: model.shared,
-            photos: mode == .sunday ? photos : ([], 0))
+            photos: mode == .sunday ? photos : ([], 0), photosArePosted: photosArePosted)
 
         SettingsScreen(title: "Widgets") {
-            SegmentedChoice(options: [(WidgetSnapshot.Mode.weekday, "Monday to Saturday"), (.sunday, "Sunday")],
+            SegmentedChoice(options: [(WidgetSnapshot.Mode.weekday, "Monday to Saturday"), (.sunday, "Sundae")],
                             selection: $mode)
 
             VStack(alignment: .leading, spacing: 18) {
@@ -74,7 +75,7 @@ struct WidgetGalleryView: View {
                 }
             }
         case .denied, .restricted:
-            SettingsGroup(footer: "Photos is off for Sundae, so Sunday shows the sundae.") {
+            SettingsGroup(footer: "Photos is off for Sundae, so on Sundae the widget shows a sundae.") {
                 SettingsActionRow(title: "Open iOS Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }
@@ -104,9 +105,18 @@ struct WidgetGalleryView: View {
     private func loadPhotos() async {
         photoStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         let start = SundayClock().weekStart()
+        // Posted this week: the post's photos, as the widget shows them. Otherwise a few from the library.
+        let ids = model.shared.postedWeekStart == start ? model.shared.postedAssetIDs(forWeekStarting: start) : []
+        let posted = await Task.detached(priority: .userInitiated) { WidgetPhotos.posted(ids, limit: 4) }.value
+        if !posted.isEmpty {
+            photos = (posted, ids.count)
+            photosArePosted = true
+            return
+        }
         photos = await Task.detached(priority: .userInitiated) {
-            WidgetPhotos.thisWeek(weekStart: start, until: Date())
+            WidgetPhotos.thisWeek(weekStart: start, until: Date(), limit: 4)
         }.value
+        photosArePosted = false
     }
 }
 

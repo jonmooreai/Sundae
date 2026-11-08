@@ -192,6 +192,31 @@ enum DTO {
         let relationship: String
     }
 
+    /// One line of `me/activity`. A kind this build does not know fails to decode, and the
+    /// lossy list skips it.
+    struct Activity: Decodable {
+        let id: String
+        let kind: String
+        let actor: User
+        let at: Date
+        let dumpId: String?
+        let weekStart: String?
+        let photoUrl: URL?
+        let commentId: String?
+        let commentBody: String?
+        let relationship: String?
+
+        private struct UnknownKind: Error {}
+
+        func model() throws -> Sundae.ActivityItem {
+            guard let known = Sundae.ActivityItem.Kind(rawValue: kind) else { throw UnknownKind() }
+            return Sundae.ActivityItem(id: id, kind: known, actor: actor.model, at: at, dumpID: dumpId,
+                                       weekStart: weekStart.map(DTO.weekDate), photo: photoUrl.map { .remote($0) },
+                                       commentID: commentId, commentBody: commentBody,
+                                       relationship: DTO.relationship(relationship ?? "none"))
+        }
+    }
+
     /// A user, with how the caller stands with them, in a followers or following list.
     struct ListedUser: Decodable {
         let user: User
@@ -384,6 +409,8 @@ enum DTO {
         let id: String?
         /// Upload id from `POST /v1/uploads` for a new photo.
         let uploadId: String?
+        /// For a posted photo edited: the id of the one it takes the place of, so its tags carry over.
+        let replaces: String?
         let order: Int
         let width: Int
         let height: Int
@@ -391,6 +418,8 @@ enum DTO {
         /// Always sent, empty for none, so clearing a caption clears it on the server.
         let caption: String
         let taggedUserIds: [String]
+        /// A new photo's fingerprint (`PhotoFingerprint`), so a tag on the same picture is not added twice.
+        var fingerprint: String? = nil
     }
 
     struct SaveDump: Encodable {

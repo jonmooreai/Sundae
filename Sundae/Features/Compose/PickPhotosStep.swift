@@ -239,7 +239,8 @@ struct PickPhotosStep: View {
         }
     }
 
-    /// Re-encodes what you picked, drops what you unpicked, puts the week in order, and moves on.
+    /// Re-encodes what you picked, drops what you unpicked, keeps them in the order you tapped
+    /// them, and moves on.
     private func next() async {
         isPreparing = true
         for assetID in compose.libraryPhotoIDs.keys where !selected.contains(assetID) {
@@ -249,7 +250,7 @@ struct PickPhotosStep: View {
             guard let asset = assetsByID[assetID], let data = await library.imageData(for: asset) else { continue }
             await compose.importLibraryData(data, assetID: assetID, takenAt: asset.creationDate)
         }
-        compose.sortChronologically()
+        compose.orderLibraryPhotos(selected)
         isPreparing = false
         advance()
     }

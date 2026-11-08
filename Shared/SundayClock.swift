@@ -61,22 +61,24 @@ public struct SundayClock: Sendable {
         return (0..<max(count, 0)).compactMap { calendar.date(byAdding: .day, value: -7 * $0, to: current) }
     }
 
-    /// "Oct 13 to 19", or "Oct 27 to Nov 2" when the week crosses a month.
+    /// "Nov 2nd - Nov 8th": the week from Monday to Sunday, each end with its month.
     public func rangeLabel(weekStart: Date) -> String {
         let end = calendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
-        let monthDay = DateFormatter()
-        monthDay.calendar = calendar
-        monthDay.timeZone = calendar.timeZone
-        monthDay.setLocalizedDateFormatFromTemplate("MMM d")
-        let sameMonth = calendar.component(.month, from: weekStart) == calendar.component(.month, from: end)
-        if sameMonth {
-            let day = DateFormatter()
-            day.calendar = calendar
-            day.timeZone = calendar.timeZone
-            day.setLocalizedDateFormatFromTemplate("d")
-            return "\(monthDay.string(from: weekStart)) to \(day.string(from: end))"
-        }
-        return "\(monthDay.string(from: weekStart)) to \(monthDay.string(from: end))"
+        return "\(dayLabel(weekStart)) - \(dayLabel(end))"
+    }
+
+    /// "Nov 2nd".
+    public func dayLabel(_ date: Date) -> String {
+        let month = DateFormatter()
+        month.calendar = calendar
+        month.timeZone = calendar.timeZone
+        month.locale = Locale(identifier: "en_US")
+        month.dateFormat = "MMM"
+        let ordinal = NumberFormatter()
+        ordinal.numberStyle = .ordinal
+        ordinal.locale = Locale(identifier: "en_US")
+        let day = calendar.component(.day, from: date)
+        return "\(month.string(from: date)) \(ordinal.string(from: NSNumber(value: day)) ?? "\(day)")"
     }
 
     /// "Thursday" for a date in the current week, used by the Sunday caption prompt.

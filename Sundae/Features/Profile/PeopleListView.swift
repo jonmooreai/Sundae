@@ -46,14 +46,17 @@ struct PeopleListView: View {
                 .padding(.horizontal, Theme.pagePadding)
                 .padding(.top, 12)
                 .padding(.bottom, 6)
-            List {
-                ForEach(shown ?? []) { person in
-                    row(person)
+            // A plain stack, not a List: in a List a tap on the row can land on a button in it, and
+            // a tap meant to open someone's profile must never follow or remove them.
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(shown ?? []) { person in
+                        row(person)
+                    }
                 }
+                .padding(.bottom, 24)
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .environment(\.defaultMinListRowHeight, 70)
+            .scrollDismissesKeyboard(.immediately)
             .overlay { emptyState }
             .refreshable { await load() }
         }
@@ -147,36 +150,41 @@ struct PeopleListView: View {
         }
     }
 
-    /// The username first, the name under it; the button for how you stand with them; behind it
-    /// all, an invisible link to their profile, so there is no chevron.
+    /// The username first, the name under it, opening their profile; then the button for how you
+    /// stand with them, which is only ever the button.
     private func row(_ person: ListedPerson) -> some View {
         let relationship = changed[person.id] ?? person.relationship
         let removable = isOwn && list == .followers
         return HStack(spacing: 12) {
-            AvatarView(user: person.user, size: 54)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Text(person.user.username)
-                        .font(.body.weight(.semibold))
-                        .lineLimit(1)
-                    // On your own followers the button is Remove, so following back is a word here.
-                    if removable, relationship == .notFollowing {
-                        Text("\u{00B7}").foregroundStyle(.secondary)
-                        Button("Follow back") { Task { await follow(person.user) } }
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
-                            .buttonStyle(.plain)
-                            .disabled(working.contains(person.id))
+            NavigationLink(value: Route.profile(person.id)) {
+                HStack(spacing: 12) {
+                    AvatarView(user: person.user, size: 54)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(person.user.username)
+                            .font(.body.weight(.semibold))
+                            .lineLimit(1)
+                        if !person.user.name.isEmpty {
+                            Text(person.user.name)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
                     }
+                    Spacer(minLength: 0)
                 }
-                if !person.user.name.isEmpty {
-                    Text(person.user.name)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
+            .buttonStyle(.plain)
+            // On your own followers the main button is Remove, so following back sits beside it.
+            if removable, relationship == .notFollowing {
+                Button("Follow back") { Task { await follow(person.user) } }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .buttonStyle(.plain)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    .disabled(working.contains(person.id))
+            }
             if relationship == .me {
                 EmptyView()
             } else if removable {
@@ -188,15 +196,8 @@ struct PeopleListView: View {
                     .disabled(working.contains(person.id))
             }
         }
-        .contentShape(Rectangle())
-        .background { NavigationLink(value: Route.profile(person.id)) { EmptyView() }.opacity(0) }
-        .listRowInsets(rowInsets)
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
-    }
-
-    private var rowInsets: EdgeInsets {
-        EdgeInsets(top: 8, leading: Theme.pagePadding, bottom: 8, trailing: Theme.pagePadding)
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.vertical, 8)
     }
 
     /// The list on screen, narrowed by the search: by username or any part of the name.

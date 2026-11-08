@@ -1,24 +1,22 @@
 import SwiftUI
 
-/// The small cards that sometimes sit above the feed: a holiday's hello, a year ago today, a
-/// friend's first Sunday, and the Sunday wrap after dark. Each shows once and goes away on its own.
+/// The small cards that sometimes sit above the feed: a holiday's hello, a year ago today, and
+/// the Sunday wrap after dark. Each shows once and goes away on its own.
 struct FeedMoments: View {
     @Environment(AppModel.self) private var model
     let open: (Route) -> Void
 
     @State private var anniversary: Dump?
     @State private var dismissedAnniversary = false
-    @State private var dismissedFirst: Set<ID> = []
     @State private var dismissedWrap = false
     @State private var dismissedHoliday: HolidaySunday?
 
     private var feed: FeedStore { model.feed }
 
     var body: some View {
-        let firsts = firstSundays
         let wrap = wrapSummary
         let holiday = holidayToday
-        if anniversary != nil && !dismissedAnniversary || !firsts.isEmpty || wrap != nil || holiday != nil {
+        if anniversary != nil && !dismissedAnniversary || wrap != nil || holiday != nil {
             VStack(spacing: 12) {
                 if let holiday {
                     HolidayCard(holiday: holiday) {
@@ -32,14 +30,6 @@ struct FeedMoments: View {
                     } onDismiss: {
                         MomentMemory.anniversaryShownWeekStart = model.currentWeekStart
                         withAnimation { dismissedAnniversary = true }
-                    }
-                }
-                ForEach(firsts) { dump in
-                    FirstSundayCard(dump: dump) {
-                        open(.dump(dump.id))
-                    } onDismiss: {
-                        MomentMemory.shownFirstSundays.insert(dump.id)
-                        withAnimation { _ = dismissedFirst.insert(dump.id) }
                     }
                 }
                 if let wrap {
@@ -62,12 +52,6 @@ struct FeedMoments: View {
         guard let holiday = model.holidayToday, holiday != dismissedHoliday else { return nil }
         if model.holidayPreview == nil, MomentMemory.holidayShownWeekStart == model.currentWeekStart { return nil }
         return holiday
-    }
-
-    /// Friends whose first week ever is in the feed, until you have seen the card.
-    private var firstSundays: [Dump] {
-        let shown = MomentMemory.shownFirstSundays
-        return feed.dumps.filter { $0.isAuthorsFirst == true && !shown.contains($0.id) && !dismissedFirst.contains($0.id) }
     }
 
     /// After eight on Sunday evening, once, with tomorrow's idea at the end.
@@ -107,7 +91,7 @@ struct WrapSummary: Equatable {
     var lines: [String] {
         var lines: [String] = []
         switch friendsPosted {
-        case 0: lines.append("A quiet Sunday. Nobody you follow posted.")
+        case 0: lines.append("A quiet Sundae. Nobody you follow posted.")
         case 1: lines.append("One friend posted their week.")
         default: lines.append("\(friendsPosted) friends posted their weeks.")
         }
@@ -155,7 +139,7 @@ struct SundayWrapCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("That was Sunday.").font(Theme.display(24))
+                Text("That was Sundae.").font(Theme.display(24))
                 Spacer()
                 IconButton(glyph: Glyph.close, label: "Dismiss", size: 18, action: onDismiss)
                     .padding(.trailing, -10)
@@ -175,37 +159,6 @@ struct SundayWrapCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .card(padding: 16)
-    }
-}
-
-/// "Lena's first Sunday." with their first photo. "You brought them here" when you did.
-struct FirstSundayCard: View {
-    let dump: Dump
-    let onOpen: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if let photo = dump.photos.min(by: { $0.order < $1.order }) {
-                Button(action: onOpen) {
-                    PhotoView(source: photo.source)
-                        .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text("\(dump.author.firstName)'s first Sunday.").font(.subheadline.weight(.semibold))
-                Text(dump.author.invitedByMe == true ? "You brought them here." : "Say hi in the comments.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 0)
-            IconButton(glyph: Glyph.close, label: "Dismiss", size: 18, action: onDismiss)
-                .padding(.trailing, -10)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .card(padding: 12)
     }
 }
 

@@ -47,6 +47,8 @@ final class ComposeStore {
     private(set) var libraryPhotoIDs: [String: ID] = [:]
     var justPosted = false
     var errorMessage: String?
+    /// The library photos in the post just saved, in its order, for the widget.
+    private(set) var postedAssetIDs: [String] = []
 
     init(api: any SundaeAPI) {
         self.api = api
@@ -189,7 +191,7 @@ final class ComposeStore {
         draft.photos.removeAll { $0.id == id }
     }
 
-    /// Default order is chronological. Photos without a date keep their place at the end.
+    /// Saved ideas' photos arrive in the order taken. Photos without a date keep their place at the end.
     func sortChronologically() {
         let dated = draft.photos.filter { $0.takenAt != nil }.sorted { ($0.takenAt ?? .distantPast) < ($1.takenAt ?? .distantPast) }
         guard !dated.isEmpty else { return }
@@ -197,15 +199,77 @@ final class ComposeStore {
         draft.photos = dated + undated
     }
 
+    /// At the end: photos keep the order they were picked in.
     func append(_ processed: ProcessedPhoto, takenAt: Date?) {
         guard draft.canAddMore else { return }
-        let photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
-        // Default order is chronological when we know the dates; otherwise append in pick order.
-        if let takenAt, let index = draft.photos.firstIndex(where: { ($0.takenAt ?? .distantPast) > takenAt }) {
-            draft.photos.insert(photo, at: index)
-        } else {
-            draft.photos.append(photo)
+        draft.photos.append(DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt))
+    }
+
+    /// The camera roll photos in the order they were tapped, in the places camera roll photos
+    /// hold in the draft, so a photo from the camera or another album stays where it is.
+    func orderLibraryPhotos(_ assetIDs: [String]) {
+        let wanted = assetIDs.compactMap { libraryPhotoIDs[$0] }
+        let slots = draft.photos.indices.filter { wanted.contains(draft.photos[$0].id) }
+        guard slots.count == wanted.count else { return }
+        let byID = Dictionary(draft.photos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        for (slot, id) in zip(slots, wanted) {
+            if let photo = byID[id] { draft.photos[slot] = photo }
         }
+    }
+
+    /// Dropped on another photo in the strip: it takes that photo's place, and the ones between
+    /// move along by one.
+    func movePhoto(_ id: ID, to target: ID) {
+        guard let from = draft.photos.firstIndex(where: { $0.id == id }),
+              let to = draft.photos.firstIndex(where: { $0.id == target }), from != to else { return }
+        draft.photos.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+    }
+
+    /// The pixels the editor starts from: the photo before any edits, fetched when it is
+    /// already posted. Nil for a demo placeholder, or when it cannot be loaded.
+    func editableData(for photo: DraftPhoto) async -> Data? {
+        switch photo.original?.source ?? photo.source {
+        case .data(let data): return data
+        case .remote(let url):
+            guard let loaded = try? await URLSession.shared.data(from: url) else { return nil }
+            if let response = loaded.1 as? HTTPURLResponse, response.statusCode >= 400 { return nil }
+            return loaded.0
+        case .placeholder: return nil
+        }
+    }
+
+    /// The editor's result. Edited, the photo becomes the new picture, keeping the one it came
+    /// from; untouched again, it goes back to that. Either way it gets a new id, so a picture
+    /// half sent before the change is never posted in its place, and a posted photo that was
+    /// edited says which one it replaces, so its tags and their answers carry over.
+    func applyEdits(to id: ID, edits: PhotoEdits, rendered: ProcessedPhoto?) {
+        guard let index = draft.photos.firstIndex(where: { $0.id == id }) else { return }
+        var photo = draft.photos[index]
+        let original = photo.original ?? DraftOriginal(source: photo.source, width: photo.width, height: photo.height)
+        let newID: ID
+        if let rendered, !edits.isUntouched {
+            if photo.replaces == nil, case .remote = original.source { photo.replaces = photo.id }
+            photo.source = .data(rendered.data)
+            photo.width = rendered.width
+            photo.height = rendered.height
+            photo.original = original
+            photo.edits = edits
+            newID = UUID().uuidString
+        } else {
+            guard photo.original != nil else { return }
+            photo.source = original.source
+            photo.width = original.width
+            photo.height = original.height
+            photo.original = nil
+            photo.edits = nil
+            // A posted photo put back is the posted photo again.
+            newID = photo.replaces ?? UUID().uuidString
+            photo.replaces = nil
+        }
+        let oldID = photo.id
+        photo.id = newID
+        draft.photos[index] = photo
+        for (asset, photoID) in libraryPhotoIDs where photoID == oldID { libraryPhotoIDs[asset] = newID }
     }
 
     func remove(_ id: ID) {
@@ -244,9 +308,24 @@ final class ComposeStore {
         defer { isSaving = false }
         errorMessage = nil
         do {
+            let sent = draft.photos.map(\.id)
+            let edited = Set(draft.photos.filter { $0.edits != nil }.map(\.id))
             let dump = try await api.saveDump(draft, weekStart: weekStart)
             existingDump = dump
             draft = DumpDraft(from: dump)
+            // The photos now have the server's ids, in the same order: the camera roll photos
+            // follow them, so the grid still shows them picked and the widget knows them.
+            let saved = draft.photos.map(\.id)
+            if sent.count == saved.count {
+                let renamed = Dictionary(zip(sent, saved), uniquingKeysWith: { first, _ in first })
+                libraryPhotoIDs = libraryPhotoIDs.compactMapValues { renamed[$0] }
+                // An edited photo is not the library's picture any more, so the widget leaves it out.
+                postedAssetIDs = zip(sent, saved).compactMap { old, new in
+                    edited.contains(old) ? nil : libraryPhotoIDs.first { $0.value == new }?.key
+                }
+            } else {
+                postedAssetIDs = []
+            }
             justPosted = true
             queuedOffline = false
             pendingStore.clear()

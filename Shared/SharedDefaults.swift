@@ -28,6 +28,8 @@ public struct SharedDefaults: @unchecked Sendable {
         static let doneIDs = "weekday.doneIDs"
         static let pendingApprovals = "approvals.pendingCount"
         static let postedWeekStart = "sunday.postedWeekStart"
+        static let postedAssetIDs = "sunday.postedAssetIDs"
+        static let postedAssetsWeekStart = "sunday.postedAssetsWeekStart"
         static let localIdeas = "weekday.localIdeas"
         static let localIdeasDay = "weekday.localIdeasDay"
         static let localIdeasFetchedAt = "weekday.localIdeasFetchedAt"
@@ -69,6 +71,19 @@ public struct SharedDefaults: @unchecked Sendable {
     public var postedWeekStart: Date? {
         get { defaults.object(forKey: Key.postedWeekStart) as? Date }
         nonmutating set { defaults.set(newValue, forKey: Key.postedWeekStart) }
+    }
+
+    /// The library photos in this week's post, in its order, so the widget can show what was
+    /// posted. Only their ids: the widget reads the pictures from the library itself, and nothing
+    /// is copied. A photo from another album, the camera or an edit has none and is left out.
+    public func postedAssetIDs(forWeekStarting weekStart: Date) -> [String] {
+        guard let stored = defaults.object(forKey: Key.postedAssetsWeekStart) as? Date, stored == weekStart else { return [] }
+        return defaults.object(forKey: Key.postedAssetIDs) as? [String] ?? []
+    }
+
+    public func setPostedAssetIDs(_ ids: [String], weekStart: Date) {
+        defaults.set(Array(ids.prefix(15)), forKey: Key.postedAssetIDs)
+        defaults.set(weekStart, forKey: Key.postedAssetsWeekStart)
     }
 
     // MARK: The cherry's stand-in

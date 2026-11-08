@@ -21,7 +21,7 @@ struct YourWeekView: View {
             header
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Ideas you saved, with their photos. On Sunday they start your post. Until then they stay on this phone.")
+                    Text("Ideas you saved, with their photos. On Sundae they start your post. Until then they stay on this phone.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .padding(.bottom, 4)
@@ -120,7 +120,7 @@ struct YourWeekView: View {
 
     private var empty: some View {
         EmptyState("Nothing saved yet", glyph: Glyph.saved,
-                   message: "Tap Save on an idea you like. It waits here for the week, and on Sunday its photos start your post.")
+                   message: "Tap Save on an idea you like. It waits here for the week, and on Sundae its photos start your post.")
     }
 
     private func captionBinding(for id: String) -> Binding<String> {
@@ -376,7 +376,7 @@ struct IdeaPhotoPicker: View {
             Spacer()
             PhotoStackIcon(size: 72)
             Text(library.canAsk
-                 ? "Sundae shows this week's photos here so you can pick the ones for this idea. They stay on your phone until you post on Sunday."
+                 ? "Sundae shows this week's photos here so you can pick the ones for this idea. They stay on your phone until you post on Sundae."
                  : "Photo access is off for Sundae. Turn it on in iOS Settings to add photos here.")
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -455,7 +455,7 @@ struct SavedIntroSheet: View {
         var points: [ConsentSheet.Point] = [
             .init(glyph: Glyph.saved, text: "Tap the bookmark at the top left to see what you've saved."),
             .init(glyph: Glyph.photos, text: "Add photos and a caption to each one whenever you like."),
-            .init(glyph: Glyph.calendar, text: "On Sunday, they're ready and waiting in your post."),
+            .init(glyph: Glyph.calendar, text: "On Sundae, they're ready and waiting in your post."),
         ]
         if asksForPhotos {
             points.append(.init(glyph: Glyph.lock,

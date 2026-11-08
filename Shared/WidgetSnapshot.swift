@@ -26,8 +26,10 @@ public struct WidgetSnapshot: Sendable, Equatable {
     public var upcoming: [Upcoming]
     /// Small JPEGs of a few photos from this week, oldest first. Empty without Photos access.
     public var photos: [Data]
-    /// How many photos the library holds from Monday until now.
+    /// How many photos the library holds from Monday until now, or how many are in the post.
     public var weekPhotoCount: Int
+    /// The photos are the ones posted this week, in the post's order, not picks from the library.
+    public var photosArePosted = false
     public var hasPosted: Bool
     /// The felt piece in the cherry's place: the cherry, or a holiday's, on the same days as the app.
     public var piece: String = "Cherry"
@@ -35,9 +37,9 @@ public struct WidgetSnapshot: Sendable, Equatable {
     /// "4 days to Sunday", "Sunday is tomorrow".
     public var countdown: String {
         switch daysUntilSunday {
-        case 0: "It's Sunday"
-        case 1: "Sunday is tomorrow"
-        default: "\(daysUntilSunday) days to Sunday"
+        case 0: "It's Sundae"
+        case 1: "Sundae is tomorrow"
+        default: "\(daysUntilSunday) days to Sundae"
         }
     }
 
@@ -86,7 +88,7 @@ public enum WidgetSnapshotBuilder {
     /// widget leaves it nil and lets the calendar decide.
     public static func snapshot(at date: Date, timeZone: TimeZone = .current, mode: WidgetSnapshot.Mode? = nil,
                                 catalog: SuggestionCatalog, shared: SharedDefaults,
-                                photos: (thumbnails: [Data], count: Int) = ([], 0)) -> WidgetSnapshot {
+                                photos: (thumbnails: [Data], count: Int) = ([], 0), photosArePosted: Bool = false) -> WidgetSnapshot {
         let clock = SundayClock(now: { date }, timeZone: timeZone)
         let calendar = clock.calendar
         let resolved = mode ?? (clock.isSunday() ? .sunday : .weekday)
@@ -101,6 +103,7 @@ public enum WidgetSnapshotBuilder {
             upcoming: upcoming(after: date, clock: clock, catalog: catalog, written: written),
             photos: photos.thumbnails,
             weekPhotoCount: photos.count,
+            photosArePosted: photosArePosted && posted,
             hasPosted: posted,
             piece: shared.piece(forWeekStarting: clock.weekStart(), calendar: calendar) ?? piece(at: date, clock: clock, mode: resolved))
     }
@@ -230,6 +233,38 @@ public enum WidgetPhotos {
             }
         }
         return (thumbnails, count)
+    }
+
+    /// The posted photos, in the post's order, up to `limit`, read by id from the library.
+    /// Ones since deleted from the library are skipped. Synchronous: call it off the main thread.
+    public static func posted(_ ids: [String], limit: Int, side: CGFloat = 360) -> [Data] {
+        guard isAuthorized, !ids.isEmpty else { return [] }
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        var byID: [String: PHAsset] = [:]
+        result.enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+        let assets = ids.compactMap { byID[$0] }.prefix(limit)
+        return thumbnails(of: Array(assets), side: side)
+    }
+
+    private static func thumbnails(of assets: [PHAsset], side: CGFloat) -> [Data] {
+        let manager = PHImageManager.default()
+        let request = PHImageRequestOptions()
+        request.isSynchronous = true
+        request.deliveryMode = .highQualityFormat
+        request.resizeMode = .exact
+        request.isNetworkAccessAllowed = false
+        var thumbnails: [Data] = []
+        for asset in assets {
+            autoreleasepool {
+                let box = DataBox()
+                manager.requestImage(for: asset, targetSize: CGSize(width: side, height: side),
+                                     contentMode: .aspectFill, options: request) { image, _ in
+                    box.data = image?.jpegData(compressionQuality: 0.8)
+                }
+                if let data = box.data { thumbnails.append(data) }
+            }
+        }
+        return thumbnails
     }
 
     private final class DataBox: @unchecked Sendable {

@@ -11,6 +11,8 @@ final class FeedStore {
     private(set) var isLoading = false
     private(set) var hasMore = true
     private(set) var hasLoaded = false
+    /// The feed is this week; earlier weeks show once asked for, at the bottom.
+    private(set) var showsEarlier = false
     var errorMessage: String?
 
     init(api: any SundaeAPI) {
@@ -21,7 +23,33 @@ final class FeedStore {
         dumps = []
         hasMore = true
         hasLoaded = false
+        showsEarlier = false
         errorMessage = nil
+    }
+
+    /// This week's posts, newest first.
+    func thisWeek(_ weekStart: Date) -> [Dump] {
+        dumps.filter { $0.weekStart >= weekStart }
+    }
+
+    /// Earlier posts, by week, newest week first.
+    func earlierWeeks(_ weekStart: Date) -> [(weekStart: Date, dumps: [Dump])] {
+        let earlier = dumps.filter { $0.weekStart < weekStart }
+        let weeks = Array(Set(earlier.map(\.weekStart))).sorted(by: >)
+        return weeks.map { week in (week, earlier.filter { $0.weekStart == week }) }
+    }
+
+    /// Whether there may be earlier weeks to show: some already loaded, or more to ask for.
+    func mayHaveEarlier(_ weekStart: Date) -> Bool {
+        hasMore || dumps.contains { $0.weekStart < weekStart }
+    }
+
+    /// The bottom of this week, tapped: earlier weeks join the feed and keep loading as you scroll.
+    func showEarlier(weekStart: Date) async {
+        showsEarlier = true
+        if !dumps.contains(where: { $0.weekStart < weekStart }), let last = dumps.last {
+            await loadMore(after: last)
+        }
     }
 
     func load(refresh: Bool) async {
@@ -41,8 +69,17 @@ final class FeedStore {
         }
     }
 
-    func loadMoreIfNeeded(current dump: Dump) async {
-        guard hasMore, !isLoading, dump.id == dumps.last?.id, let oldest = dumps.last?.createdAt else { return }
+    /// Called as each post appears. Loads the next page at the last one, but past this week only
+    /// once earlier weeks were asked for.
+    func loadMoreIfNeeded(current dump: Dump, weekStart: Date) async {
+        guard hasMore, !isLoading, dump.id == dumps.last?.id else { return }
+        guard showsEarlier || !dumps.contains(where: { $0.weekStart < weekStart }) else { return }
+        await loadMore(after: dump)
+    }
+
+    private func loadMore(after dump: Dump) async {
+        guard hasMore, !isLoading else { return }
+        let oldest = dump.createdAt
         isLoading = true
         defer { isLoading = false }
         do {

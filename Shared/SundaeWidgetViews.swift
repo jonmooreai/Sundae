@@ -159,7 +159,10 @@ struct SundaeWidgetView: View {
     private var headline: String { snapshot.hasPosted ? "Thanks for sharing." : "Share your week." }
 
     private var photoCountLine: String {
-        switch snapshot.weekPhotoCount {
+        if snapshot.photosArePosted {
+            return snapshot.weekPhotoCount == 1 ? "1 photo in your week" : "\(snapshot.weekPhotoCount) photos in your week"
+        }
+        return switch snapshot.weekPhotoCount {
         case 0: snapshot.hasPosted ? "Tweak it until midnight." : "Pick your favorites."
         case 1: "1 photo since Monday"
         default: "\(snapshot.weekPhotoCount) photos since Monday"
@@ -168,7 +171,7 @@ struct SundaeWidgetView: View {
 
     @ViewBuilder
     private var sundaySmall: some View {
-        if let first = snapshot.photos.last {
+        if let first = snapshot.photosArePosted ? snapshot.photos.first : snapshot.photos.last {
             // One photo, edge to edge, with the line over a soft shadow at the foot.
             ZStack(alignment: .bottomLeading) {
                 WidgetPhoto(data: first)
@@ -193,7 +196,7 @@ struct SundaeWidgetView: View {
             ZStack(alignment: .topLeading) {
                 SundaeArt()
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("It's Sunday.")
+                    Text("It's Sundae.")
                         .font(WidgetPalette.serif(18))
                         .widgetAccentable()
                     Text(headline)
@@ -209,7 +212,7 @@ struct SundaeWidgetView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("It's Sunday.")
+                    Text("It's Sundae.")
                         .font(WidgetPalette.serif(24))
                         .widgetAccentable()
                     Text(headline)
@@ -225,12 +228,7 @@ struct SundaeWidgetView: View {
                 SundaeArt()
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
-                HStack(spacing: 6) {
-                    ForEach(Array(snapshot.photos.suffix(3).enumerated()), id: \.offset) { _, data in
-                        WidgetPhoto(data: data)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                }
+                WidgetPhotoGrid(photos: snapshot.photos, corner: 14)
             }
         }
         .padding(inset)
@@ -241,7 +239,7 @@ struct SundaeWidgetView: View {
             VStack(alignment: .leading, spacing: 2) {
                 CherryArt(size: 24, image: snapshot.piece)
                 Spacer(minLength: 4)
-                Text("It's Sunday.")
+                Text("It's Sundae.")
                     .font(WidgetPalette.serif(20))
                     .widgetAccentable()
                 Text(headline)
@@ -260,7 +258,8 @@ struct SundaeWidgetView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 HStack(spacing: 6) {
-                    ForEach(Array(snapshot.photos.suffix(3).enumerated()), id: \.offset) { _, data in
+                    let three = snapshot.photosArePosted ? Array(snapshot.photos.prefix(3)) : Array(snapshot.photos.suffix(3))
+                    ForEach(Array(three.enumerated()), id: \.offset) { _, data in
                         WidgetPhoto(data: data)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
@@ -268,6 +267,36 @@ struct SundaeWidgetView: View {
             }
         }
         .padding(inset)
+    }
+}
+
+/// The large widget's photos: four in a two by two grid, fewer side by side.
+struct WidgetPhotoGrid: View {
+    let photos: [Data]
+    var corner: CGFloat = 14
+
+    var body: some View {
+        if photos.count >= 4 {
+            Grid(horizontalSpacing: 6, verticalSpacing: 6) {
+                GridRow {
+                    tile(photos[0])
+                    tile(photos[1])
+                }
+                GridRow {
+                    tile(photos[2])
+                    tile(photos[3])
+                }
+            }
+        } else {
+            HStack(spacing: 6) {
+                ForEach(Array(photos.enumerated()), id: \.offset) { _, data in tile(data) }
+            }
+        }
+    }
+
+    private func tile(_ data: Data) -> some View {
+        WidgetPhoto(data: data)
+            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
 }
 

@@ -30,7 +30,7 @@ enum NotificationScheduler {
 
         if reminder {
             let content = UNMutableNotificationContent()
-            content.title = "Happy Sunday"
+            content.title = "Happy Sundae"
             content.body = "Come share your week. Your friends would love to see it."
             content.sound = .default
             var components = DateComponents()

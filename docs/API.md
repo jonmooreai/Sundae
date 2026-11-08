@@ -39,14 +39,17 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 | GET / PUT | `me/settings` | settings object below |
 | DELETE | `me` | starts the 30-day deletion |
 | GET | `me/taggable` | users the caller follows or who follow them |
-| GET | `me/follow-requests` | users waiting on the caller |
-| POST | `me/follow-requests/{user_id}` | `{accept: bool}` |
+| GET | `me/follow-requests` | `[user + {relationship: following|requested|none}]`, people waiting on the caller and how the caller stands with each, every day |
+| POST | `me/follow-requests/{user_id}` | `{accept: bool}`. Accepting never follows them back |
 | GET | `me/followers` | users who follow the caller, accepted, by username, never anyone blocked either way |
 | GET | `me/following` | users the caller follows, accepted, by username, never anyone blocked either way |
 | DELETE | `me/followers/{user_id}` | removes that person's follow of the caller, or their request; 204, and 204 again if there is nothing to remove. Following again is a new request while the caller is private. Photos they already loaded, and photo addresses already sent (up to seven hours), are not taken back |
 | GET | `me/tag-requests` | pending tag requests, every day |
+| GET | `me/activity` | `[activity]`, newest first, every day: the last four weeks, up to 60, never from anyone blocked either way, and only about weeks the caller can still open. 404 from a server older than this, which the app treats as nothing yet |
 | GET | `me/suggestions/done?week_start=` | `[{suggestion_id, done_on}]` |
 | PUT | `me/suggestions/{id}/done` | `{done_on}` |
+
+Going public (`is_public: true`) accepts every request still waiting. Going private keeps the followers there are; anyone new asks first.
 
 Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challenges`, `notify_sunday_reminder`, `notify_last_call`, `notify_tags`, `notify_follow_requests`, `notify_likes_and_comments`, `notify_tag_approved`. `auto_approve_user_ids` keeps only user ids, each once; anything else in the list is dropped.
 
@@ -58,8 +61,8 @@ The client signs out after `DELETE me` only on a 2xx, or when the server says th
 
 | Method | Path | Notes |
 | --- | --- | --- |
-| GET | `feed?before=<iso>&limit=` | dumps from accepted follows, newest first, no ranking |
-| GET | `dumps/{id}` | authorization on every read: owner, accepted follower, or public author |
+| GET | `feed?before=<iso>&limit=` | the caller's own dumps, dumps from accepted follows, and dumps with a photo of the caller they approved a tag on, newest first, no ranking |
+| GET | `dumps/{id}` | authorization on every read: owner, accepted follower, public author, or someone tagged in one of its photos whose tag is pending or approved (so a tag can be looked at before it is answered). Never anyone blocked either way. The same goes for liking and commenting |
 | GET | `me/dumps/{week_start}` | 404 when nothing posted |
 | PUT | `me/dumps/{week_start}` | create or update; see below |
 | DELETE | `dumps/{id}` | allowed any day |
@@ -71,9 +74,9 @@ The client signs out after `DELETE me` only on a 2xx, or when the server says th
 | GET | `users/{id}/profile` | profile object below |
 | GET | `users/{id}/followers` | `[user + {relationship: me|following|requested|none, follows_you}]`, accepted follows of that person, by username, at most 500. For whoever can see the profile: anyone when it is public, its followers when it is private, its owner; 404 otherwise. Never anyone blocked by or blocking the caller |
 | GET | `users/{id}/following` | the same, for the people that person follows |
-| GET | `users/search?q=` | name or username only |
-| GET | `users/suggested` | public accounts the caller has not followed or asked to follow, newest first, up to 20; never built from who anyone follows |
-| POST / DELETE | `users/{id}/follow` | POST returns `{relationship}`: `following` or `requested` |
+| GET | `users/search?q=` | `[user + {relationship, follows_you}]`, by name or username only, with how the caller stands with each |
+| GET | `users/suggested` | `[user + {relationship, follows_you}]`, public accounts the caller has not followed or asked to follow, newest first, up to 20; never built from who anyone follows |
+| POST / DELETE | `users/{id}/follow` | POST returns `{relationship}`: `following` for a public account, `requested` for a private one. Sending it again changes nothing, except that a request still waiting on an account that has since gone public goes through |
 
 ### Saving a dump
 
@@ -90,7 +93,7 @@ The client signs out after `DELETE me` only on a 2xx, or when the server says th
 }
 ```
 
-Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. Each photo may have its own `caption`, up to 200 characters; empty clears it, and a photo sent without the key keeps the caption it has, so builds from before photo captions never wipe one. `width` and `height` are whole pixels from 1 to 20000; anything else is ignored, and every photo in a response has whole, positive sizes. A save leaves the week with exactly the photos it lists, so saves sent together never add up to more than 15. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections.
+Server rules: `week_start` must be the caller's current week and today must be Sunday in their zone, else `dump_locked`. 1 to 15 photos. Up to 10 `tagged_user_ids` per photo, each someone in `me/taggable`, else `too_many_tags` / dropped. Caption up to 300 characters. Each photo may have its own `caption`, up to 200 characters; empty clears it, and a photo sent without the key keeps the caption it has, so builds from before photo captions never wipe one. `width` and `height` are whole pixels from 1 to 20000; anything else is ignored, and every photo in a response has whole, positive sizes. A save leaves the week with exactly the photos it lists, so saves sent together never add up to more than 15. Existing tags on an existing photo keep their status when the same user is still tagged; new tags are `pending` unless the tagged user auto-approves the caller. The same `upload_id` sent twice must resolve to the same photo (idempotent), because the client retries after dropped connections. A new photo may carry `fingerprint`, 16 hex digits: a difference hash of a 9 by 8 grey copy, made on the phone. When someone is tagged in a photo whose fingerprint is within 6 bits of one they posted themselves that week, the tag stands (requested, answered, shown on the photo) but the photo is not added to their week on their profile, and is no reason for that week to be in their feed. A photo edited after it was posted comes back as a new `upload_id` with `replaces` set to the old photo's `id`: the old photo goes, and its tags move onto the new one with their answers, for whoever is still tagged.
 
 ### Uploads
 
@@ -133,6 +136,13 @@ profile:  {user, relationship: me|following|requested|none|blocked, weeks: [week
            follower_count?, following_count?}      counts for whoever can see the profile (its lists open to them too), null otherwise
 week:     {week_start, dump?, tagged: [{photo, from: user, tag}]}
 tag_request: {tag, photo, tagger: user, week_start}
+activity: {id, kind, actor: user, at, dump_id?, week_start?, photo_url?, comment_id?, comment_body?,
+           relationship: following|requested|none}
+                                                   kind: like (on the caller's week), comment (on it), reply (to the caller's
+                                                   comment elsewhere), mention (@username elsewhere), comment_like, follow (a new
+                                                   follower who needed no yes), follow_accepted (the caller's request said yes to),
+                                                   tag_approved (someone the caller tagged said yes). relationship is how the
+                                                   caller stands with the actor
 local_idea: {id, text, reason, time_of_day: morning|afternoon|evening|any,
            place?: {name, walk_minutes?, distance_meters?, latitude?, longitude?}}
                                                    the place's position, never the caller's; walk_minutes only within a walk

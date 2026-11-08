@@ -60,3 +60,42 @@ enum PhotoProcessor {
         await Task.detached(priority: .userInitiated) { processAvatar(data) }.value
     }
 }
+
+/// A photo's fingerprint: 64 bits saying, for a tiny grey copy, whether each spot is darker than
+/// the one to its right. The same picture, sent between friends and saved again, comes out the
+/// same or a few bits apart; different pictures land far apart. Sent with a new photo so the
+/// server can tell when someone is tagged in a photo they posted themselves.
+enum PhotoFingerprint {
+    nonisolated static func of(_ data: Data) -> String? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 64,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return of(image)
+    }
+
+    nonisolated static func of(_ image: CGImage) -> String? {
+        let width = 9, height = 8
+        var grey = [UInt8](repeating: 0, count: width * height)
+        let drawn = grey.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                          bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return nil }
+        var hash: UInt64 = 0
+        for row in 0..<height {
+            for column in 0..<(width - 1) {
+                hash <<= 1
+                if grey[row * width + column] < grey[row * width + column + 1] { hash |= 1 }
+            }
+        }
+        return String(format: "%016llx", hash)
+    }
+}

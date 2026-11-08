@@ -1,7 +1,8 @@
 import PhotosUI
 import SwiftUI
 
-/// Step two: see each photo large, give it a caption, tag the friends who were there, fix the order.
+/// Step two: see each photo large, edit it, give it a caption, tag the friends who were there,
+/// and fix the order by dragging in the strip.
 struct ArrangeStep: View {
     @Environment(AppModel.self) private var model
     let library: PhotoLibrary
@@ -24,6 +25,9 @@ struct ArrangeStep: View {
     @State private var confirmDelete = false
     @State private var showsPhotosPicker = false
     @State private var showsCamera = false
+    @State private var editing: DraftPhoto?
+    /// The photo in the strip a dragged one is over.
+    @State private var dropTarget: ID?
 
     private var compose: ComposeStore { model.compose }
     private var photos: [DraftPhoto] { compose.draft.photos }
@@ -90,6 +94,11 @@ struct ArrangeStep: View {
         .sheet(isPresented: $showReorder) {
             ReorderSheet()
         }
+        .fullScreenCover(item: $editing) { photo in
+            PhotoEditorView(photo: photo, load: { await compose.editableData(for: photo) }) { edits, rendered in
+                compose.applyEdits(to: photo.id, edits: edits, rendered: rendered)
+            }
+        }
         .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Task {
@@ -114,6 +123,9 @@ struct ArrangeStep: View {
                     PhotoView(source: photo.source)
                         .aspectRatio(Self.shape(of: photo), contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        // On the photo itself, so the Edit button over it stays its own button.
+                        .accessibilityElement()
+                        .accessibilityLabel(photo.altText.isEmpty ? "Photo \(index + 1) of \(photos.count)" : photo.altText)
                         .overlay(alignment: .bottomLeading) {
                             // A few faces and a short line, never one chip per person.
                             if !photo.taggedUsers.isEmpty {
@@ -132,10 +144,29 @@ struct ArrangeStep: View {
                                 .frame(maxWidth: 300, alignment: .leading)
                             }
                         }
+                        .overlay(alignment: .topTrailing) {
+                            if Self.canEdit(photo) {
+                                Button { editing = photo } label: {
+                                    HStack(spacing: 5) {
+                                        Icon(Glyph.edit, size: 15)
+                                        Text(photo.edits == nil ? "Edit" : "Edited")
+                                    }
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                    .padding(.horizontal, 12)
+                                    .frame(height: 32)
+                                    .background(.regularMaterial, in: Capsule())
+                                    .contentShape(Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(12)
+                                .accessibilityLabel("Edit photo")
+                                .accessibilityIdentifier("edit-photo")
+                            }
+                        }
                         .padding(.horizontal, Theme.pagePadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .tag(index)
-                        .accessibilityLabel(photo.altText.isEmpty ? "Photo \(index + 1) of \(photos.count)" : photo.altText)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
@@ -188,13 +219,21 @@ struct ArrangeStep: View {
 
             thumbnails
 
-            Text("Tap a photo's Tag friends to add the people who were there.")
+            Text(photos.count > 1
+                 ? "Hold a photo in the strip and drag it to change the order."
+                 : "Tap Tag friends to add the people who were there.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, Theme.pagePadding)
                 .padding(.top, 2)
             Spacer(minLength: 0)
         }
+    }
+
+    /// A demo placeholder has no pixels to edit; everything else does.
+    private static func canEdit(_ photo: DraftPhoto) -> Bool {
+        if case .placeholder = photo.original?.source ?? photo.source { return false }
+        return true
     }
 
     /// The photo's own width to height, so the frame is exactly its shape and nothing is cut off.
@@ -223,9 +262,27 @@ struct ArrangeStep: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(index == page ? Color.accentColor : .clear, lineWidth: 2.5)
+                                .strokeBorder(index == page || dropTarget == photo.id ? Color.accentColor : .clear, lineWidth: 2.5)
                         }
+                        .scaleEffect(dropTarget == photo.id ? 1.08 : 1)
+                        .animation(.snappy(duration: 0.2), value: dropTarget)
                         .onTapGesture { withAnimation(.snappy) { page = index } }
+                        // Hold and drag onto another photo: it takes that photo's place.
+                        .draggable(photo.id) {
+                            PhotoView(source: photo.source)
+                                .frame(width: 60, height: 60)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .dropDestination(for: String.self) { ids, _ in
+                            dropTarget = nil
+                            guard let moved = ids.first, moved != photo.id, photos.contains(where: { $0.id == moved }) else { return false }
+                            withAnimation(.snappy) { compose.movePhoto(moved, to: photo.id) }
+                            if let at = compose.draft.photos.firstIndex(where: { $0.id == moved }) { page = at }
+                            Haptics.light()
+                            return true
+                        } isTargeted: { over in
+                            if over { dropTarget = photo.id } else if dropTarget == photo.id { dropTarget = nil }
+                        }
                         .accessibilityLabel("Photo \(index + 1)")
                 }
                 if compose.draft.canAddMore {

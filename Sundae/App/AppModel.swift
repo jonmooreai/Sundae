@@ -15,14 +15,14 @@ enum DebugDay: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .real: "Real time"
-        case .sunday: "Pretend it's Sunday"
+        case .sunday: "Pretend it's Sundae"
         case .weekday: "Pretend it's Wednesday"
         }
     }
     var shortLabel: String {
         switch self {
         case .real: "Real time"
-        case .sunday: "Sunday"
+        case .sunday: "Sundae"
         case .weekday: "Wednesday"
         }
     }
@@ -66,7 +66,8 @@ final class AppModel {
     /// Signed in, with onboarding's last steps (ideas near you, reminders, friends) still to go.
     /// RootView keeps onboarding up until they are done.
     private(set) var isFinishingOnboarding = false
-    private(set) var pendingApprovalCount = 0
+    /// On the heart tab: requests waiting on you, and activity you have not looked at yet.
+    var notificationBadge: Int { notifications.badge }
     /// The account's settings as the server last sent or accepted them. Nil until it has
     /// answered, so nothing is shown, saved or scheduled from a guess.
     private(set) var accountSettings: AccountSettings?
@@ -88,7 +89,7 @@ final class AppModel {
 
     let feed: FeedStore
     let compose: ComposeStore
-    let approvals: ApprovalsStore
+    let notifications: NotificationsStore
     let weekday: WeekdayStore
     let savedIdeas: SavedIdeasStore
     let localIdeas: LocalIdeasStore
@@ -188,7 +189,7 @@ final class AppModel {
         self.suggestions = catalog
         self.feed = FeedStore(api: api)
         self.compose = ComposeStore(api: api)
-        self.approvals = ApprovalsStore(api: api)
+        self.notifications = NotificationsStore(api: api)
         let savedIdeas = SavedIdeasStore()
         let weekday = WeekdayStore(api: api, catalog: catalog, saved: savedIdeas)
         savedIdeas.onFirstPhoto = { [weak weekday] suggestion, day in
@@ -442,7 +443,7 @@ final class AppModel {
         accountSettings = nil
         compose.reset()
         feed.reset()
-        approvals.reset()
+        notifications.forget()
     }
 
     /// Signs out only once the server has deleted the account. False when it couldn't, and then
@@ -508,11 +509,11 @@ final class AppModel {
         return true
     }
 
+    /// Follow requests, tags waiting on you and new activity, for the heart's badge.
     func refreshPendingCount() async {
         guard isSignedIn else { return }
-        let count = (try? await api.pendingTagRequests())?.count ?? 0
-        pendingApprovalCount = count
-        shared.pendingApprovalCount = count
+        await notifications.load()
+        shared.pendingApprovalCount = notifications.tagRequests.count + notifications.followRequests.count
     }
 
     // MARK: - Preferences
@@ -552,7 +553,7 @@ final class AppModel {
             refreshPhase()
             compose.reset()
             feed.reset()
-            approvals.reset()
+            notifications.reset()
             await refreshPendingCount()
         }
     }

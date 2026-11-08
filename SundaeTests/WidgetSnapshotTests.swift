@@ -23,14 +23,14 @@ struct WidgetSnapshotTests {
 
     @Test func theWidgetWearsTheHolidayLikeTheApp() {
         #expect(snapshot(21).piece == "Cherry", "an ordinary week")
-        #expect(snapshot(28).piece == "JackOLantern", "the week before Halloween Sunday")
+        #expect(snapshot(28).piece == "JackOLantern", "the week before Halloween Sundae")
         #expect(snapshot(31).piece == "JackOLantern", "Halloween itself")
     }
 
     @Test func sundayTurnsToTheWeeksPhotos() {
         let s = snapshot(25)
         #expect(s.mode == .sunday)
-        #expect(s.countdown == "It's Sunday")
+        #expect(s.countdown == "It's Sundae")
     }
 
     @Test func weekdaysShowTodayAndTheNextTwoDays() {
@@ -38,7 +38,7 @@ struct WidgetSnapshotTests {
         #expect(s.mode == .weekday)
         #expect(s.idea != nil)
         #expect(s.upcoming.count == 2)
-        #expect(s.countdown == "4 days to Sunday")
+        #expect(s.countdown == "4 days to Sundae")
     }
 
     @Test func fridayLooksAheadToSunday() {
@@ -50,7 +50,7 @@ struct WidgetSnapshotTests {
     @Test func saturdayOnlyHasSundayLeft() {
         let s = snapshot(24)
         #expect(s.upcoming.map(\.text) == ["Share your week."])
-        #expect(s.countdown == "Sunday is tomorrow")
+        #expect(s.countdown == "Sundae is tomorrow")
     }
 
     @Test func thePreviewCanShowSundayOnAWeekday() {

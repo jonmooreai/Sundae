@@ -225,7 +225,7 @@ struct SundayPromptStep: View {
     /// Your birthday week first, then a holiday, then any Sunday.
     private var greeting: String {
         if model.isBirthdayWeek { return "Happy birthday week." }
-        return holiday?.greeting ?? "It's Sunday."
+        return holiday?.greeting ?? "It's Sundae."
     }
     private var compose: ComposeStore { model.compose }
     /// Photos kept with this week's saved ideas, ready to start the post.
@@ -390,7 +390,7 @@ struct PostedStep: View {
                 .font(Theme.display(36))
                 .multilineTextAlignment(.center)
             Text(compose.queuedOffline
-                 ? "It'll go out the moment you're connected again, as long as it's still Sunday."
+                 ? "It'll go out the moment you're connected again, as long as it's still Sundae."
                  : "You can make changes until midnight. Friends you tagged will get a little note to say yes.")
                 .font(.body)
                 .foregroundStyle(.secondary)
