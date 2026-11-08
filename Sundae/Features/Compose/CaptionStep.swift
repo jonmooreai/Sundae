@@ -70,6 +70,14 @@ struct CaptionStep: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .overlay {
+            // Uploading takes a moment: a sundae builds itself until the week is up.
+            if compose.isSaving {
+                PostingSundae(photoCount: compose.draft.photos.count)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: compose.isSaving)
         .onAppear {
             if compose.draft.caption.isEmpty { captionFocused = true }
         }

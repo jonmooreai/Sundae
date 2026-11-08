@@ -128,11 +128,11 @@ actor LiveSundaeAPI: SundaeAPI {
             let alt = photo.altText.isEmpty ? nil : photo.altText
             switch photo.source {
             case .remote:
-                inputs.append(DTO.PhotoInput(id: photo.id, uploadId: nil, order: order, width: photo.width,
+                inputs.append(DTO.PhotoInput(id: photo.id, uploadId: nil, replaces: nil, order: order, width: photo.width,
                                              height: photo.height, altText: alt, caption: photo.caption, taggedUserIds: tagged))
             case .data(let data):
                 let uploadID = try await upload(data, for: photo)
-                inputs.append(DTO.PhotoInput(id: nil, uploadId: uploadID, order: order, width: photo.width,
+                inputs.append(DTO.PhotoInput(id: nil, uploadId: uploadID, replaces: photo.replaces, order: order, width: photo.width,
                                              height: photo.height, altText: alt, caption: photo.caption, taggedUserIds: tagged))
             case .placeholder:
                 continue

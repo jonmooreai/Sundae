@@ -241,10 +241,69 @@ struct DraftPhoto: Identifiable, Hashable, Codable, Sendable {
     var altText: String = ""
     var takenAt: Date?
     var caption: String = ""
+    /// The photo as it was before the editor touched it, so it can be opened again from the
+    /// start, changed, or put back. Nil for a photo never edited.
+    var original: DraftOriginal? = nil
+    /// What the editor did, to open it again where it was left.
+    var edits: PhotoEdits? = nil
+    /// The posted photo an edited one takes the place of, so its tags and their answers carry over.
+    var replaces: ID? = nil
+}
+
+/// A photo's source and size before it was edited.
+struct DraftOriginal: Hashable, Codable, Sendable {
+    var source: PhotoSource
+    var width: Int
+    var height: Int
+}
+
+/// How a photo was changed in the editor. Applied in order: turned, then the light and color,
+/// then cropped. Every value at zero (and the original shape) is the photo as it was.
+struct PhotoEdits: Hashable, Codable, Sendable {
+    enum Aspect: String, Codable, Sendable, CaseIterable {
+        case original, square, portrait, landscape, wide
+
+        var label: String {
+            switch self {
+            case .original: "Original"
+            case .square: "Square"
+            case .portrait: "4:5"
+            case .landscape: "3:2"
+            case .wide: "16:9"
+            }
+        }
+
+        /// Width over height; nil keeps the photo's own.
+        var ratio: CGFloat? {
+            switch self {
+            case .original: nil
+            case .square: 1
+            case .portrait: 4.0 / 5.0
+            case .landscape: 3.0 / 2.0
+            case .wide: 16.0 / 9.0
+            }
+        }
+    }
+
+    /// Quarter turns clockwise, 0 to 3.
+    var quarterTurns = 0
+    var aspect: Aspect = .original
+    /// 1 shows the whole of the chosen shape; more is closer in.
+    var zoom: Double = 1
+    /// Where the crop sits in the room it has to move, -1 to 1 each way: right and down are positive.
+    var offsetX: Double = 0
+    var offsetY: Double = 0
+    /// Each -1 to 1, 0 untouched.
+    var brightness: Double = 0
+    var contrast: Double = 0
+    var saturation: Double = 0
+    var warmth: Double = 0
+
+    var isUntouched: Bool { self == PhotoEdits() }
 }
 
 extension DraftPhoto {
-    /// A draft saved before photos had captions (a post waiting for the network) still opens.
+    /// A draft saved before photos had captions or edits (a post waiting for the network) still opens.
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(ID.self, forKey: .id)
@@ -255,6 +314,9 @@ extension DraftPhoto {
         altText = try container.decodeIfPresent(String.self, forKey: .altText) ?? ""
         takenAt = try container.decodeIfPresent(Date.self, forKey: .takenAt)
         caption = try container.decodeIfPresent(String.self, forKey: .caption) ?? ""
+        original = try container.decodeIfPresent(DraftOriginal.self, forKey: .original)
+        edits = try container.decodeIfPresent(PhotoEdits.self, forKey: .edits)
+        replaces = try container.decodeIfPresent(ID.self, forKey: .replaces)
     }
 }
 

@@ -6,6 +6,7 @@ import SwiftUI
 /// minutes slower and the app bigger. To add one, copy its three imagesets from that release and
 /// add a case; a test checks every case has all three.
 enum Ph: String, CaseIterable, Sendable {
+    case arrowClockwise = "arrow-clockwise"
     case arrowUp = "arrow-up"
     case arrowsDownUp = "arrows-down-up"
     case bell
@@ -17,7 +18,10 @@ enum Ph: String, CaseIterable, Sendable {
     case chatCircle = "chat-circle"
     case check
     case checkCircle = "check-circle"
+    case circleHalf = "circle-half"
+    case crop
     case dotsThree = "dots-three"
+    case drop
     case export
     case flag
     case gearSix = "gear-six"
@@ -36,6 +40,7 @@ enum Ph: String, CaseIterable, Sendable {
     case sun
     case tag
     case textAa = "text-aa"
+    case thermometer
     case trash
     case user
     case userCircle = "user-circle"
@@ -90,6 +95,12 @@ enum Glyph {
     static var moon: Ph { .moon }
     static var camera: Ph { .camera }
     static var edit: Ph { .pencilSimple }
+    static var crop: Ph { .crop }
+    static var rotate: Ph { .arrowClockwise }
+    static var brightness: Ph { .sun }
+    static var contrast: Ph { .circleHalf }
+    static var saturation: Ph { .drop }
+    static var warmth: Ph { .thermometer }
 }
 
 enum IconWeight {

@@ -248,7 +248,7 @@ actor MockSundaeAPI: SundaeAPI {
         let oldPhotos = Dictionary(uniqueKeysWithValues: (existing?.photos ?? []).map { ($0.id, $0) })
 
         let photos: [Photo] = draft.photos.enumerated().map { index, draftPhoto in
-            let old = oldPhotos[draftPhoto.id]
+            let old = oldPhotos[draftPhoto.id] ?? draftPhoto.replaces.flatMap { oldPhotos[$0] }
             let tags: [Tag] = draftPhoto.taggedUsers.filter { taggable.contains($0.id) }.map { user in
                 if let kept = old?.tags.first(where: { $0.taggedUser.id == user.id && $0.status != .declined && $0.status != .removed }) {
                     return kept

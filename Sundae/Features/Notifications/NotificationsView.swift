@@ -317,7 +317,9 @@ struct ActivityRow: View {
     private var sentence: Text {
         let name = Text(item.actor.username).fontWeight(.semibold)
         let when = Text(relativeTime(item.at, now: model.clock.now())).foregroundStyle(.secondary)
-        return Text("\(name) \(Self.phrase(for: item)) \(when)")
+        let phrase = Self.phrase(for: item)
+        let line: LocalizedStringKey = "\(name) \(phrase) \(when)"
+        return Text(line)
     }
 
     /// What they did, after their name: "liked your week."

@@ -234,3 +234,36 @@ test('activity is every day, and only about weeks that can still be opened', asy
   await s.call('DELETE', `v1/me/followers/${jon.user.id}`, { token: maya.token });
   assert.deepEqual(await kinds(), []);
 });
+
+test('an edited photo, sent as a new upload in place of the old one, keeps its tags and their answers', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const week = await postWeek(s, jon, [maya]);
+  const [request] = (await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body;
+  await s.call('POST', `v1/tags/${request.tag.id}/respond`, { token: maya.token, json: { approve: true } });
+
+  const edited = await uploadPhoto(s, jon);
+  const old = week.photos[0];
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    { upload_id: edited, replaces: old.id, tagged_user_ids: [maya.user.id] },
+  ] } });
+  assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  assert.equal(saved.body.photos.length, 1);
+  assert.notEqual(saved.body.photos[0].id, old.id, 'a new photo');
+  assert.deepEqual(saved.body.photos[0].tags.map((t) => [t.tagged_user.username, t.status]), [['maya', 'approved']]);
+  assert.deepEqual((await s.call('GET', 'v1/me/tag-requests', { token: maya.token })).body, [], 'Maya is not asked again');
+  const profile = await s.call('GET', `v1/users/${maya.user.id}/profile`, { token: maya.token });
+  assert.equal(profile.body.weeks[0].tagged[0].photo.id, saved.body.photos[0].id, 'and the new photo is on her week');
+
+  // Untagged in the edit, the tag goes; a photo that replaces nothing tags afresh.
+  const again = await uploadPhoto(s, jon);
+  const untagged = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    { upload_id: again, replaces: saved.body.photos[0].id, tagged_user_ids: [] },
+  ] } });
+  assert.deepEqual(untagged.body.photos[0].tags, []);
+  const fresh = await uploadPhoto(s, jon);
+  const retagged = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    { upload_id: fresh, replaces: 'p_not_in_this_week', tagged_user_ids: [maya.user.id] },
+  ] } });
+  assert.deepEqual(retagged.body.photos[0].tags.map((t) => t.status), ['pending']);
+});

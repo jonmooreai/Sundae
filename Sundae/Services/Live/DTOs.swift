@@ -409,6 +409,8 @@ enum DTO {
         let id: String?
         /// Upload id from `POST /v1/uploads` for a new photo.
         let uploadId: String?
+        /// For a posted photo edited: the id of the one it takes the place of, so its tags carry over.
+        let replaces: String?
         let order: Int
         let width: Int
         let height: Int

@@ -946,7 +946,20 @@ async function saveDump(ctx, week) {
       writes.push(db.prepare(`UPDATE photos SET ord = ?, alt_text = ?, width = ?, height = ?${'caption' in photo ? ', caption = ?' : ''} WHERE id = ?`)
         .bind(...[index, alt, width || row.width, height || row.height, ...('caption' in photo ? [caption] : []), row.id]));
     }
-    writes.push(...tagWrites(ctx, row.id, currentTags.filter((t) => t.photo_id === row.id), photo.tagged_user_ids, allowed));
+    let current = currentTags.filter((t) => t.photo_id === row.id);
+    // An edited photo comes back as a new upload in place of the one already posted. Its tags,
+    // and each person's answer, move onto it, so nobody is asked again about the same moment.
+    const replaced = row.isNew && photo.replaces ? existing.find((p) => p.id === String(photo.replaces) && !p.isNew) : null;
+    if (replaced) {
+      const wanted = new Set((Array.isArray(photo.tagged_user_ids) ? photo.tagged_user_ids : []).map(String));
+      current = currentTags.filter((t) => t.photo_id === replaced.id && wanted.has(t.tagged_user_id) && allowed.has(t.tagged_user_id))
+        .map((t) => ({ ...t, id: newId('t'), photo_id: row.id }));
+      for (const tag of current) {
+        writes.push(db.prepare('INSERT OR IGNORE INTO tags (id, photo_id, tagger_id, tagged_user_id, status, responded_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .bind(tag.id, tag.photo_id, tag.tagger_id, tag.tagged_user_id, tag.status, tag.responded_at, tag.created_at));
+      }
+    }
+    writes.push(...tagWrites(ctx, row.id, current, photo.tagged_user_ids, allowed));
   }
   if (!kept.length) fail(400, 'bad_request', 'None of those photos finished uploading.');
 
