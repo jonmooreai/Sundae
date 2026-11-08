@@ -100,9 +100,16 @@ actor MockSundaeAPI: SundaeAPI {
         follows.contains { $0.followerID == follower && $0.followeeID == followee && $0.status == .accepted }
     }
 
+    /// As the server: the author, a public author, someone following, or someone tagged in it whose
+    /// tag is waiting or approved.
     private func canRead(_ dump: Dump, as viewer: ID) -> Bool {
         if blocked.contains(dump.author.id) { return false }
         return dump.author.id == viewer || dump.author.isPublic || isFollowing(viewer, dump.author.id)
+            || isTagged(viewer, in: dump, statuses: [.pending, .approved])
+    }
+
+    private func isTagged(_ viewer: ID, in dump: Dump, statuses: Set<Tag.Status>) -> Bool {
+        dump.photos.contains { photo in photo.tags.contains { $0.taggedUser.id == viewer && statuses.contains($0.status) } }
     }
 
     private func relationship(of viewer: ID, to target: ID) -> Relationship {
@@ -170,6 +177,12 @@ actor MockSundaeAPI: SundaeAPI {
         settings = patch.applied(to: settings)
         me.isPublic = settings.isPublic
         users[me.id] = me
+        // Going public says yes to everyone waiting, as on the server.
+        if me.isPublic {
+            for i in follows.indices where follows[i].followeeID == me.id && follows[i].status == .requested {
+                follows[i].status = .accepted
+            }
+        }
     }
 
     func deleteAccount() async throws {
@@ -193,7 +206,11 @@ actor MockSundaeAPI: SundaeAPI {
         try requireSunday()
         try await latency()
         return dumps.values
-            .filter { canRead($0, as: me.id) }
+            .filter { dump in
+                // A week with a photo of you once you said yes to it, as on the server.
+                !blocked.contains(dump.author.id) && (dump.author.id == me.id || dump.author.isPublic
+                    || isFollowing(me.id, dump.author.id) || isTagged(me.id, in: dump, statuses: [.approved]))
+            }
             .filter { dump in olderThan.map { dump.createdAt < $0 } ?? true }
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
@@ -391,7 +408,7 @@ actor MockSundaeAPI: SundaeAPI {
                        followingCount: canSee ? following : nil)
     }
 
-    func searchUsers(_ query: String) async throws -> [User] {
+    func searchUsers(_ query: String) async throws -> [ListedPerson] {
         let me = try requireSignedIn()
         try requireSunday()
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -400,7 +417,11 @@ actor MockSundaeAPI: SundaeAPI {
             .filter { $0.id != me.id && !blocked.contains($0.id) }
             .filter { $0.username.lowercased().contains(q) || $0.name.lowercased().contains(q) }
             .sorted { $0.username < $1.username }
-            .map { withContext($0, viewer: me.id) }
+            .map { listed(withContext($0, viewer: me.id), viewer: me.id) }
+    }
+
+    private func listed(_ user: User, viewer: ID) -> ListedPerson {
+        ListedPerson(user: user, relationship: relationship(of: viewer, to: user.id), followsYou: isFollowing(user.id, viewer))
     }
 
     /// Fills in "followed by" with the viewer's follows who follow this user.
@@ -415,7 +436,7 @@ actor MockSundaeAPI: SundaeAPI {
         return copy
     }
 
-    func suggestedUsers() async throws -> [User] {
+    func suggestedUsers() async throws -> [ListedPerson] {
         let me = try requireSignedIn()
         try requireSunday()
         let myFollows = Set(follows.filter { $0.followerID == me.id }.map(\.followeeID))
@@ -426,14 +447,19 @@ actor MockSundaeAPI: SundaeAPI {
         return friendsOfFriends
             .filter { $0 != me.id && !myFollows.contains($0) && !blocked.contains($0) && seen.insert($0).inserted }
             .compactMap { users[$0] }
-            .map { withContext($0, viewer: me.id) }
+            .map { listed(withContext($0, viewer: me.id), viewer: me.id) }
     }
 
     func follow(userID: ID) async throws -> Relationship {
         let me = try requireSignedIn()
         try requireSunday()
         guard let target = users[userID], userID != me.id else { throw SundaeError.notFound }
-        follows.removeAll { $0.followerID == me.id && $0.followeeID == userID }
+        // Asking again changes nothing, except that a request waiting on someone who has since
+        // gone public goes through.
+        if let i = follows.firstIndex(where: { $0.followerID == me.id && $0.followeeID == userID }) {
+            if target.isPublic { follows[i].status = .accepted }
+            return follows[i].status == .accepted ? .following : .requested
+        }
         let status: Follow.Status = target.isPublic ? .accepted : .requested
         follows.append(Follow(followerID: me.id, followeeID: userID, status: status))
         return status == .accepted ? .following : .requested
@@ -445,11 +471,13 @@ actor MockSundaeAPI: SundaeAPI {
         follows.removeAll { $0.followerID == me.id && $0.followeeID == userID }
     }
 
-    func followRequests() async throws -> [User] {
+    func followRequests() async throws -> [ListedPerson] {
         let me = try requireSignedIn()
         return follows
-            .filter { $0.followeeID == me.id && $0.status == .requested }
+            .filter { $0.followeeID == me.id && $0.status == .requested && !blocked.contains($0.followerID) }
             .compactMap { users[$0.followerID] }
+            .sorted { $0.username < $1.username }
+            .map { ListedPerson(user: $0, relationship: relationship(of: me.id, to: $0.id), followsYou: false) }
     }
 
     func respondToFollowRequest(from userID: ID, accept: Bool) async throws {
@@ -523,6 +551,39 @@ actor MockSundaeAPI: SundaeAPI {
                         .map { TagRequest(tag: $0, photo: photo, tagger: dump.author, weekStart: dump.weekStart) }
                 }
             }
+    }
+
+    /// Built from the demo world as the server builds it: likes and comments on your weeks,
+    /// replies to your comments, and new followers you have not followed back.
+    func activity() async throws -> [ActivityItem] {
+        let me = try requireSignedIn()
+        let now = clock.now()
+        var items: [ActivityItem] = []
+        func item(_ kind: ActivityItem.Kind, _ actor: User, at: Date, dump: Dump? = nil, comment: Comment? = nil) {
+            guard !blocked.contains(actor.id), actor.id != me.id else { return }
+            items.append(ActivityItem(
+                id: [kind.rawValue, actor.id, dump?.id, comment?.id].compactMap { $0 }.joined(separator: ":"),
+                kind: kind, actor: actor, at: at, dumpID: dump?.id, weekStart: dump?.weekStart,
+                photo: dump?.photos.min { $0.order < $1.order }?.source, commentID: comment?.id, commentBody: comment?.body,
+                relationship: relationship(of: me.id, to: actor.id)))
+        }
+        for dump in dumps.values {
+            let list = comments[dump.id] ?? []
+            if dump.author.id == me.id {
+                for (i, user) in dump.likedBy.enumerated() { item(.like, user, at: dump.createdAt.addingTimeInterval(Double(i + 1) * 420), dump: dump) }
+                for comment in list { item(.comment, comment.author, at: comment.createdAt, dump: dump, comment: comment) }
+            } else if canRead(dump, as: me.id) {
+                let mine = Set(list.filter { $0.author.id == me.id }.map(\.id))
+                for comment in list where comment.parentID.map(mine.contains) == true {
+                    item(.reply, comment.author, at: comment.createdAt, dump: dump, comment: comment)
+                }
+            }
+        }
+        for follow in follows where follow.followeeID == me.id && follow.status == .accepted && relationship(of: me.id, to: follow.followerID) == .notFollowing {
+            if let user = users[follow.followerID] { item(.follow, user, at: now.addingTimeInterval(-2 * 3600)) }
+        }
+        let monthAgo = now.addingTimeInterval(-28 * 86_400)
+        return Array(items.filter { $0.at <= now && $0.at > monthAgo }.sorted { $0.at > $1.at }.prefix(60))
     }
 
     private func updateTag(id: ID, _ change: (inout Tag) -> Void) throws {
@@ -693,6 +754,8 @@ actor MockSundaeAPI: SundaeAPI {
             follows.append(Follow(followerID: b.id, followeeID: a.id, status: .accepted))
         }
         follows.append(Follow(followerID: riley.id, followeeID: me.id, status: .requested))
+        // Noor, public, followed without asking; the demo's new follower to follow back.
+        follows.append(Follow(followerID: noor.id, followeeID: me.id, status: .accepted))
         follows.append(Follow(followerID: friends[0].id, followeeID: dev.id, status: .accepted))
         follows.append(Follow(followerID: friends[1].id, followeeID: noor.id, status: .accepted))
 

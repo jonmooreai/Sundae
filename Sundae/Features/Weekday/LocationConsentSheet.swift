@@ -10,7 +10,7 @@ struct LocationConsentSheet: View {
             title: "Use your location for weekday ideas?",
             points: [
                 .init(glyph: Glyph.calendar,
-                      text: "Monday to Saturday only. When you open Sundae on a weekday, it looks once to pick today's idea from your neighborhood. On Sunday it never looks, whatever this is set to."),
+                      text: "Monday to Saturday only. When you open Sundae on a weekday, it looks once to pick today's idea from your neighborhood. On Sundae it never looks, whatever this is set to."),
                 .init(glyph: Glyph.lock,
                       text: "Your exact spot stays on this phone. Only a neighborhood-sized area, about a kilometer across, is looked up, with no account attached."),
                 .init(glyph: Glyph.block,

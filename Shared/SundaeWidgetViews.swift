@@ -193,7 +193,7 @@ struct SundaeWidgetView: View {
             ZStack(alignment: .topLeading) {
                 SundaeArt()
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("It's Sunday.")
+                    Text("It's Sundae.")
                         .font(WidgetPalette.serif(18))
                         .widgetAccentable()
                     Text(headline)
@@ -209,7 +209,7 @@ struct SundaeWidgetView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("It's Sunday.")
+                    Text("It's Sundae.")
                         .font(WidgetPalette.serif(24))
                         .widgetAccentable()
                     Text(headline)
@@ -241,7 +241,7 @@ struct SundaeWidgetView: View {
             VStack(alignment: .leading, spacing: 2) {
                 CherryArt(size: 24, image: snapshot.piece)
                 Spacer(minLength: 4)
-                Text("It's Sunday.")
+                Text("It's Sundae.")
                     .font(WidgetPalette.serif(20))
                     .widgetAccentable()
                 Text(headline)

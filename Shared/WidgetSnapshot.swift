@@ -35,9 +35,9 @@ public struct WidgetSnapshot: Sendable, Equatable {
     /// "4 days to Sunday", "Sunday is tomorrow".
     public var countdown: String {
         switch daysUntilSunday {
-        case 0: "It's Sunday"
-        case 1: "Sunday is tomorrow"
-        default: "\(daysUntilSunday) days to Sunday"
+        case 0: "It's Sundae"
+        case 1: "Sundae is tomorrow"
+        default: "\(daysUntilSunday) days to Sundae"
         }
     }
 

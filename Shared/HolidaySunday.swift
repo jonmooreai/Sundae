@@ -75,8 +75,8 @@ enum HolidaySunday: CaseIterable {
     /// Said on the posting screen and at the top of the feed.
     var greeting: String {
         switch self {
-        case .valentines: "Happy Valentine's Sunday."
-        case .halloween: "Happy Halloween Sunday."
+        case .valentines: "Happy Valentine's Sundae."
+        case .halloween: "Happy Halloween Sundae."
         case .winter: "Happy holidays."
         }
     }

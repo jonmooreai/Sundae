@@ -161,13 +161,13 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Sundae")
                     .font(Theme.display(44))
-                Text("Your week in photos, shared on Sunday. Six days to live it, one day to share it.")
+                Text("Your week in photos, shared on Sundae. Six days to live it, one day to share it.")
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
             VStack(alignment: .leading, spacing: 16) {
                 valueRow(Glyph.sun, "One idea a day", "Monday to Saturday the feed is closed. You get a single thing worth going to do.", index: 0)
-                valueRow(Glyph.photos, "Post your week", "On Sunday, pick the photos, tag who was there, and see everyone else's week.", index: 1)
+                valueRow(Glyph.photos, "Post your week", "On Sundae, pick the photos, tag who was there, and see everyone else's week.", index: 1)
                 valueRow(Glyph.calendar, "A life in weeks", "Your profile becomes a week-by-week archive of what you did.", index: 2)
             }
             PrimaryButton(title: "Get started") { step = .signIn }
@@ -364,7 +364,7 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 valueRow(Glyph.calendar, "Weekdays only",
-                         "When you open Sundae on a weekday, it looks once to pick today's idea near you. On Sunday it never looks, whatever this is set to.", index: 0)
+                         "When you open Sundae on a weekday, it looks once to pick today's idea near you. On Sundae it never looks, whatever this is set to.", index: 0)
                 valueRow(Glyph.lock, "A neighborhood, not a pin",
                          "Your exact spot stays on this phone. Only an area about a kilometer across is looked up, with no account attached.", index: 1)
                 valueRow(Glyph.block, "Nowhere else",
@@ -395,16 +395,16 @@ struct OnboardingView: View {
     /// here with the reason beside it; iOS's prompt comes after the yes. No changes nothing.
     private var reminders: some View {
         VStack(alignment: .leading, spacing: 20) {
-            heading("Sunday reminders?", "Sundae opens once a week, so a friendly nudge helps. Just two, and only on Sundays.")
+            heading("Sundae reminders?", "Sundae opens once a week, so a friendly nudge helps. Just two, and only on Sundaes.")
 
             VStack(alignment: .leading, spacing: 16) {
-                valueRow(Glyph.bell, "Sunday, 9:00 am", "Happy Sunday. Come share your week.", index: 0)
-                valueRow(Glyph.moon, "Sunday, 8:00 pm", "A gentle evening nudge, only if you haven't shared yet. Your week stays open until midnight.", index: 1)
+                valueRow(Glyph.bell, "Sundae, 9:00 am", "Happy Sundae. Come share your week.", index: 0)
+                valueRow(Glyph.moon, "Sundae, 8:00 pm", "A gentle evening nudge, only if you haven't shared yet. Your week stays open until midnight.", index: 1)
                 valueRow(Glyph.block, "Nothing midweek", "No nudges the rest of the week. Change either one any time in Settings.", index: 2)
             }
 
             VStack(spacing: 10) {
-                PrimaryButton(title: "Remind me on Sundays", isLoading: isWorking) {
+                PrimaryButton(title: "Remind me on Sundaes", isLoading: isWorking) {
                     Task { await allowReminders() }
                 }
                 Text("iOS asks next.")

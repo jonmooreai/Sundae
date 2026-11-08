@@ -394,14 +394,14 @@ struct WeekdayView: View {
     private var countdown: String {
         if store.isResting { return "Save comes back in a minute. So do you." }
         switch model.phase {
-        case .sunday: return "It's Sunday."
+        case .sunday: return "It's Sundae."
         case .weekday(let days):
             switch days {
-            case 1: return "Sunday is tomorrow. Charge your phone."
-            case 2: return "2 days until Sunday. Make them count."
-            case 4: return "4 days until Sunday. Halfway-ish."
-            case 6: return "6 days until Sunday. No rush."
-            default: return "\(days) days until Sunday"
+            case 1: return "Sundae is tomorrow. Charge your phone."
+            case 2: return "2 days until Sundae. Make them count."
+            case 4: return "4 days until Sundae. Halfway-ish."
+            case 6: return "6 days until Sundae. No rush."
+            default: return "\(days) days until Sundae"
             }
         }
     }

@@ -182,7 +182,7 @@ class ScreenshotTests: XCTestCase {
             }
         }
 
-        XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Sundae"].waitForExistence(timeout: 20))
         snap(app, "02-feed", settle: 5)
 
         // Open the first friend's profile from a feed header.
@@ -201,8 +201,8 @@ class ScreenshotTests: XCTestCase {
             back(app)
         }
 
-        tab(app, "Approvals")
-        snap(app, "07-approvals", settle: 4)
+        tab(app, "Notifications")
+        snap(app, "07-notifications", settle: 4)
 
         tab(app, "Profile")
         snap(app, "08-profile-own", settle: 5)
@@ -229,7 +229,7 @@ class ScreenshotTests: XCTestCase {
         } else {
             snap(app, "02-sunday-prompt-dark-missing", settle: 0)
         }
-        XCTAssertTrue(app.staticTexts["Sunday"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.staticTexts["Sundae"].waitForExistence(timeout: 20))
         snap(app, "02-feed-dark", settle: 5)
     }
 }

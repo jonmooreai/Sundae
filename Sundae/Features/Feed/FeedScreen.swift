@@ -58,7 +58,7 @@ struct FeedList: View {
             VStack(spacing: 0) {
                 LazyVStack(spacing: 0) {
                     ScrollTop()
-                    ScreenHeader(title: "Sunday", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) { EmptyView() }
+                    ScreenHeader(title: "Sundae", subtitle: model.clock.rangeLabel(weekStart: model.currentWeekStart)) { EmptyView() }
                     .accessibilityElement(children: .contain)
 
                     PostYourWeekRow(onPost: onPost)
@@ -88,7 +88,7 @@ struct FeedList: View {
                     if feed.isLoading {
                         LoadingState()
                     } else if feed.hasLoaded {
-                        EmptyState("Quiet Sunday", glyph: Glyph.sun,
+                        EmptyState("Quiet Sundae", glyph: Glyph.sun,
                                    message: "Nobody you follow has posted yet. Post your week, or find your friends in Search.")
                     }
                 }

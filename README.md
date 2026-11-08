@@ -51,9 +51,9 @@ Sundae/
     Weekday/             The weekday screen and its store
     Feed/                Sunday feed, post card, "Post your week" card
     Compose/             Compose screen, tag picker, reorder, alt text, this-week library grid
-    Approvals/           Tag approvals (open every day)
+    Notifications/       The heart: follow requests, tag approvals, likes, comments and new followers
     Profile/             Profile, week rows, collapsed empty weeks, edit profile, followers and following
-    Search/              People search, follow requests, suggested people, invite link
+    Search/              People search, suggested people, invite link
     Detail/              Post detail with comments, report sheet
     Settings/            Settings, auto-approve list
     Onboarding/          Welcome, sign in, profile, invite your group
@@ -88,9 +88,9 @@ Built, against the mock:
 - Sunday feed, unranked, newest first, pull to refresh, infinite scroll, likes as names, comments
 - Compose: 1 to 15 photos, chronological default, reorder, per-photo tags (up to 10), alt text, 300-char caption, comments toggle, post and edit until midnight, delete
 - This-week camera roll filter and the Sunday "you marked this done on Thursday" prompt
-- Tag approvals, open every day
+- Notifications under the heart: follow requests, tag approvals, likes, comments, replies, mentions and new followers
 - Profiles with week rows, own then tagged photos with "from Maya" chips, collapsed empty weeks, follower and following counts that open their lists (for whoever can see the profile)
-- Search by name or username, follow and follow requests, suggested people, invite link
+- Search by name or username, follow, suggested people, invite link
 - Post detail with comments, report and block everywhere
 - Settings: appearance, public account, auto-approve list, comments, notification preferences, sign out everywhere, delete with fresh Face ID
 - Onboarding: Sign in with Apple, phone fallback (labeled as weakest), 16+ check, invite your group

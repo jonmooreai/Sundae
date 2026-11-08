@@ -85,7 +85,7 @@ struct SundaeWidget: Widget {
                 .containerBackground(for: .widget) { WidgetPalette.paper }
         }
         .configurationDisplayName("Sundae")
-        .description("Monday to Saturday, ideas worth doing, some near you. On Sunday, a few of this week's photos and a nudge to post.")
+        .description("Monday to Saturday, ideas worth doing, some near you. On Sundae, a few of this week's photos and a nudge to post.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular, .accessoryInline])
         .contentMarginsDisabled()
     }

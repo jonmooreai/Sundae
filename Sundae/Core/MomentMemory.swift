@@ -8,7 +8,6 @@ enum MomentMemory {
         static let birthday = "moments.birthdayMonthDay"
         static let birthdayFor = "moments.birthdayFor"
         static let seenSeals = "moments.seenSeals"
-        static let shownFirstSundays = "moments.shownFirstSundays"
         static let wrapShown = "moments.wrapShownWeekStart"
         static let anniversaryShown = "moments.anniversaryShownWeekStart"
         static let holidayShown = "moments.holidayShownWeekStart"
@@ -67,11 +66,6 @@ enum MomentMemory {
     static var seenSeals: Set<String> {
         get { Set(defaults.stringArray(forKey: Key.seenSeals) ?? []) }
         set { defaults.set(Array(newValue), forKey: Key.seenSeals) }
-    }
-
-    static var shownFirstSundays: Set<String> {
-        get { Set(defaults.stringArray(forKey: Key.shownFirstSundays) ?? []) }
-        set { defaults.set(Array(newValue), forKey: Key.shownFirstSundays) }
     }
 
     static var wrapShownWeekStart: Date? {

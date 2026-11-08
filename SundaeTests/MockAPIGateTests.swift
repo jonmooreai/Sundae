@@ -66,7 +66,7 @@ struct MockAPIGateTests {
 
     @Test func taggingIsLimitedToFollows() async throws {
         let api = try await signedInAPI(at: date(2026, 10, 25))
-        let stranger = User(id: "u_noor", username: "noor", name: "Noor", bio: "", avatar: nil, isPublic: true, timezone: "UTC")
+        let stranger = User(id: "u_dev", username: "dev", name: "Dev", bio: "", avatar: nil, isPublic: false, timezone: "UTC")
         let friend = try await api.taggableUsers().first!
         let photo = DraftPhoto(source: .placeholder(seed: 1), width: 10, height: 10, taggedUsers: [stranger, friend])
         let dump = try await api.saveDump(DumpDraft(photos: [photo]), weekStart: date(2026, 10, 19, hour: 0))

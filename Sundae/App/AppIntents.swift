@@ -5,12 +5,12 @@ import Foundation
 /// Both work from the shared catalog and app-group defaults, so they never need the UI.
 struct ShowSuggestionIntent: AppIntent {
     static let title: LocalizedStringResource = "Show today's suggestion"
-    static let description = IntentDescription("One thing to go do this week, and how long until Sunday.")
+    static let description = IntentDescription("One thing to go do this week, and how long until Sundae.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let clock = SundayClock()
         if clock.isSunday() {
-            return .result(dialog: "It's Sunday. Come share your week.")
+            return .result(dialog: "It's Sundae. Come share your week.")
         }
         let now = clock.now()
         let catalog = SuggestionCatalog.bundled()
@@ -27,14 +27,14 @@ struct ShowSuggestionIntent: AppIntent {
             return .result(dialog: "Go make something worth posting.")
         }
         let days = clock.daysUntilSunday()
-        let countdown = days == 1 ? "Sunday is tomorrow." : "\(days) days until Sunday."
+        let countdown = days == 1 ? "Sundae is tomorrow." : "\(days) days until Sundae."
         return .result(dialog: "\(suggestion.text) \(suggestion.reason) \(countdown)")
     }
 }
 
 struct MarkSuggestionDoneIntent: AppIntent {
     static let title: LocalizedStringResource = "Mark today's suggestion done"
-    static let description = IntentDescription("Sunday's compose screen will remind you to add the photos.")
+    static let description = IntentDescription("Sundae's compose screen will remind you to add the photos.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let clock = SundayClock()
@@ -53,7 +53,7 @@ struct MarkSuggestionDoneIntent: AppIntent {
             // Tomorrow's nearby ideas replace today's, so Sunday keeps this one whole.
             shared.setDoneLocalSuggestions(shared.doneLocalSuggestions().filter { $0.id != id } + [suggestion])
         }
-        return .result(dialog: "Done: \(suggestion.text) Sunday will remind you to add the photos.")
+        return .result(dialog: "Done: \(suggestion.text) Sundae will remind you to add the photos.")
     }
 }
 

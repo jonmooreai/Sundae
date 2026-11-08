@@ -79,8 +79,8 @@ struct SettingsView: View {
                     SettingsToggle(title: "Comments on my weeks", isOn: $settings.commentsEnabled)
                 }
 
-                SettingsGroup(title: "Notifications", footer: model.isUsingMock ? nil : "Just these two, and only on Sundays.") {
-                    SettingsToggle(title: "Sunday reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
+                SettingsGroup(title: "Notifications", footer: model.isUsingMock ? nil : "Just these two, and only on Sundaes.") {
+                    SettingsToggle(title: "Sundae reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
                     SettingsToggle(title: "Evening nudge", detail: "8:00 pm, only if you haven't shared yet", isOn: $settings.notifyLastCall)
                     // A switch that is on but can't deliver says how to fix it.
                     if settings.notifySundayReminder || settings.notifyLastCall {
@@ -95,7 +95,7 @@ struct SettingsView: View {
                     if model.isUsingMock {
                         SettingsToggle(title: "Tags", isOn: $settings.notifyTags)
                         SettingsToggle(title: "Follow requests", isOn: $settings.notifyFollowRequests)
-                        SettingsToggle(title: "Likes and comments", detail: "Sundays only", isOn: $settings.notifyLikesAndComments)
+                        SettingsToggle(title: "Likes and comments", detail: "Sundaes only", isOn: $settings.notifyLikesAndComments)
                         SettingsToggle(title: "Approved tags", isOn: $settings.notifyTagApproved)
                     }
                 }
@@ -119,8 +119,8 @@ struct SettingsView: View {
             if model.canChangeDay {
                 SettingsGroup(title: model.isUsingMock ? "Demo" : "Admin",
                               footer: model.isUsingMock
-                                ? "Built-in demo data. Move the clock to see Sunday any day."
-                                : "Only you see this. Sunday opens for you any day; everyone else waits for Sunday. Holiday dresses the week up as Valentine's Day, Halloween or Christmas; Birthday week brings out the birthday sundae.") {
+                                ? "Built-in demo data. Move the clock to see Sundae any day."
+                                : "Only you see this. Sundae opens for you any day; everyone else waits for Sundae. Holiday dresses the week up as Valentine's Day, Halloween or Christmas; Birthday week brings out the birthday sundae.") {
                     SegmentedChoice(options: DebugDay.allCases.map { ($0, $0.shortLabel) },
                                     selection: Binding(get: { model.debugDay }, set: { model.setDebugDay($0) }))
                         // As tall as every other row.

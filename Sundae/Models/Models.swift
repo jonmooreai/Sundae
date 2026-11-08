@@ -171,6 +171,36 @@ struct TagRequest: Identifiable, Hashable, Sendable {
     var id: ID { tag.id }
 }
 
+/// Something that happened around you lately, for Notifications: a like, a comment, a new
+/// follower. Each knows who did it, when, and what it was on.
+struct ActivityItem: Identifiable, Hashable, Sendable {
+    enum Kind: String, Sendable {
+        /// On your week.
+        case like, comment
+        /// To your comment, or naming you, on someone else's week.
+        case reply, mention
+        case commentLike = "comment_like"
+        /// A new follower who needed no yes.
+        case follow
+        /// Your request to follow someone, said yes to.
+        case followAccepted = "follow_accepted"
+        /// Someone you tagged said yes.
+        case tagApproved = "tag_approved"
+    }
+
+    var id: String
+    var kind: Kind
+    var actor: User
+    var at: Date
+    var dumpID: ID?
+    var weekStart: Date?
+    var photo: PhotoSource?
+    var commentID: ID?
+    var commentBody: String?
+    /// How you stand with the actor, for the Follow back button on a new follower.
+    var relationship: Relationship
+}
+
 /// A photo that landed on someone's profile through an approved tag.
 struct TaggedPhoto: Identifiable, Hashable, Sendable {
     var photo: Photo
@@ -374,8 +404,8 @@ enum SundaeError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .sundayClosed: "The feed opens on Sunday. See you then."
-        case .dumpLocked: "Sunday has wrapped up, so this week is all set."
+        case .sundayClosed: "The feed opens on Sundae. See you then."
+        case .dumpLocked: "Sundae has wrapped up, so this week is all set."
         case .invalidPhoto: "We couldn't open that photo. Want to try another?"
         case .tooManyPhotos: "A week holds up to \(DumpDraft.maxPhotos) photos. Pick your favorites."
         case .tooManyTags: "You can tag up to \(DumpDraft.maxTagsPerPhoto) people per photo."

@@ -18,7 +18,7 @@ struct WidgetGalleryView: View {
             photos: mode == .sunday ? photos : ([], 0))
 
         SettingsScreen(title: "Widgets") {
-            SegmentedChoice(options: [(WidgetSnapshot.Mode.weekday, "Monday to Saturday"), (.sunday, "Sunday")],
+            SegmentedChoice(options: [(WidgetSnapshot.Mode.weekday, "Monday to Saturday"), (.sunday, "Sundae")],
                             selection: $mode)
 
             VStack(alignment: .leading, spacing: 18) {
@@ -74,7 +74,7 @@ struct WidgetGalleryView: View {
                 }
             }
         case .denied, .restricted:
-            SettingsGroup(footer: "Photos is off for Sundae, so Sunday shows the sundae.") {
+            SettingsGroup(footer: "Photos is off for Sundae, so on Sundae the widget shows a sundae.") {
                 SettingsActionRow(title: "Open iOS Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 }

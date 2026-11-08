@@ -39,11 +39,13 @@ protocol SundaeAPI: Sendable {
     func deleteComment(id: ID) async throws
     func setCommentLike(id: ID, liked: Bool) async throws -> Comment
     func profile(userID: ID) async throws -> Profile
-    func searchUsers(_ query: String) async throws -> [User]
-    func suggestedUsers() async throws -> [User]
+    /// People found by name or username, with how the user stands with each.
+    func searchUsers(_ query: String) async throws -> [ListedPerson]
+    func suggestedUsers() async throws -> [ListedPerson]
     func follow(userID: ID) async throws -> Relationship
     func unfollow(userID: ID) async throws
-    func followRequests() async throws -> [User]
+    /// People waiting on the user, with how the user stands with each. Accepting never follows back.
+    func followRequests() async throws -> [ListedPerson]
     func respondToFollowRequest(from userID: ID, accept: Bool) async throws
     /// People the user follows or who follow them. The only people they can tag.
     func taggableUsers() async throws -> [User]
@@ -66,6 +68,9 @@ protocol SundaeAPI: Sendable {
     /// while the account is private.
     func removeFollower(userID: ID) async throws
     func pendingTagRequests() async throws -> [TagRequest]
+    /// What happened around the user lately, newest first: four weeks back, up to sixty. Empty
+    /// from a server that does not have it yet.
+    func activity() async throws -> [ActivityItem]
     func respondToTag(id: ID, approve: Bool) async throws
     func removeTaggedPhoto(tagID: ID) async throws
     func suggestionsDone(weekStart: Date) async throws -> [SuggestionDone]

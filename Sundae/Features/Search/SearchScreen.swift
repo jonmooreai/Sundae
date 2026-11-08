@@ -22,16 +22,20 @@ struct SearchScreen: View {
 }
 
 /// Find people by name or username. No hashtags, no explore.
+///
+/// A plain stack, not a List: in a List a tap on the row can land on a button in it, and a tap
+/// meant to open someone's profile must never follow them. Here the name opens the profile and
+/// the button is only the button.
 struct SearchView: View {
     @Environment(AppModel.self) private var model
     @State private var query = ""
-    @State private var results: [User] = []
-    @State private var suggested: [User] = []
-    @State private var requests: [User] = []
+    @State private var results: [ListedPerson] = []
+    @State private var suggested: [ListedPerson] = []
+    /// How you stand with people since you followed or unfollowed them here.
     @State private var relationships: [ID: Relationship] = [:]
+    @State private var working: Set<ID> = []
+    @State private var confirmUnfollow: User?
     @State private var isSearching = false
-    /// Requests just confirmed, showing their moment before the row leaves.
-    @State private var confirmed: Set<ID> = []
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scrollToTop) private var scrollToTop
 
@@ -49,78 +53,38 @@ struct SearchView: View {
                 .padding(.horizontal, Theme.pagePadding)
                 .padding(.bottom, 6)
             ScrollViewReader { proxy in
-            List {
-                if !requests.isEmpty && query.isEmpty {
-                    Section {
-                        ForEach(requests) { user in
-                            HStack(spacing: 8) {
-                                // The name and the username together: a name can be copied, a username can't.
-                                UserRow(user: user, title: user.displayName, subtitle: user.handle)
-                                if confirmed.contains(user.id) {
-                                    HStack(spacing: 5) {
-                                        Icon(Glyph.done, weight: .bold, size: 14)
-                                        Text("Friends")
-                                    }
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(Color.accentColor)
-                                    .frame(height: 36)
-                                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-                                } else {
-                                    Button("Confirm") { respond(user, accept: true) }
-                                        .buttonStyle(.pill(.primary, size: .small))
-                                    Button("Delete") { respond(user, accept: false) }
-                                        .buttonStyle(.pill(.secondary, size: .small))
-                                }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ScrollTop()
+                        if query.isEmpty {
+                            if !suggested.isEmpty {
+                                header("Suggested for you")
+                                ForEach(suggested) { person in row(person) }
                             }
-                            .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
-                            .listRowInsets(rowInsets)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .transition(.asymmetric(insertion: .opacity,
-                                                    removal: .move(edge: .trailing).combined(with: .opacity)))
-                        }
-                    } header: {
-                        header("Follow requests")
-                    }
-                }
-
-                if query.isEmpty {
-                    if !suggested.isEmpty {
-                        Section {
-                            ForEach(suggested) { user in row(user) }
-                        } header: {
-                            header("Suggested for you")
+                            ShareLink(item: Invite.note, subject: Text(Invite.subject)) {
+                                actionRow(Glyph.share, "Invite your group", "Sundae works when the whole group is here.")
+                            }
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, Theme.pagePadding)
+                            .padding(.vertical, 8)
+                            .padding(.top, suggested.isEmpty ? 0 : 8)
+                        } else {
+                            ForEach(results) { person in row(person) }
                         }
                     }
-                    Section {
-                        ShareLink(item: Invite.note, subject: Text(Invite.subject)) {
-                            actionRow(Glyph.share, "Invite your group", "Sundae works when the whole group is here.")
-                        }
-                        .foregroundStyle(.primary)
-                        .listRowInsets(rowInsets)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                    }
-                } else {
-                    Section {
-                        ForEach(results) { user in row(user) }
+                    .padding(.bottom, 24)
+                }
+                .scrollDismissesKeyboard(.immediately)
+                .overlay {
+                    if !query.isEmpty && results.isEmpty && !isSearching {
+                        EmptyState(glyph: Glyph.search, message: "Nobody by that name yet.")
                     }
                 }
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .environment(\.defaultMinListRowHeight, 70)
-            .overlay {
-                if !query.isEmpty && results.isEmpty && !isSearching {
-                    EmptyState(glyph: Glyph.search, message: "Nobody by that name yet.")
+                // The tab tapped again: a fresh search, from the top.
+                .onChange(of: scrollToTop) { _, _ in
+                    query = ""
+                    withAnimation(reduceMotion ? nil : .snappy(duration: 0.4)) { proxy.scrollTo(ScrollTop.id, anchor: .top) }
                 }
-            }
-            // The tab tapped again: a fresh search, from the top.
-            .onChange(of: scrollToTop) { _, _ in
-                query = ""
-                guard let first = requests.first?.id ?? suggested.first?.id else { return }
-                withAnimation(reduceMotion ? nil : .snappy(duration: 0.4)) { proxy.scrollTo(first, anchor: .top) }
-            }
             }
         }
         .background(Theme.background)
@@ -138,18 +102,26 @@ struct SearchView: View {
             results = (try? await model.api.searchUsers(query)) ?? []
             isSearching = false
         }
-    }
-
-    private var rowInsets: EdgeInsets {
-        EdgeInsets(top: 8, leading: Theme.pagePadding, bottom: 8, trailing: Theme.pagePadding)
+        .confirmationDialog(confirmUnfollow.map { PeopleListView.unfollowTitle($0) } ?? "Unfollow?",
+                            isPresented: Binding(get: { confirmUnfollow != nil }, set: { if !$0 { confirmUnfollow = nil } }),
+                            titleVisibility: .visible,
+                            presenting: confirmUnfollow) { user in
+            Button("Unfollow", role: .destructive) { Task { await setFollowing(user, false) } }
+        } message: { user in
+            Text(user.isPublic
+                 ? "Their weeks leave your feed. You can follow again any time."
+                 : "Their weeks leave your feed. Their account is private, so following again is a new request.")
+        }
     }
 
     private func header(_ title: String) -> some View {
         Text(title)
             .font(.body.weight(.semibold))
             .foregroundStyle(.primary)
-            .textCase(nil)
-            .listRowInsets(EdgeInsets(top: 12, leading: Theme.pagePadding, bottom: 4, trailing: Theme.pagePadding))
+            .padding(.horizontal, Theme.pagePadding)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            .accessibilityAddTraits(.isHeader)
     }
 
     private func actionRow(_ glyph: Ph, _ title: String, _ subtitle: String) -> some View {
@@ -163,58 +135,56 @@ struct SearchView: View {
             }
             Spacer(minLength: 0)
         }
+        .contentShape(Rectangle())
     }
 
-    /// Row content with an invisible navigation link behind it, so there is no chevron.
-    private func row(_ user: User) -> some View {
-        HStack(spacing: 8) {
-            UserRow(user: user)
-            FollowButton(relationship: relationships[user.id] ?? .notFollowing) {
-                Task { await toggleFollow(user) }
+    /// The person opens their profile; the button beside them says how you stand with them now:
+    /// Follow, Follow back, Requested or Following.
+    private func row(_ person: ListedPerson) -> some View {
+        let relationship = relationships[person.id] ?? person.relationship
+        return HStack(spacing: 8) {
+            NavigationLink(value: Route.profile(person.id)) {
+                UserRow(user: person.user)
             }
+            .buttonStyle(.plain)
+            FollowButton(relationship: relationship, followsYou: person.followsYou) {
+                tapFollow(person.user, relationship)
+            }
+            .disabled(working.contains(person.id))
         }
-        .background { NavigationLink(value: Route.profile(user.id)) { EmptyView() }.opacity(0) }
-        .listRowInsets(rowInsets)
-        .listRowSeparator(.hidden)
-        .listRowBackground(Color.clear)
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.vertical, 8)
     }
 
     private func loadInitial() async {
-        requests = (try? await model.api.followRequests()) ?? []
         suggested = (try? await model.api.suggestedUsers()) ?? []
     }
 
-    private func toggleFollow(_ user: User) async {
-        let current = relationships[user.id] ?? .notFollowing
+    /// Follow and Follow back follow; a request is simply taken back; Following asks first.
+    private func tapFollow(_ user: User, _ relationship: Relationship) {
+        switch relationship {
+        case .notFollowing: Task { await setFollowing(user, true) }
+        case .requested: Task { await setFollowing(user, false) }
+        case .following: confirmUnfollow = user
+        case .me, .blocked: break
+        }
+    }
+
+    private func setFollowing(_ user: User, _ follow: Bool) async {
+        guard working.insert(user.id).inserted else { return }
+        defer { working.remove(user.id) }
         do {
-            if current == .notFollowing {
+            if follow {
                 relationships[user.id] = try await model.api.follow(userID: user.id)
                 Haptics.light()
             } else {
                 try await model.api.unfollow(userID: user.id)
                 relationships[user.id] = .notFollowing
             }
+            model.followsChanged += 1
+            Task { await model.compose.refreshTaggable() }
         } catch {
             // The server decides; the row stays as it was.
-        }
-    }
-
-    /// Confirm shows a brief "Friends" before the row slides away; Delete just slides away.
-    private func respond(_ user: User, accept: Bool) {
-        if accept {
-            Haptics.success()
-            withAnimation(reduceMotion ? nil : .bouncy(duration: 0.4)) { _ = confirmed.insert(user.id) }
-        } else {
-            Haptics.light()
-        }
-        Task {
-            if accept, !reduceMotion {
-                try? await Task.sleep(for: .milliseconds(700))
-            }
-            withAnimation(reduceMotion ? nil : .snappy(duration: 0.35)) { requests.removeAll { $0.id == user.id } }
-            confirmed.remove(user.id)
-            try? await model.api.respondToFollowRequest(from: user.id, accept: accept)
-            await model.compose.refreshTaggable()
         }
     }
 }

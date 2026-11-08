@@ -6,7 +6,10 @@
 // 4: admins by the Apple id they sign in with (admin_apple_ids), not by account.
 // 5: replies to comments (parent_id, COLUMNS) and cherries on photos (photo_cherries).
 // 6: cherries taken out again, with every one given (photo_cherries dropped).
-export const SCHEMA_VERSION = '6';
+// 7: when a request to follow was accepted (empty for a follow that needed none) and when a comment
+//    was liked (COLUMNS), for the activity list; requests to accounts already public accepted, as
+//    following a public account needs no yes.
+export const SCHEMA_VERSION = '7';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -27,8 +30,10 @@ export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS used_nonces (hash TEXT PRIMARY KEY, expires_at INTEGER NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS follows (
      follower_id TEXT NOT NULL, followee_id TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL,
-     PRIMARY KEY (follower_id, followee_id))`,
+     accepted_at TEXT, PRIMARY KEY (follower_id, followee_id))`,
   `CREATE INDEX IF NOT EXISTS follows_followee ON follows (followee_id, status)`,
+  // A request left waiting on someone who has since gone public: public means no yes is needed.
+  `UPDATE follows SET status = 'accepted' WHERE status = 'requested' AND followee_id IN (SELECT id FROM users WHERE is_public = 1)`,
   `CREATE TABLE IF NOT EXISTS blocks (blocker_id TEXT NOT NULL, blocked_id TEXT NOT NULL, PRIMARY KEY (blocker_id, blocked_id))`,
   `CREATE INDEX IF NOT EXISTS blocks_blocked ON blocks (blocked_id)`,
   `CREATE TABLE IF NOT EXISTS uploads (
@@ -48,12 +53,15 @@ export const SCHEMA = [
      id TEXT PRIMARY KEY, photo_id TEXT NOT NULL, tagger_id TEXT NOT NULL, tagged_user_id TEXT NOT NULL,
      status TEXT NOT NULL, responded_at TEXT, created_at TEXT NOT NULL, UNIQUE (photo_id, tagged_user_id))`,
   `CREATE INDEX IF NOT EXISTS tags_tagged ON tags (tagged_user_id, status)`,
+  `CREATE INDEX IF NOT EXISTS tags_tagger ON tags (tagger_id, status)`,
   `CREATE TABLE IF NOT EXISTS likes (dump_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (dump_id, user_id))`,
   `CREATE TABLE IF NOT EXISTS comments (
      id TEXT PRIMARY KEY, dump_id TEXT NOT NULL, author_id TEXT NOT NULL, body TEXT NOT NULL,
      created_at TEXT NOT NULL, edited_at TEXT, parent_id TEXT)`,
   `CREATE INDEX IF NOT EXISTS comments_dump ON comments (dump_id, created_at)`,
-  `CREATE TABLE IF NOT EXISTS comment_likes (comment_id TEXT NOT NULL, user_id TEXT NOT NULL, PRIMARY KEY (comment_id, user_id))`,
+  `CREATE INDEX IF NOT EXISTS comments_author ON comments (author_id)`,
+  `CREATE TABLE IF NOT EXISTS comment_likes (
+     comment_id TEXT NOT NULL, user_id TEXT NOT NULL, created_at TEXT, PRIMARY KEY (comment_id, user_id))`,
   // Cherries on photos came and went; none are kept.
   `DROP TABLE IF EXISTS photo_cherries`,
   `CREATE TABLE IF NOT EXISTS suggestions_done (
@@ -70,6 +78,8 @@ export const SCHEMA = [
 export const COLUMNS = [
   { table: 'photos', column: 'caption', sql: 'ALTER TABLE photos ADD COLUMN caption TEXT' },
   { table: 'comments', column: 'parent_id', sql: 'ALTER TABLE comments ADD COLUMN parent_id TEXT' },
+  { table: 'follows', column: 'accepted_at', sql: 'ALTER TABLE follows ADD COLUMN accepted_at TEXT' },
+  { table: 'comment_likes', column: 'created_at', sql: 'ALTER TABLE comment_likes ADD COLUMN created_at TEXT' },
 ];
 
 let ready = null;

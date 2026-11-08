@@ -37,6 +37,7 @@ struct ProfileView: View {
     @State private var showSettings = false
     @State private var showEdit = false
     @State private var reporting = false
+    @State private var confirmUnfollow = false
 
     private var isOwn: Bool { userID == model.currentUser?.id }
 
@@ -111,6 +112,14 @@ struct ProfileView: View {
         .sheet(isPresented: $reporting) {
             ReportSheet(target: .profile, targetID: userID)
         }
+        .confirmationDialog(profile.map { PeopleListView.unfollowTitle($0.user) } ?? "Unfollow?",
+                            isPresented: $confirmUnfollow, titleVisibility: .visible) {
+            Button("Unfollow", role: .destructive) { Task { await setFollowing(false) } }
+        } message: {
+            Text(profile?.user.isPublic ?? true
+                 ? "Their weeks leave your feed. You can follow again any time."
+                 : "Their weeks leave your feed. Their account is private, so following again is a new request.")
+        }
         .task(id: userID) { await load() }
         .refreshable { await load() }
         // Someone removed, followed or unfollowed from a list opened here: the counts follow.
@@ -152,17 +161,29 @@ struct ProfileView: View {
         }
     }
 
+    /// Follow follows (or asks, on a private account); a request is simply taken back; Following
+    /// asks first, since following a private account again is a new request.
     private func toggleFollow() async {
-        guard let current = profile?.relationship else { return }
+        switch profile?.relationship {
+        case .notFollowing: await setFollowing(true)
+        case .requested: await setFollowing(false)
+        case .following: confirmUnfollow = true
+        case .me, .blocked, nil: break
+        }
+    }
+
+    private func setFollowing(_ follow: Bool) async {
         do {
-            if current == .notFollowing {
+            if follow {
                 profile?.relationship = try await model.api.follow(userID: userID)
                 Haptics.light()
             } else {
                 try await model.api.unfollow(userID: userID)
                 profile?.relationship = .notFollowing
             }
-            await load()
+            // This profile and yours reload with the new counts, and tagging knows who is a friend.
+            model.followsChanged += 1
+            Task { await model.compose.refreshTaggable() }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -230,7 +251,7 @@ struct ProfileHeader: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        Text("Sundays only")
+                        Text("Sundaes only")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }

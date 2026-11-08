@@ -58,6 +58,7 @@ enum Glyph {
     static var search: Ph { .magnifyingGlass }
     static var post: Ph { .plusSquare }
     static var approvals: Ph { .checkCircle }
+    static var notifications: Ph { .heart }
     static var profile: Ph { .userCircle }
     static var settings: Ph { .gearSix }
     static var shuffle: Ph { .shuffle }

@@ -200,14 +200,14 @@ actor LiveSundaeAPI: SundaeAPI {
         return profile.model
     }
 
-    func searchUsers(_ query: String) async throws -> [User] {
-        let users: [DTO.User] = try await client.get("v1/users/search", query: [URLQueryItem(name: "q", value: query)])
-        return users.map(\.model)
+    func searchUsers(_ query: String) async throws -> [ListedPerson] {
+        let people: DTO.LossyList<DTO.ListedUser> = try await client.get("v1/users/search", query: [URLQueryItem(name: "q", value: query)])
+        return people.elements.map(\.model)
     }
 
-    func suggestedUsers() async throws -> [User] {
-        let users: [DTO.User] = try await client.get("v1/users/suggested")
-        return users.map(\.model)
+    func suggestedUsers() async throws -> [ListedPerson] {
+        let people: DTO.LossyList<DTO.ListedUser> = try await client.get("v1/users/suggested")
+        return people.elements.map(\.model)
     }
 
     func follow(userID: ID) async throws -> Relationship {
@@ -219,9 +219,9 @@ actor LiveSundaeAPI: SundaeAPI {
         let _: HTTPClient.Empty = try await client.delete("v1/users/\(userID)/follow")
     }
 
-    func followRequests() async throws -> [User] {
-        let users: [DTO.User] = try await client.get("v1/me/follow-requests")
-        return users.map(\.model)
+    func followRequests() async throws -> [ListedPerson] {
+        let people: DTO.LossyList<DTO.ListedUser> = try await client.get("v1/me/follow-requests")
+        return people.elements.map(\.model)
     }
 
     func respondToFollowRequest(from userID: ID, accept: Bool) async throws {
@@ -258,6 +258,16 @@ actor LiveSundaeAPI: SundaeAPI {
     func pendingTagRequests() async throws -> [TagRequest] {
         let requests: DTO.LossyList<DTO.TagRequest> = try await client.get("v1/me/tag-requests")
         return requests.elements.map(\.model)
+    }
+
+    func activity() async throws -> [ActivityItem] {
+        do {
+            let items: DTO.LossyList<DTO.Activity> = try await client.get("v1/me/activity")
+            return items.elements.compactMap { try? $0.model() }
+        } catch SundaeError.notFound {
+            // A server from before Notifications: nothing to show yet.
+            return []
+        }
     }
 
     func respondToTag(id: ID, approve: Bool) async throws {

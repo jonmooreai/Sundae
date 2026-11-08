@@ -24,10 +24,10 @@ struct RootView: View {
 }
 
 enum SundayTab: Hashable, CaseIterable {
-    case feed, search, post, approvals, profile
+    case feed, search, post, notifications, profile
 }
 
-/// Familiar skeleton with our own bottom bar: Feed, Search, Post, Approvals, Profile.
+/// Familiar skeleton with our own bottom bar: Feed, Search, Post, Notifications, Profile.
 /// The system TabView does the paging (so every tab keeps its scroll position and navigation)
 /// with its own bar hidden; the bar you see is `SundaeTabBar`.
 ///
@@ -81,10 +81,10 @@ struct SundayShell: View {
             Tab(value: SundayTab.post) {
                 Color.clear.tabPage(barHeight: pageInset, systemBar: sideBars)
             } label: { Label { Text("Share your week") } icon: { TabIcon.image(Glyph.post) } }
-            Tab(value: SundayTab.approvals) {
-                ApprovalsScreen(reselects: reselects[.approvals, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
-            } label: { Label { Text("Approvals") } icon: { TabIcon.image(Glyph.approvals) } }
-            .badge(model.pendingApprovalCount)
+            Tab(value: SundayTab.notifications) {
+                NotificationsScreen(reselects: reselects[.notifications, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
+            } label: { Label { Text("Notifications") } icon: { TabIcon.image(Glyph.notifications) } }
+            .badge(model.notificationBadge)
             Tab(value: SundayTab.profile) {
                 ProfileScreen(reselects: reselects[.profile, default: 0]).tabPage(barHeight: pageInset, systemBar: sideBars)
             } label: { Label { Text("Profile") } icon: { TabIcon.image(Glyph.profile) } }
@@ -93,7 +93,7 @@ struct SundayShell: View {
         // TabView itself never reached the pages, so a screen's bottom composer sat under the bar.
         .overlay(alignment: .bottom) {
             if !sideBars {
-                SundaeTabBar(selected: $tab, pendingApprovals: model.pendingApprovalCount, user: model.currentUser, onPost: openCompose,
+                SundaeTabBar(selected: $tab, badge: model.notificationBadge, user: model.currentUser, onPost: openCompose,
                              onReselect: { reselects[$0, default: 0] += 1 })
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                     // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
@@ -258,7 +258,8 @@ enum TabIcon {
 /// posting flow instead of switching tabs, and the Profile item is your own avatar.
 struct SundaeTabBar: View {
     @Binding var selected: SundayTab
-    let pendingApprovals: Int
+    /// On the heart: what is waiting on you and what is new.
+    let badge: Int
     let user: User?
     let onPost: () -> Void
     /// The tab that was already showing was tapped again.
@@ -295,7 +296,7 @@ struct SundaeTabBar: View {
                 Spacer(minLength: 0)
                 HStack(spacing: 0) {
                     postItem
-                    item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+                    item(.notifications, Glyph.notifications, "Notifications", badge: badge)
                     profileItem
                 }
                 .frame(width: pages.right)
@@ -303,7 +304,7 @@ struct SundaeTabBar: View {
                 item(.feed, Glyph.feed, "Feed")
                 item(.search, Glyph.search, "Search")
                 postItem
-                item(.approvals, Glyph.approvals, "Approvals", badge: pendingApprovals)
+                item(.notifications, Glyph.notifications, "Notifications", badge: badge)
                 profileItem
             }
         }
@@ -368,7 +369,7 @@ struct SundaeTabBar: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(badge > 0 ? "\(label), \(badge) waiting" : label)
+        .accessibilityLabel(badge > 0 ? "\(label), \(badge) new" : label)
         .accessibilityIdentifier("tab-\(label.lowercased())")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
