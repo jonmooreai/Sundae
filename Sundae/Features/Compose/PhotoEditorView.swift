@@ -64,6 +64,13 @@ struct PhotoEditorView: View {
     @State private var data: Data?
     @State private var base: CIImage?
     @State private var preview: UIImage?
+    /// The photo as it came in, for a look at the before.
+    @State private var original: UIImage?
+    /// Held on the photo: the before shows until the finger lifts.
+    @GestureState private var holding = false
+    /// Tapped: the before shows for a moment.
+    @State private var glimpse = false
+    @State private var glimpseTask: Task<Void, Never>?
     @State private var failed = false
     @State private var isSaving = false
     @State private var renderFailed = false
@@ -71,6 +78,7 @@ struct PhotoEditorView: View {
     @State private var zoomStart: Double?
 
     private var isMoving: Bool { dragStart != nil || zoomStart != nil }
+    private var showsBefore: Bool { (holding || glimpse) && original != nil }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,7 +86,7 @@ struct PhotoEditorView: View {
             canvas
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             controls
-                .frame(height: 132)
+                .frame(height: 104)
                 .padding(.horizontal, Theme.pagePadding)
             tools
         }
@@ -133,31 +141,55 @@ struct PhotoEditorView: View {
                     .frame(width: layout.shown.width, height: layout.shown.height)
                     .offset(x: -CGFloat(edits.offsetX) * layout.slack.width, y: -CGFloat(edits.offsetY) * layout.slack.height)
                 ZStack {
-                    // The rest of the photo, faint, beyond the frame, while cropping.
-                    placed.opacity(tool == .crop ? 0.22 : 0)
-                    placed
-                        .frame(width: layout.frame.width, height: layout.frame.height)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                        .overlay {
-                            if tool == .crop {
-                                ThirdsGrid().opacity(isMoving ? 1 : 0.55)
+                    ZStack {
+                        // The rest of the photo, faint, beyond the frame, while cropping.
+                        placed.opacity(tool == .crop ? 0.22 : 0)
+                        placed
+                            .frame(width: layout.frame.width, height: layout.frame.height)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .overlay {
+                                if tool == .crop {
+                                    ThirdsGrid().opacity(isMoving ? 1 : 0.55)
+                                }
                             }
-                        }
+                    }
+                    .opacity(showsBefore ? 0 : 1)
+                    // The before: the photo as it came in, whole, nothing changed.
+                    if showsBefore, let original {
+                        Image(uiImage: original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: room.width, maxHeight: room.height)
+                            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                            .overlay(alignment: .top) {
+                                Text("Before")
+                                    .font(.footnote.weight(.semibold))
+                                    .padding(.horizontal, 12)
+                                    .frame(height: 28)
+                                    .background(.regularMaterial, in: Capsule())
+                                    .padding(10)
+                            }
+                            .transition(.opacity)
+                    }
                 }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: showsBefore)
                 .frame(width: geo.size.width, height: geo.size.height)
                 .clipped()
                 .contentShape(Rectangle())
                 .gesture(moveGesture(slack: layout.slack).simultaneously(with: zoomGesture))
-                .onTapGesture(count: 2) {
-                    withAnimation(reduceMotion ? nil : .snappy) {
-                        edits.zoom = 1
-                        edits.offsetX = 0
-                        edits.offsetY = 0
-                    }
-                }
+                // Hold to see the before until the finger lifts; a tap shows it for a moment.
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.25, maximumDistance: 8)
+                        .sequenced(before: DragGesture(minimumDistance: 0))
+                        .updating($holding) { value, state, _ in
+                            if case .second(true, _) = value { state = true }
+                        }
+                )
+                .onTapGesture { glimpseBefore() }
                 .animation(reduceMotion || isMoving ? nil : .snappy(duration: 0.3), value: edits.aspect)
                 .accessibilityElement()
-                .accessibilityLabel("The photo. Drag to move it in the frame, pinch to come closer.")
+                .accessibilityLabel("The photo. Drag to move it in the frame, pinch to come closer, hold to see the before.")
+                .accessibilityAction(named: "Show the before") { glimpseBefore() }
             }
         } else if failed {
             EmptyState(glyph: Glyph.photos, message: "We couldn't open this photo. Check your connection and try again.")
@@ -183,6 +215,7 @@ struct PhotoEditorView: View {
     private func moveGesture(slack: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 2)
             .onChanged { value in
+                guard !holding else { return }
                 let start = dragStart ?? edits
                 dragStart = start
                 if slack.width > 0 { edits.offsetX = PhotoEditing.clamp(start.offsetX - Double(value.translation.width / slack.width)) }
@@ -236,15 +269,6 @@ struct PhotoEditorView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Turn a quarter")
-                }
-                HStack {
-                    Spacer()
-                    Button("Start over") {
-                        withAnimation(reduceMotion ? nil : .snappy) { edits = PhotoEdits() }
-                    }
-                    .font(.subheadline)
-                    .textButtonTint()
-                    .disabled(edits.isUntouched)
                 }
             }
             .padding(.top, 8)
@@ -398,7 +422,20 @@ struct PhotoEditorView: View {
         }
         data = loaded
         base = image
+        original = PhotoEditing.preview(image, PhotoEdits())
         redraw()
+    }
+
+    /// The before, for a moment, then the photo as it is now.
+    private func glimpseBefore() {
+        guard original != nil else { return }
+        glimpseTask?.cancel()
+        glimpse = true
+        glimpseTask = Task {
+            try? await Task.sleep(for: .milliseconds(1200))
+            guard !Task.isCancelled else { return }
+            glimpse = false
+        }
     }
 
     private func redraw() {
