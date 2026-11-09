@@ -142,7 +142,7 @@ jobs:
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
             SCREENSHOT_DIR="$PWD/screenshots" \
-            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
+            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
 
       # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
@@ -186,7 +186,7 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
-            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
+            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
           kill "$SAMPLER" 2>/dev/null || true
           # The main thread of each sample, so a stuck layout shows in the log itself.
           for f in samples/*.txt; do
@@ -240,7 +240,7 @@ jobs:
               -default-test-execution-time-allowance 600 \
               -maximum-test-execution-time-allowance 900 \
               SUNDAE_POSE="$1" SCREENSHOT_DIR="$PWD/screenshots" \
-              2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
+              2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
             grep -Eq "TEST (EXECUTE )?SUCCEEDED" "test-duo-$1.log" || echo "::warning::the $1 pose had a failing screen; see test-duo-$1.log"
           }
           pose open open

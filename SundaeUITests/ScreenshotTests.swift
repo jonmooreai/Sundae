@@ -235,24 +235,38 @@ class ScreenshotTests: XCTestCase {
         if earlier.waitForExistence(timeout: 2) { earlier.tap() }
         app.swipeUp()
         snap(app, "02-feed-earlier-weeks", settle: 3)
+        // Back to the top of the feed: the tab, tapped again, scrolls its screen up. Tapped once
+        // more in case the first tap only came back from a pushed screen.
         tab(app, "Feed")
         tab(app, "Feed")
+        Thread.sleep(forTimeInterval: 1.5)
+        // If the tab did not scroll it up, drag the feed back to its title by hand.
+        var pulls = 0
+        while !app.staticTexts["Sundae"].isHittable && pulls < 6 { app.swipeDown(); pulls += 1 }
 
-        // Open the first friend's profile from a feed header.
-        let author = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'author-'")).firstMatch
-        if author.waitForExistence(timeout: 8) {
-            author.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        // Open the first friend's profile from a feed header: the first one that is on screen,
+        // never one scrolled away, which a tap could land beside.
+        let authors = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'author-'"))
+        if let author = (0..<min(authors.count, 4)).map({ authors.element(boundBy: $0) }).first(where: { $0.isHittable }) {
+            author.tap()
             snap(app, "03-profile-friend", settle: 5)
+            XCTAssertTrue(backButton(app).waitForExistence(timeout: 3), "a way back from a profile on every device")
             back(app)
+            Thread.sleep(forTimeInterval: 1)
         }
 
         // Dump detail with comments. Back is there whichever edge the system put it on: the
         // page's own header on a phone, the side strip on an iPhone Duo.
-        let comments = app.buttons["Comments"].firstMatch
-        if comments.waitForExistence(timeout: 5) {
-            comments.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let comments = app.buttons.matching(identifier: "Comments")
+        if let comment = (0..<min(comments.count, 4)).map({ comments.element(boundBy: $0) }).first(where: { $0.isHittable }) {
+            comment.tap()
             snap(app, "04-dump-detail", settle: 4)
-            XCTAssertTrue(backButton(app).waitForExistence(timeout: 3), "a way back on every device")
+            let hasBack = backButton(app).waitForExistence(timeout: 3)
+            if !hasBack {
+                // What the test is looking at, so a miss can be read from the log alone.
+                print("[back-missing] buttons: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label)) navbars: \(app.navigationBars.count)")
+            }
+            XCTAssertTrue(hasBack, "a way back from a post on every device")
             back(app)
         }
 
