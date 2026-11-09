@@ -53,6 +53,8 @@ private struct SideBarsReader: View {
 
 /// A header's icon button: round and plain in the page, and in the Duo's side strip a toolbar
 /// item with a title the strip and its overflow menu can use. One view, right in both places.
+/// Strip glyphs are drawn at a fixed 20 points (`TabIcon`), the size the strip gives a symbol;
+/// a resizable icon there came out half again as big as the tabs beside it.
 struct ChromeButton: View {
     let glyph: Ph
     let title: String
@@ -63,7 +65,7 @@ struct ChromeButton: View {
     var body: some View {
         if sideBars {
             Button(action: action) {
-                Label { Text(title) } icon: { Icon(glyph, size: 20) }
+                Label { Text(title) } icon: { TabIcon.image(glyph, size: 20) }
             }
             .accessibilityLabel(title)
         } else {
@@ -83,7 +85,7 @@ struct ChromeMenu<Items: View>: View {
             items()
         } label: {
             if sideBars {
-                Label { Text(title) } icon: { Icon(Glyph.more, weight: .bold, size: 20) }
+                Label { Text(title) } icon: { TabIcon.image(Glyph.more, weight: .bold, size: 20) }
             } else {
                 Icon(Glyph.more, weight: .bold, size: 24)
                     .foregroundStyle(.primary)
@@ -106,7 +108,7 @@ struct SideBarNavigation: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .cancellationAction) {
             Button(action: action) {
-                Label { Text("Close") } icon: { Icon(Glyph.close, size: 20) }
+                Label { Text("Close") } icon: { TabIcon.image(Glyph.close, size: 20) }
             }
             .accessibilityIdentifier("Close")
         }

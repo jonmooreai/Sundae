@@ -221,16 +221,25 @@ private extension View {
 /// which the bar would show at full size, so each is drawn once at 26 points and kept.
 @MainActor
 enum TabIcon {
-    private static var drawn: [Ph: UIImage] = [:]
+    private static var drawn: [String: UIImage] = [:]
 
-    static func image(_ glyph: Ph) -> Image {
-        if let image = drawn[glyph] { return Image(uiImage: image) }
-        guard let source = UIImage(named: glyph.rawValue) else { return Image(systemName: "circle") }
-        let size = CGSize(width: 26, height: 26)
-        let image = UIGraphicsImageRenderer(size: size)
-            .image { _ in source.draw(in: CGRect(origin: .zero, size: size)) }
+    /// A glyph drawn once at a fixed point size, as a template image, for the system's bars: the
+    /// tab bar and the Duo's side strip size those the way they size symbols, where a resizable
+    /// image in a frame comes out far too big.
+    static func image(_ glyph: Ph, weight: IconWeight = .regular, size: CGFloat = 26) -> Image {
+        let name = switch weight {
+        case .regular: glyph.rawValue
+        case .bold: "\(glyph.rawValue)-bold"
+        case .fill: "\(glyph.rawValue)-fill"
+        }
+        let key = "\(name)@\(size)"
+        if let image = drawn[key] { return Image(uiImage: image) }
+        guard let source = UIImage(named: name) else { return Image(systemName: "circle") }
+        let square = CGSize(width: size, height: size)
+        let image = UIGraphicsImageRenderer(size: square)
+            .image { _ in source.draw(in: CGRect(origin: .zero, size: square)) }
             .withRenderingMode(.alwaysTemplate)
-        drawn[glyph] = image
+        drawn[key] = image
         return Image(uiImage: image)
     }
 }
