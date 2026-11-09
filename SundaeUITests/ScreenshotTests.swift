@@ -64,14 +64,32 @@ class ScreenshotTests: XCTestCase {
             print("[screens] \(device): \(XCUIScreen.screens.count) main \(mainSize) window \(window.frame) shot \(screenshot.image.size)")
         }
         let fileName = "\(device)-\(name).png"
-        let attachment = XCTAttachment(screenshot: screenshot)
+        // A window photographed on its side comes back as a portrait buffer with the picture
+        // turned in it; stand it up so the file reads the way the screen did.
+        let image = onMain ? screenshot.image : upright(screenshot.image, like: window.frame)
+        let attachment = XCTAttachment(image: image)
         attachment.name = fileName
         attachment.lifetime = .keepAlways
         add(attachment)
         if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"], !dir.isEmpty {
             let url = URL(fileURLWithPath: dir).appendingPathComponent(fileName)
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? screenshot.pngRepresentation.write(to: url)
+            try? image.pngData()?.write(to: url)
+        }
+    }
+
+    /// The image turned a quarter clockwise when it is portrait but the window it shows is
+    /// landscape, or the other way round; untouched otherwise.
+    private func upright(_ image: UIImage, like frame: CGRect) -> UIImage {
+        let frameIsWide = frame.width > frame.height
+        let imageIsWide = image.size.width > image.size.height
+        guard frameIsWide != imageIsWide else { return image }
+        let size = CGSize(width: image.size.height, height: image.size.width)
+        return UIGraphicsImageRenderer(size: size, format: image.imageRendererFormat).image { context in
+            context.cgContext.translateBy(x: size.width / 2, y: size.height / 2)
+            context.cgContext.rotate(by: .pi / 2)
+            image.draw(in: CGRect(x: -image.size.width / 2, y: -image.size.height / 2,
+                                  width: image.size.width, height: image.size.height))
         }
     }
 
@@ -82,15 +100,35 @@ class ScreenshotTests: XCTestCase {
 
     /// Back wherever the system put it: the page's own header on a phone, the side strip on an
     /// iPhone Duo (where the system may name the button by the screen it goes back to).
+    /// Back, wherever the system put it: the page's own header on a phone, the app's navigation
+    /// bar, or the iPhone Duo's side strip, which the system draws in its own process, so it is
+    /// looked for there as well.
     private func backButton(_ app: XCUIApplication) -> XCUIElement {
         let named = app.buttons["Back"].firstMatch
         if named.waitForExistence(timeout: 3) { return named }
-        return app.navigationBars.buttons.firstMatch
+        let inBar = app.navigationBars.buttons.firstMatch
+        if inBar.exists { return inBar }
+        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let strip = system.buttons.matching(NSPredicate(format: "label == 'Back' OR identifier == 'Back' OR label CONTAINS[c] 'back'")).firstMatch
+        if strip.waitForExistence(timeout: 2) { return strip }
+        return named
+    }
+
+    /// What there is to tap when Back cannot be found, for the log.
+    private func describeChrome(_ app: XCUIApplication, _ where_: String) {
+        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        print("[back-missing] \(where_): app buttons \(app.buttons.allElementsBoundByIndex.prefix(12).map { "\($0.label)|\($0.identifier)" }) navbars \(app.navigationBars.count) toolbars \(app.toolbars.count) system buttons \(system.buttons.allElementsBoundByIndex.prefix(12).map { "\($0.label)|\($0.identifier)" })")
     }
 
     private func back(_ app: XCUIApplication) {
         let button = backButton(app)
-        if button.waitForExistence(timeout: 3) { button.tap() }
+        if button.waitForExistence(timeout: 3) {
+            button.tap()
+        } else {
+            // The system's own way back, so the walk through the screens goes on.
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        }
     }
 
     func testOnboarding() {
@@ -273,7 +311,9 @@ class ScreenshotTests: XCTestCase {
         if let author = (0..<min(authors.count, 4)).map({ authors.element(boundBy: $0) }).first(where: { $0.isHittable }) {
             author.tap()
             snap(app, "03-profile-friend", settle: 5)
-            XCTAssertTrue(backButton(app).waitForExistence(timeout: 3), "a way back from a profile on every device")
+            let hasBack = backButton(app).waitForExistence(timeout: 3)
+            if !hasBack { describeChrome(app, "profile") }
+            XCTAssertTrue(hasBack, "a way back from a profile on every device")
             back(app)
             Thread.sleep(forTimeInterval: 1)
         }
@@ -285,10 +325,7 @@ class ScreenshotTests: XCTestCase {
             comment.tap()
             snap(app, "04-dump-detail", settle: 4)
             let hasBack = backButton(app).waitForExistence(timeout: 3)
-            if !hasBack {
-                // What the test is looking at, so a miss can be read from the log alone.
-                print("[back-missing] buttons: \(app.buttons.allElementsBoundByIndex.prefix(12).map { $0.label }) navbars: \(app.navigationBars.count)")
-            }
+            if !hasBack { describeChrome(app, "post") }
             XCTAssertTrue(hasBack, "a way back from a post on every device")
             back(app)
         }

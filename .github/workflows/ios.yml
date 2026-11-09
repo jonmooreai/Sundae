@@ -261,8 +261,10 @@ jobs:
               2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
             grep -Eq "TEST (EXECUTE )?SUCCEEDED" "test-duo-$1.log" || echo "::warning::the $1 pose had a failing screen; see test-duo-$1.log"
           }
-          pose open open
+          # Half first: from closed straight to flat, the inner display did not wake ("the inner
+          # screen did not become active"); by way of 90 degrees it does.
           pose half half
+          pose open open
           # Back to closed, so anything after this that expects the cover display finds it.
           perl -e 'alarm shift; exec @ARGV' 120 duoctl close --duration 1.0 || true
 
