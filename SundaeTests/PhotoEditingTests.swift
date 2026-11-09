@@ -112,6 +112,21 @@ struct PhotoEditingTests {
         #expect(compose.draft.photos[0].madeWithAI)
     }
 
+    @Test func anAIPhotoGetsAGentleWordAndCanBeTakenOut() async throws {
+        let compose = ComposeStore(api: MockSundaeAPI(clock: SundayClock()))
+        await compose.importLibraryData(labelled(#"DigitalSourceType="trainedAlgorithmicMedia""#), assetID: "ai", takenAt: nil)
+        await compose.importLibraryData(jpeg(40, 30), assetID: "real", takenAt: nil)
+        #expect(compose.madeWithAINudge.count == 1, "only the AI one")
+        compose.answerMadeWithAINudge(keep: false)
+        #expect(compose.draft.photos.count == 1 && !compose.draft.photos[0].madeWithAI)
+        #expect(compose.madeWithAINudge.isEmpty)
+        #expect(compose.libraryPhotoIDs["ai"] == nil, "unpicked in the grid too")
+
+        await compose.importLibraryData(labelled(#"DigitalSourceType="trainedAlgorithmicMedia""#), assetID: "ai2", takenAt: nil)
+        compose.answerMadeWithAINudge(keep: true)
+        #expect(compose.draft.photos.count == 2 && compose.madeWithAINudge.isEmpty, "kept, and asked only once")
+    }
+
     @Test func photosKeepTheOrderTheyWerePicked() async throws {
         let compose = ComposeStore(api: MockSundaeAPI(clock: SundayClock()))
         let early = Date(timeIntervalSince1970: 1_000)

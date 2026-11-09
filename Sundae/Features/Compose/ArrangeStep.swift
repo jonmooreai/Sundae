@@ -87,6 +87,18 @@ struct ArrangeStep: View {
                 compose.applyEdits(to: photo.id, edits: edits, rendered: rendered)
             }
         }
+        // A photo whose file says it was made with AI: a gentle card slides up with it, and the
+        // choice stays theirs. Swiped away, it stays in.
+        .sheet(isPresented: Binding(get: { !compose.madeWithAINudge.isEmpty },
+                                    set: { if !$0 { compose.answerMadeWithAINudge(keep: true) } })) {
+            MadeWithAINudgeCard(photos: compose.draft.photos.filter { compose.madeWithAINudge.contains($0.id) }) { keep in
+                withAnimation { compose.answerMadeWithAINudge(keep: keep) }
+            }
+            .presentationDetents([.height(360), .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Theme.background)
+            .presentationCornerRadius(28)
+        }
         .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Task {
@@ -382,5 +394,60 @@ private struct EndDrag: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         MainActor.assumeIsolated { dragging = nil }
         return true
+    }
+}
+
+/// The card that slides up when a photo made with AI joins the post: the photo itself, a
+/// gentle word, and the choice.
+private struct MadeWithAINudgeCard: View {
+    let photos: [DraftPhoto]
+    let answer: (_ keep: Bool) -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            HStack(spacing: -14) {
+                ForEach(Array(photos.prefix(3).enumerated()), id: \.element.id) { index, photo in
+                    PhotoView(source: photo.source)
+                        .frame(width: 84, height: 84)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(Theme.background, lineWidth: 3)
+                        }
+                        .rotationEffect(.degrees(photos.count > 1 ? Double(index - 1) * 5 : 0))
+                        .zIndex(Double(index))
+                }
+                if photos.count > 3 {
+                    Text("+\(photos.count - 3)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 22)
+                }
+            }
+            .padding(.top, 18)
+            .accessibilityHidden(true)
+
+            VStack(spacing: 6) {
+                Text(photos.count == 1 ? "This one looks made with AI" : "These look made with AI")
+                    .font(Theme.display(22))
+                    .multilineTextAlignment(.center)
+                Text("Sundae is for your real week, the things you actually saw and did. Friends will see a small Made with AI note on it.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: 10) {
+                Button("Keep") { answer(true) }
+                    .buttonStyle(.pill(.secondary, fullWidth: true))
+                Button(photos.count == 1 ? "Take it out" : "Take them out") { answer(false) }
+                    .buttonStyle(.pill(.primary, fullWidth: true))
+            }
+        }
+        .padding(.horizontal, Theme.pagePadding)
+        .padding(.bottom, 12)
+        .frame(maxWidth: Theme.actionsWidth + 40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
