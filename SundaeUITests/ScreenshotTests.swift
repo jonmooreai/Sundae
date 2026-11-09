@@ -183,8 +183,10 @@ class ScreenshotTests: XCTestCase {
     func testSunday() {
         let app = launch(day: "sunday")
 
-        // Sunday opens on the prompt. If the app never answers, a picture of whatever it shows.
-        let prompt = app.buttons["Pick your photos"].waitForExistence(timeout: 20)
+        // Sunday opens on the prompt. The first launch after an install on a cold runner has taken
+        // longer than twenty seconds to draw it; after that it is quick. If the app never answers,
+        // a picture of whatever it shows.
+        let prompt = app.buttons["Pick your photos"].waitForExistence(timeout: 60)
         if !prompt { snap(app, "02-sunday-prompt-missing", settle: 0) }
         XCTAssertTrue(prompt)
         snap(app, "02-sunday-prompt", settle: 1.5)
