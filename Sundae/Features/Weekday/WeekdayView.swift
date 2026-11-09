@@ -33,6 +33,22 @@ struct WeekdayView: View {
     private var saved: SavedIdeasStore { model.savedIdeas }
 
     var body: some View {
+        // The stack is what carries the Duo's side strip; everywhere else its bar stays hidden
+        // and the page is as it was.
+        NavigationStack { page }
+            .sideBarChrome { stripButtons }
+    }
+
+    /// Your week and Settings, in the Duo's side strip under the clock. In the page's own top
+    /// corners everywhere else (see `topBar`).
+    @ViewBuilder
+    private var stripButtons: some View {
+        ChromeButton(glyph: Glyph.saved, title: weekLabel) { showWeek = true }
+            .accessibilityIdentifier("your-week")
+        ChromeButton(glyph: Glyph.settings, title: "Settings") { showSettings = true }
+    }
+
+    private var page: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
             VStack(spacing: 0) {
@@ -61,11 +77,10 @@ struct WeekdayView: View {
             .padding(.bottom, 24)
             .padding(.top, 12)
             .centeredColumn(isWide ? 860 : Theme.columnWidth + 48)
-            // Nothing here scrolls and there are no bars, so on an iPhone Duo closed the idea can
-            // take the whole width of the screen, as Apple suggests for a surface like this: the
-            // strip down the side holds only the clock and the camera, and the words center on
-            // the screen rather than on what is left of it. The two buttons in the top corners
-            // stay clear of that strip through the top bar's own inset.
+            // Nothing here scrolls, so on an iPhone Duo closed the idea can take the whole width
+            // of the screen, as Apple suggests for a surface like this: the words center on the
+            // screen rather than on what is left of it beside the strip. The screen's two buttons
+            // sit in that strip there, under the clock.
             .ignoresSafeArea(.container, edges: sideBars ? .horizontal : [])
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
@@ -131,7 +146,9 @@ struct WeekdayView: View {
 
     // MARK: - Pieces
 
-    /// The cherry in the middle; Your week up in the left corner and Settings in the right, out of its way.
+    /// The cherry in the middle; Your week up in the left corner and Settings in the right, out of
+    /// its way. On the Duo's side strip those two move into the strip (`stripButtons`), and only
+    /// the cherry stays.
     private var topBar: some View {
         ZStack(alignment: .top) {
             // Big enough to want to tap; smaller when a phone on its side has little height to spare.
@@ -139,27 +156,18 @@ struct WeekdayView: View {
                 .padding(.top, 12)
                 .frame(maxWidth: .infinity)
 
-            HStack {
-                IconButton(glyph: Glyph.saved, label: weekLabel, filled: true) { showWeek = true }
-                    .overlay(alignment: .topTrailing) { savedBadge }
-                    .accessibilityIdentifier("your-week")
-                Spacer()
-                IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
+            if !sideBars {
+                HStack {
+                    IconButton(glyph: Glyph.saved, label: weekLabel, filled: true) { showWeek = true }
+                        .overlay(alignment: .topTrailing) { savedBadge }
+                        .accessibilityIdentifier("your-week")
+                    Spacer()
+                    IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
+                }
+                .padding(.horizontal, -6)
             }
-            .padding(.horizontal, -6)
-            // With the page spanning the Duo's full width, the corner buttons alone step back
-            // from the strip with the clock and the camera.
-            .padding(.horizontal, sideBars ? stripInset : 0)
         }
         .foregroundStyle(.primary)
-    }
-
-    /// How far the Duo's side strip reaches in: the width the system keeps for the clock and the
-    /// camera, with a little room past it.
-    private var stripInset: CGFloat {
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        let insets = scene?.windows.first?.safeAreaInsets ?? .zero
-        return max(insets.left, insets.right) + 4
     }
 
     /// How many ideas are saved, on the Your week button.

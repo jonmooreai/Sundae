@@ -191,6 +191,7 @@ struct CommentsSheet: View {
             .padding(.horizontal, Theme.pagePadding)
             .padding(.vertical, 8)
         }
+        .insideSideBars()
         .scrollIndicators(.hidden)
         .overlay(alignment: .top) { Hairline() }
     }
@@ -256,6 +257,7 @@ struct CommentsSheet: View {
             .padding(.horizontal, Theme.pagePadding)
             .padding(.vertical, 8)
         }
+        .insideSideBars()
         .scrollIndicators(.hidden)
         .overlay(alignment: .top) { Hairline() }
     }

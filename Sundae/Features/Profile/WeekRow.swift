@@ -85,6 +85,7 @@ struct WeekRow: View {
                     .padding(.horizontal, Theme.pagePadding)
                     .scrollTargetLayout()
                 }
+                .insideSideBars()
                 .scrollIndicators(.hidden)
                 .scrollClipDisabled()
                 .scrollTargetBehavior(.viewAligned)

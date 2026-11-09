@@ -51,7 +51,7 @@ struct ArrangeStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .sideBarChrome(showsBack: !path.isEmpty, onBack: { dismiss() }, close: path.isEmpty ? { compose.dismiss() } : nil) { moreMenu }
+        .sideBarChrome(close: path.isEmpty ? { compose.dismiss() } : nil) { moreMenu }
         .sideBarPrimaryAction("Next", isEnabled: !photos.isEmpty) { path.append(.caption) }
         .safeAreaInset(edge: .bottom) {
             if !photos.isEmpty {
@@ -305,6 +305,7 @@ struct ArrangeStep: View {
             .padding(.horizontal, Theme.pagePadding)
             .animation(.snappy(duration: 0.25), value: photos.map(\.id))
         }
+        .insideSideBars()
         .scrollIndicators(.hidden)
         .frame(height: 68)
         .photoSources(compose: compose, showsPicker: $showsPhotosPicker, showsCamera: $showsCamera)

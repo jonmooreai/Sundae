@@ -72,8 +72,8 @@ struct CaptionStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .sideBarChrome(showsBack: true, onBack: { dismiss() })
-        .sideBarPrimaryAction(compose.hasPosted ? "Save changes" : "Post your week",
+        .sideBarChrome()
+        .sideBarPrimaryAction(compose.hasPosted ? "Save changes" : "Post your week", symbol: "checkmark",
                               isEnabled: compose.canPost, isLoading: compose.isSaving) { Task { await post() } }
         .safeAreaInset(edge: .bottom) {
             FlowBottomBar(title: compose.hasPosted ? "Save changes" : "Post your week",
