@@ -14,7 +14,7 @@ import sys
 
 exported_root, direct_dir, out_dir = sys.argv[1:4]
 os.makedirs(out_dir, exist_ok=True)
-NAME = re.compile(r"^((?:iPhone|iPad|Duo|DuoLandscape)-\d{2}-[a-z0-9-]+)(?:_\d+_[0-9A-Fa-f-]+)?\.png$")
+NAME = re.compile(r"^((?:iPhone|iPad|Duo(?:Open|Half)?(?:Landscape)?)-\d{2}-[a-z0-9-]+)(?:_\d+_[0-9A-Fa-f-]+)?\.png$")
 collected = {}
 
 

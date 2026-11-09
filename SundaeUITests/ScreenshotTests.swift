@@ -4,13 +4,21 @@ import XCTest
 /// Screenshots are attached to the result bundle and, when `SCREENSHOT_DIR` is set,
 /// written straight to that folder as `<device>-<name>.png`. The iPhone Duo's files start
 /// with `Duo`, and the landscape run's with `DuoLandscape` (LandscapeScreenshotTests).
+///
+/// The Duo's pose comes from outside: CI folds the simulator before a run (duoctl), and says
+/// which pose it is in with `SUNDAE_POSE` (`open`, `half`, or nothing for closed), so the
+/// files from each pose keep apart: `DuoOpen-…`, `DuoHalf-…`.
 class ScreenshotTests: XCTestCase {
     /// Turned sideways for every screen. The landscape run overrides it.
     var landscape: Bool { false }
 
     private var device: String {
-        let simulator = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? ""
-        let base = simulator.contains("Duo") ? "Duo" : UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+        let environment = ProcessInfo.processInfo.environment
+        let simulator = environment["SIMULATOR_DEVICE_NAME"] ?? ""
+        var base = simulator.contains("Duo") ? "Duo" : UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone"
+        if base == "Duo", let pose = environment["SUNDAE_POSE"], !pose.isEmpty {
+            base += pose.prefix(1).uppercased() + pose.dropFirst()
+        }
         return landscape ? "\(base)Landscape" : base
     }
 
