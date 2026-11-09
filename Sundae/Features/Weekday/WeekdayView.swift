@@ -35,8 +35,10 @@ struct WeekdayView: View {
     var body: some View {
         // The stack is what carries the Duo's side strip; everywhere else its bar stays hidden
         // and the page is as it was.
-        NavigationStack { page }
-            .sideBarChrome { stripButtons }
+        // The chrome is declared inside the stack: a toolbar outside it has no bar to go to.
+        NavigationStack {
+            page.sideBarChrome { stripButtons }
+        }
     }
 
     /// Your week and Settings, in the Duo's side strip under the clock. In the page's own top

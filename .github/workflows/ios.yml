@@ -132,17 +132,33 @@ jobs:
           done
           ls -la seed-photos || true
           xcrun simctl addmedia "$IPHONE_UDID" seed-photos/*.jpg || true
-          xcodebuild test-without-building \
-            -project Sundae.xcodeproj -scheme Sundae \
-            -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
-            -derivedDataPath build \
-            -resultBundlePath results/iphone.xcresult \
-            -skip-testing:SundaeUITests/LandscapeScreenshotTests \
-            -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 600 \
-            -maximum-test-execution-time-allowance 900 \
-            SCREENSHOT_DIR="$PWD/screenshots" \
-            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
+          # Once in a while the simulator is not ready to hand the app over when the tests start
+          # ("Failed to get background assertion", "Failed to terminate") and every test fails in
+          # seconds without a screen being touched. That is the simulator, not the app: it gets
+          # one fresh start and one more go. Anything else fails the step the first time.
+          for attempt in 1 2; do
+            xcodebuild test-without-building \
+              -project Sundae.xcodeproj -scheme Sundae \
+              -destination "platform=iOS Simulator,id=$IPHONE_UDID" \
+              -derivedDataPath build \
+              -resultBundlePath "results/iphone$([ "$attempt" = 1 ] || echo -$attempt).xcresult" \
+              -skip-testing:SundaeUITests/LandscapeScreenshotTests \
+              -test-timeouts-enabled YES \
+              -default-test-execution-time-allowance 600 \
+              -maximum-test-execution-time-allowance 900 \
+              SCREENSHOT_DIR="$PWD/screenshots" \
+              2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
+            if grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log; then break; fi
+            if [ "$attempt" = 1 ] && grep -Eq "Failed to get background assertion|Failed to terminate com.jonmooreai" test-iphone.log; then
+              echo "::warning::the simulator was not ready for the tests; starting it again for one more go"
+              xcrun simctl shutdown "$IPHONE_UDID" || true
+              xcrun simctl boot "$IPHONE_UDID" || true
+              xcrun simctl bootstatus "$IPHONE_UDID" -b || true
+              [ -n "$APP" ] && xcrun simctl install "$IPHONE_UDID" "$APP" || true
+              continue
+            fi
+            break
+          done
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
 
       # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
