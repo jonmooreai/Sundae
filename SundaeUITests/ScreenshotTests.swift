@@ -50,12 +50,18 @@ class ScreenshotTests: XCTestCase {
 
     private func snap(_ app: XCUIApplication, _ name: String, settle: TimeInterval = 1.2) {
         Thread.sleep(forTimeInterval: settle)
-        let screenshot = XCUIScreen.main.screenshot()
+        // The main screen, with the system's strip and clock, unless the app's window is not on it:
+        // the Duo open puts the app on its inner display while the main screen stays the cover,
+        // which is off and photographs black. Then the window itself is photographed.
+        let window = app.windows.firstMatch
+        let mainSize = XCUIScreen.main.screenshot().image.size
+        let onMain = abs(window.frame.width - mainSize.width) < 2 && abs(window.frame.height - mainSize.height) < 2
+        let screenshot = onMain ? XCUIScreen.main.screenshot() : window.screenshot()
         if name.hasPrefix("00-onboarding-intro-film") {
-            // Once per run, for the record: how many displays the device shows, and the size of the
-            // one the app is on. Only the main screen is photographed: asking a display that is off
-            // for a picture can wait forever.
-            print("[screens] \(device): \(XCUIScreen.screens.count) main \(screenshot.image.size) window \(app.windows.firstMatch.frame)")
+            // Once per run, for the record: how many displays the device shows, the size of the
+            // main one and of the app's window. Displays that are off are never asked for a
+            // picture: that can wait forever.
+            print("[screens] \(device): \(XCUIScreen.screens.count) main \(mainSize) window \(window.frame) shot \(screenshot.image.size)")
         }
         let fileName = "\(device)-\(name).png"
         let attachment = XCTAttachment(screenshot: screenshot)
@@ -97,7 +103,13 @@ class ScreenshotTests: XCTestCase {
         app.tap()
         XCTAssertTrue(app.buttons["Begin"].waitForExistence(timeout: 15))
         snap(app, "00-onboarding-intro")
-        app.buttons["Begin"].tap()
+        let begin = app.buttons["Begin"]
+        begin.tap()
+        if !app.buttons["Get started"].waitForExistence(timeout: 5) {
+            // What the test saw when Begin did not move on, for the log.
+            print("[probe] begin frame \(begin.frame) hittable \(begin.isHittable) exists \(begin.exists) state \(app.state.rawValue) buttons \(app.buttons.allElementsBoundByIndex.prefix(8).map { $0.label })")
+            begin.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        }
         XCTAssertTrue(app.buttons["Get started"].waitForExistence(timeout: 5))
         snap(app, "00-onboarding-welcome")
         app.buttons["Get started"].tap()
@@ -154,8 +166,19 @@ class ScreenshotTests: XCTestCase {
         snap(app, "06-compose-pick", settle: 3)
 
         let cells = app.buttons.matching(identifier: "library-cell")
-        let pickCount = min(4, cells.count)
-        for i in 0..<pickCount { cells.element(boundBy: i).tap() }
+        var pickCount = min(4, cells.count)
+        for i in 0..<pickCount {
+            let cell = cells.element(boundBy: i)
+            if cell.waitForExistence(timeout: 3) {
+                cell.tap()
+            } else {
+                // The cells were there a moment ago. What is on screen now, and is the app still up.
+                print("[probe] cell \(i) gone: state \(app.state.rawValue) cells \(cells.count) buttons \(app.buttons.allElementsBoundByIndex.prefix(10).map { $0.label }) texts \(app.staticTexts.allElementsBoundByIndex.prefix(6).map { $0.label })")
+                snap(app, "99-pick-probe", settle: 0.5)
+                pickCount = i
+                break
+            }
+        }
         if pickCount > 0 {
             snap(app, "06-compose-pick-selected", settle: 1)
             app.buttons["flow-primary"].firstMatch.tap()

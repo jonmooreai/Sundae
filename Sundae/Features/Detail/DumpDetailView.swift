@@ -55,7 +55,7 @@ struct DumpDetailView: View {
             }
         }
         .background(Theme.background)
-        .sideBarChrome(showsBack: true, onBack: { dismiss() }) { moreMenu }
+        .sideBarChrome { moreMenu }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             width = size.width
             height = size.height

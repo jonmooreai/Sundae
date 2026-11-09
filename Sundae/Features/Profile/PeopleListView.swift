@@ -37,7 +37,7 @@ struct PeopleListView: View {
         peopleBody
             .centeredColumn()
             .background(Theme.background)
-            .sideBarChrome(showsBack: true, onBack: { dismiss() })
+            .sideBarChrome()
     }
 
     private var peopleBody: some View {

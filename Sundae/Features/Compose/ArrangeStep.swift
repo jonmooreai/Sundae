@@ -51,7 +51,7 @@ struct ArrangeStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .sideBarChrome(showsBack: !path.isEmpty, onBack: { dismiss() }, close: path.isEmpty ? { compose.dismiss() } : nil) { moreMenu }
+        .sideBarChrome(close: path.isEmpty ? { compose.dismiss() } : nil) { moreMenu }
         .sideBarPrimaryAction("Next", isEnabled: !photos.isEmpty) { path.append(.caption) }
         .safeAreaInset(edge: .bottom) {
             if !photos.isEmpty {

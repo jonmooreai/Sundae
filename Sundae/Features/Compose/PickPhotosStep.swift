@@ -40,7 +40,7 @@ struct PickPhotosStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .sideBarChrome(showsBack: !path.isEmpty, onBack: { dismiss() }, close: path.isEmpty ? { compose.dismiss() } : nil)
+        .sideBarChrome(close: path.isEmpty ? { compose.dismiss() } : nil)
         .sideBarPrimaryAction("Next", isEnabled: library.isAuthorized && total > 0, isLoading: isPreparing) { Task { await next() } }
         .safeAreaInset(edge: .bottom) {
             if library.isAuthorized {

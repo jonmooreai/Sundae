@@ -79,7 +79,7 @@ struct ProfileView: View {
         }
         .scrollsToTopOnTabTap()
         .background(Theme.background)
-        .sideBarChrome(showsBack: !isRoot, onBack: { dismiss() }) { chrome }
+        .sideBarChrome { chrome }
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
                 .presentationBackground(Theme.background)

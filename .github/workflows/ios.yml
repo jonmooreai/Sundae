@@ -142,7 +142,7 @@ jobs:
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
             SCREENSHOT_DIR="$PWD/screenshots" \
-            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
+            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
 
       # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
@@ -186,7 +186,7 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
-            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
+            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
           kill "$SAMPLER" 2>/dev/null || true
           # The main thread of each sample, so a stuck layout shows in the log itself.
           for f in samples/*.txt; do
@@ -230,7 +230,9 @@ jobs:
             duoctl state || true
             perl -e 'alarm shift; exec @ARGV' 60 duoctl rotate portrait || true
             # Passed the way SCREENSHOT_DIR is above, which the tests have been reading all along.
-            perl -e 'alarm shift; exec @ARGV' 1800 xcodebuild test-without-building \
+            # TEST_RUNNER_ is how xcodebuild hands a variable to the tests themselves; a bare
+            # NAME=value on the command line is a build setting, which they never see.
+            TEST_RUNNER_SUNDAE_POSE="$1" perl -e 'alarm shift; exec @ARGV' 1800 xcodebuild test-without-building \
               -project Sundae.xcodeproj -scheme Sundae \
               -destination "platform=iOS Simulator,id=$DUO_UDID" \
               -derivedDataPath build \
@@ -239,14 +241,28 @@ jobs:
               -test-timeouts-enabled YES \
               -default-test-execution-time-allowance 600 \
               -maximum-test-execution-time-allowance 900 \
-              SUNDAE_POSE="$1" SCREENSHOT_DIR="$PWD/screenshots" \
-              2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
+              SCREENSHOT_DIR="$PWD/screenshots" \
+              2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
             grep -Eq "TEST (EXECUTE )?SUCCEEDED" "test-duo-$1.log" || echo "::warning::the $1 pose had a failing screen; see test-duo-$1.log"
           }
           pose open open
           pose half half
           # Back to closed, so anything after this that expects the cover display finds it.
           perl -e 'alarm shift; exec @ARGV' 120 duoctl close --duration 1.0 || true
+
+      # When a test lost the app, the crash report says why: the first lines of any the
+      # simulator's apps wrote during this run.
+      - name: Crash reports, if any
+        if: always() && env.FULL == 'true'
+        run: |
+          found=0
+          for report in $(find ~/Library/Logs/DiagnosticReports -type f -newer build.log \
+                           \( -name 'Sundae*' -o -name 'SundaeUITests*' -o -name 'xctest*' \) 2>/dev/null); do
+            found=1
+            echo "[crash] $report"
+            head -c 6000 "$report"; echo
+          done
+          [ "$found" = 1 ] || echo "no crash reports"
 
       - name: Export screenshots from result bundles
         if: always() && env.FULL == 'true'

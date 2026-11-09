@@ -95,23 +95,20 @@ struct ChromeMenu<Items: View>: View {
     }
 }
 
-/// Back or Close for a screen: drawn in the page's header on a phone, and on the Duo's side strip
-/// through the system toolbar, where Apple puts primary navigation at the top of the strip.
+/// Close for a screen that is presented rather than pushed: drawn in the page's header on a
+/// phone, and on the Duo's side strip through the system toolbar. Back needs no item of its own:
+/// a pushed screen gets the system's Back at the top of the strip, where Apple puts it.
 struct SideBarNavigation: ToolbarContent {
-    enum Kind { case back, close }
+    enum Kind { case close }
     let kind: Kind
     let action: () -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: kind == .back ? .navigation : .cancellationAction) {
+        ToolbarItem(placement: .cancellationAction) {
             Button(action: action) {
-                Label {
-                    Text(kind == .back ? "Back" : "Close")
-                } icon: {
-                    Icon(kind == .back ? Glyph.back : Glyph.close, size: 20)
-                }
+                Label { Text("Close") } icon: { Icon(Glyph.close, size: 20) }
             }
-            .accessibilityIdentifier(kind == .back ? "Back" : "Close")
+            .accessibilityIdentifier("Close")
         }
     }
 }
@@ -123,8 +120,6 @@ struct SideBarNavigation: ToolbarContent {
 /// so nothing changes there.
 struct SideBarChrome<Trailing: View>: ViewModifier {
     @Environment(\.sideBars) private var sideBars
-    let showsBack: Bool
-    let onBack: (() -> Void)?
     let close: (() -> Void)?
     @ViewBuilder let trailing: () -> Trailing
 
@@ -133,9 +128,6 @@ struct SideBarChrome<Trailing: View>: ViewModifier {
             .toolbar(sideBars ? .visible : .hidden, for: .navigationBar)
             .toolbar {
                 if sideBars {
-                    if showsBack, let onBack {
-                        SideBarNavigation(kind: .back, action: onBack)
-                    }
                     if let close {
                         SideBarNavigation(kind: .close, action: close)
                     }
@@ -152,6 +144,7 @@ struct SideBarChrome<Trailing: View>: ViewModifier {
 private struct SideBarPrimaryAction: ViewModifier {
     @Environment(\.sideBars) private var sideBars
     let title: String
+    let symbol: String
     let isEnabled: Bool
     let isLoading: Bool
     let action: () -> Void
@@ -160,11 +153,13 @@ private struct SideBarPrimaryAction: ViewModifier {
         content.toolbar {
             if sideBars {
                 ToolbarItem(placement: .confirmationAction) {
+                    // A title and a symbol, as Apple asks for the strip: the strip shows the
+                    // symbol, and the overflow menu the words.
                     Button(action: action) {
                         if isLoading {
                             ProgressView()
                         } else {
-                            Text(title).fontWeight(.semibold)
+                            Label(title, systemImage: symbol)
                         }
                     }
                     .disabled(!isEnabled || isLoading)
@@ -176,23 +171,23 @@ private struct SideBarPrimaryAction: ViewModifier {
 }
 
 extension View {
-    /// The screen's primary action on the Duo's side strip. Off the Duo it adds nothing; the
-    /// screen's own bottom bar shows the button.
-    func sideBarPrimaryAction(_ title: String, isEnabled: Bool = true, isLoading: Bool = false,
-                              action: @escaping () -> Void) -> some View {
-        modifier(SideBarPrimaryAction(title: title, isEnabled: isEnabled, isLoading: isLoading, action: action))
+    /// The screen's primary action on the Duo's side strip, with the symbol the strip shows for
+    /// it. Off the Duo it adds nothing; the screen's own bottom bar shows the button.
+    func sideBarPrimaryAction(_ title: String, symbol: String = "arrow.right", isEnabled: Bool = true,
+                              isLoading: Bool = false, action: @escaping () -> Void) -> some View {
+        modifier(SideBarPrimaryAction(title: title, symbol: symbol, isEnabled: isEnabled, isLoading: isLoading, action: action))
     }
 
-    /// Puts Back (or Close) and the trailing chrome into the system's side bars on an iPhone Duo,
-    /// and hides the system navigation bar everywhere else so the page's own header shows.
-    func sideBarChrome<Trailing: View>(showsBack: Bool = false, onBack: (() -> Void)? = nil,
-                                       close: (() -> Void)? = nil,
+    /// Puts Close and the trailing chrome into the system's side bars on an iPhone Duo (a pushed
+    /// screen gets the system's own Back there), and hides the system navigation bar everywhere
+    /// else so the page's own header shows.
+    func sideBarChrome<Trailing: View>(close: (() -> Void)? = nil,
                                        @ViewBuilder trailing: @escaping () -> Trailing) -> some View {
-        modifier(SideBarChrome(showsBack: showsBack, onBack: onBack, close: close, trailing: trailing))
+        modifier(SideBarChrome(close: close, trailing: trailing))
     }
 
     /// The same, with nothing on the trailing side.
-    func sideBarChrome(showsBack: Bool = false, onBack: (() -> Void)? = nil, close: (() -> Void)? = nil) -> some View {
-        modifier(SideBarChrome(showsBack: showsBack, onBack: onBack, close: close, trailing: { EmptyView() }))
+    func sideBarChrome(close: (() -> Void)? = nil) -> some View {
+        modifier(SideBarChrome(close: close, trailing: { EmptyView() }))
     }
 }
