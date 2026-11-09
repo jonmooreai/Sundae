@@ -12,7 +12,8 @@
 // 8: a fingerprint on each photo and, on each tag, whether its photo is one the person tagged
 //    posted themselves that week (COLUMNS).
 // 9: which of their own photos that is (tags.duplicate_of), so the tag shows on it (COLUMNS).
-export const SCHEMA_VERSION = '9';
+// 10: whether a photo was made with AI, as the poster's phone read it from the file (COLUMNS).
+export const SCHEMA_VERSION = '10';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -50,7 +51,8 @@ export const SCHEMA = [
   `CREATE INDEX IF NOT EXISTS dumps_created ON dumps (created_at)`,
   `CREATE TABLE IF NOT EXISTS photos (
      id TEXT PRIMARY KEY, dump_id TEXT NOT NULL, ord INTEGER NOT NULL, object_key TEXT NOT NULL,
-     width INTEGER NOT NULL, height INTEGER NOT NULL, alt_text TEXT, upload_id TEXT UNIQUE, caption TEXT, fingerprint TEXT)`,
+     width INTEGER NOT NULL, height INTEGER NOT NULL, alt_text TEXT, upload_id TEXT UNIQUE, caption TEXT, fingerprint TEXT,
+     made_with_ai INTEGER NOT NULL DEFAULT 0)`,
   `CREATE INDEX IF NOT EXISTS photos_dump ON photos (dump_id)`,
   `CREATE TABLE IF NOT EXISTS tags (
      id TEXT PRIMARY KEY, photo_id TEXT NOT NULL, tagger_id TEXT NOT NULL, tagged_user_id TEXT NOT NULL,
@@ -87,6 +89,7 @@ export const COLUMNS = [
   { table: 'photos', column: 'fingerprint', sql: 'ALTER TABLE photos ADD COLUMN fingerprint TEXT' },
   { table: 'tags', column: 'duplicate', sql: 'ALTER TABLE tags ADD COLUMN duplicate INTEGER NOT NULL DEFAULT 0' },
   { table: 'tags', column: 'duplicate_of', sql: 'ALTER TABLE tags ADD COLUMN duplicate_of TEXT' },
+  { table: 'photos', column: 'made_with_ai', sql: 'ALTER TABLE photos ADD COLUMN made_with_ai INTEGER NOT NULL DEFAULT 0' },
 ];
 
 let ready = null;

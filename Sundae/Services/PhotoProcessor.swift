@@ -99,3 +99,25 @@ enum PhotoFingerprint {
         return String(format: "%016llx", hash)
     }
 }
+
+/// Whether a photo's original file says it was made with AI. Read on the phone, before the
+/// photo is stripped of everything but its pixels, and only from labels the file carries:
+/// the IPTC digital source type the big image makers write (also inside Content Credentials),
+/// or a Content Credentials manifest naming an AI maker. A screenshot or a re-saved copy has
+/// lost these, so a photo without one is simply not marked; nothing is guessed.
+enum MadeWithAI {
+    /// IPTC's names for a picture made, or partly made, by a trained model.
+    private static let sourceTypes = ["trainedAlgorithmicMedia", "compositeWithTrainedAlgorithmicMedia"]
+    /// Makers that sign their pictures with Content Credentials.
+    private static let makers = ["OpenAI", "DALL-E", "DALL\u{00B7}E", "ChatGPT", "Adobe Firefly", "Bing Image Creator",
+                                 "Microsoft Designer", "Google Gemini", "Imagen", "Midjourney"]
+    /// Labels written outside Content Credentials.
+    private static let plain = ["Image Playground"]
+
+    nonisolated static func detect(in data: Data) -> Bool {
+        func has(_ text: String) -> Bool { data.range(of: Data(text.utf8)) != nil }
+        if sourceTypes.contains(where: has) || plain.contains(where: has) { return true }
+        // A maker's name counts only inside Content Credentials, never loose in a file.
+        return has("c2pa") && makers.contains(where: has)
+    }
+}

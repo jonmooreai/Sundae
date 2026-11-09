@@ -379,3 +379,19 @@ test('the same picture posted by both before fingerprints: once both phones send
   await s.call('PUT', 'v1/me/fingerprints', { token: maya.token, json: { photos: [{ id: mayas.photos[0].id, fingerprint: 'ffff0000ffff0000' }] } });
   assert.equal(s.env.DB.sqlite.prepare('SELECT fingerprint FROM photos WHERE id = ?').get(mayas.photos[0].id).fingerprint, '9a8b7c6d5e4f3021');
 });
+
+test('a photo the phone found was made with AI says so to everyone who sees it, and keeps saying so', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  const made = await uploadPhoto(s, jon);
+  const taken = await uploadPhoto(s, jon);
+  const saved = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: '', photos: [
+    { upload_id: made, made_with_ai: true }, { upload_id: taken }, ] } })).body;
+  assert.deepEqual(saved.photos.map((p) => p.made_with_ai), [true, false]);
+  const seen = (await s.call('GET', `v1/dumps/${saved.id}`, { token: maya.token })).body;
+  assert.deepEqual(seen.photos.map((p) => p.made_with_ai), [true, false]);
+  // Saving the week again from a build that does not send it changes nothing.
+  const again = (await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: jon.token, json: { caption: 'Hi', photos: [
+    { id: saved.photos[0].id }, { id: saved.photos[1].id }, ] } })).body;
+  assert.deepEqual(again.photos.map((p) => p.made_with_ai), [true, false]);
+});

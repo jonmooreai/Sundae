@@ -73,6 +73,45 @@ struct PhotoEditingTests {
         #expect(edits.quarterTurns == 1 && edits.aspect == .square && edits.straighten == 0 && edits.brightness == 0.2)
     }
 
+    /// A JPEG with a little XMP carrying these words, as an image maker would write them.
+    private func labelled(_ words: String) -> Data {
+        let xmp = Data("<x:xmpmeta><rdf:Description \(words)/></x:xmpmeta>".utf8)
+        var marker = Data([0xFF, 0xE1])
+        let length = xmp.count + 2 + 29
+        marker.append(contentsOf: [UInt8(length >> 8), UInt8(length & 0xFF)])
+        marker.append(Data("http://ns.adobe.com/xap/1.0/\0".utf8))
+        marker.append(xmp)
+        var data = jpeg(40, 30)
+        data.insert(contentsOf: marker, at: 2)
+        return data
+    }
+
+    @Test func aLabelInTheFileSaysMadeWithAI() {
+        #expect(!MadeWithAI.detect(in: jpeg(40, 30)), "an ordinary photo")
+        #expect(MadeWithAI.detect(in: labelled(#"Iptc4xmpExt:DigitalSourceType="http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia""#)))
+        #expect(MadeWithAI.detect(in: labelled(#"DigitalSourceType="compositeWithTrainedAlgorithmicMedia""#)), "partly made")
+        #expect(MadeWithAI.detect(in: labelled(#"c2pa claim_generator="OpenAI-API c2pa-rs""#)), "Content Credentials from OpenAI")
+        #expect(!MadeWithAI.detect(in: labelled(#"dc:description="a photo of the OpenAI office""#)), "a maker named outside Content Credentials")
+        #expect(!MadeWithAI.detect(in: labelled(#"DigitalSourceType="digitalCapture""#)), "a camera's own label")
+    }
+
+    @Test func thePhotoKeepsTheNoteButNotTheLabel() async throws {
+        let compose = ComposeStore(api: MockSundaeAPI(clock: SundayClock()))
+        let original = labelled(#"DigitalSourceType="trainedAlgorithmicMedia""#)
+        await compose.importLibraryData(original, assetID: "ai", takenAt: nil)
+        await compose.importLibraryData(jpeg(40, 30), assetID: "camera", takenAt: nil)
+        #expect(compose.draft.photos.map(\.madeWithAI) == [true, false])
+        // What goes up is pixels only: the label itself is stripped with everything else.
+        guard case .data(let sent) = compose.draft.photos[0].source else { Issue.record("not data"); return }
+        #expect(!MadeWithAI.detect(in: sent))
+        // And it survives an edit.
+        var edits = PhotoEdits()
+        edits.warmth = 0.3
+        let rendered = try #require(PhotoEditing.render(sent, edits))
+        compose.applyEdits(to: compose.draft.photos[0].id, edits: edits, rendered: rendered)
+        #expect(compose.draft.photos[0].madeWithAI)
+    }
+
     @Test func photosKeepTheOrderTheyWerePicked() async throws {
         let compose = ComposeStore(api: MockSundaeAPI(clock: SundayClock()))
         let early = Date(timeIntervalSince1970: 1_000)

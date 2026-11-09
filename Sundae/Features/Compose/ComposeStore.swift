@@ -165,7 +165,7 @@ final class ComposeStore {
         for item in items.prefix(draft.remainingSlots) {
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let processed = await PhotoProcessor.processInBackground(data) else { continue }
-            append(processed, takenAt: nil)
+            append(processed, takenAt: nil, madeWithAI: await Self.madeWithAI(data))
         }
     }
 
@@ -184,7 +184,8 @@ final class ComposeStore {
         isImporting = true
         defer { isImporting = false }
         guard let processed = await PhotoProcessor.processInBackground(data) else { return }
-        let photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
+        var photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
+        photo.madeWithAI = await Self.madeWithAI(data)
         libraryPhotoIDs[assetID] = photo.id
         draft.photos.append(photo)
     }
@@ -218,9 +219,16 @@ final class ComposeStore {
     }
 
     /// At the end: photos keep the order they were picked in.
-    func append(_ processed: ProcessedPhoto, takenAt: Date?) {
+    func append(_ processed: ProcessedPhoto, takenAt: Date?, madeWithAI: Bool = false) {
         guard draft.canAddMore else { return }
-        draft.photos.append(DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt))
+        var photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
+        photo.madeWithAI = madeWithAI
+        draft.photos.append(photo)
+    }
+
+    /// Read from the original file, off the main thread, before it is stripped.
+    private static func madeWithAI(_ data: Data) async -> Bool {
+        await Task.detached(priority: .utility) { MadeWithAI.detect(in: data) }.value
     }
 
     /// The camera roll photos in the order they were tapped, in the places camera roll photos
@@ -396,7 +404,7 @@ extension DumpDraft {
             DraftPhoto(id: photo.id, source: photo.source, width: photo.width, height: photo.height,
                        // A friend's tag shown on this copy is theirs, not one to send back as the author's.
                        taggedUsers: photo.visibleTags.filter { !$0.isShared }.map(\.taggedUser), altText: photo.altText ?? "", takenAt: nil,
-                       caption: photo.caption ?? "")
+                       caption: photo.caption ?? "", madeWithAI: photo.madeWithAI == true)
         }
         caption = dump.caption
         commentsEnabled = dump.commentsEnabled
