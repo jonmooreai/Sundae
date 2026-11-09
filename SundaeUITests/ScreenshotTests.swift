@@ -326,22 +326,21 @@ class ScreenshotTests: XCTestCase {
             Thread.sleep(forTimeInterval: 1)
         }
 
-        // Dump detail with comments. Back is there whichever edge the system put it on: the
-        // page's own header on a phone, the side strip on an iPhone Duo.
-        let comments = app.buttons.matching(identifier: "Comments")
-        func hittableComment() -> XCUIElement? {
-            (0..<min(comments.count, 4)).map { comments.element(boundBy: $0) }.first { $0.isHittable }
+        // A post of its own, opened by tapping its photo in the feed. Back is there whichever
+        // edge the system put it on: the page's own header on a phone, the side strip on an
+        // iPhone Duo. On a short, wide screen the first post sits below the top of the feed.
+        let photos = app.descendants(matching: .any).matching(identifier: "post-photo")
+        func hittablePhoto() -> XCUIElement? {
+            (0..<min(photos.count, 4)).map { photos.element(boundBy: $0) }.first { $0.isHittable }
         }
-        var comment = hittableComment()
-        if comment == nil {
-            // On a short, wide screen the first post's photo fills the page and its Comments
-            // button sits below the fold; one scroll brings it up.
+        var photo = hittablePhoto()
+        if photo == nil {
             app.swipeUp()
             Thread.sleep(forTimeInterval: 1)
-            comment = hittableComment()
+            photo = hittablePhoto()
         }
-        if let comment {
-            comment.tap()
+        if let photo {
+            photo.tap()
             snap(app, "04-dump-detail", settle: 4)
             let hasBack = backButton(app).waitForExistence(timeout: 3)
             if !hasBack { describeChrome(app, "post") }
