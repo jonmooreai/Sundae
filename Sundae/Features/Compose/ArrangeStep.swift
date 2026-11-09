@@ -134,11 +134,13 @@ struct ArrangeStep: View {
                                 .frame(maxWidth: 300, alignment: .leading)
                             }
                         }
+                        .overlay(alignment: .topLeading) {
+                            if photo.madeWithAI {
+                                MadeWithAINote().padding(12)
+                            }
+                        }
                         .overlay(alignment: .topTrailing) {
                             HStack(spacing: 6) {
-                            if photo.madeWithAI {
-                                MadeWithAINote()
-                            }
                             if Self.canEdit(photo) {
                                 Button { editing = photo } label: {
                                     HStack(spacing: 5) {

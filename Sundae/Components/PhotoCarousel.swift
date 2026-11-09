@@ -97,7 +97,7 @@ struct PhotoCarousel: View {
                 .padding(10)
             }
         }
-        .overlay(alignment: .topTrailing) {
+        .overlay(alignment: .topLeading) {
             if photo.madeWithAI == true {
                 MadeWithAINote().padding(10)
             }
@@ -299,7 +299,7 @@ struct AttributionChip: View {
     }
 }
 
-/// A quiet note in a photo's upper right corner when its file said it was made with AI.
+/// A quiet note in a photo's upper left corner when its file said it was made with AI.
 struct MadeWithAINote: View {
     var body: some View {
         Text("Made with AI")
