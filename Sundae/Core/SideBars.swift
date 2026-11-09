@@ -51,6 +51,23 @@ private struct SideBarsReader: View {
 
 // MARK: - Chrome that moves to the side
 
+extension View {
+    /// A row that scrolls sideways stops at the Duo's side strip instead of running on under it:
+    /// a scroll view lets its content into the safe area along the axis it scrolls, which on
+    /// every other phone is the screen's edge, and beside the strip is the clock and the tabs.
+    /// Everywhere else nothing is clipped.
+    func insideSideBars() -> some View {
+        modifier(InsideSideBarsIfNeeded())
+    }
+}
+
+private struct InsideSideBarsIfNeeded: ViewModifier {
+    @Environment(\.sideBars) private var sideBars
+    func body(content: Content) -> some View {
+        if sideBars { content.clipped() } else { content }
+    }
+}
+
 /// A header's icon button: round and plain in the page, and in the Duo's side strip a toolbar
 /// item with a title the strip and its overflow menu can use. One view, right in both places.
 /// Strip glyphs are drawn at a fixed 20 points (`TabIcon`), the size the strip gives a symbol;

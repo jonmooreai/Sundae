@@ -305,6 +305,7 @@ struct ArrangeStep: View {
             .padding(.horizontal, Theme.pagePadding)
             .animation(.snappy(duration: 0.25), value: photos.map(\.id))
         }
+        .insideSideBars()
         .scrollIndicators(.hidden)
         .frame(height: 68)
         .photoSources(compose: compose, showsPicker: $showsPhotosPicker, showsCamera: $showsCamera)

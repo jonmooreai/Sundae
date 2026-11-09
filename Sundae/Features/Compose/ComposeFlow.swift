@@ -192,6 +192,7 @@ struct DraftThumbnailStrip: View {
                 centered ? max(length, contentWidth) : contentWidth
             }
         }
+        .insideSideBars()
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
     }

@@ -257,6 +257,7 @@ struct PhotoEditorView: View {
                             }
                         }
                     }
+                    .insideSideBars()
                     .scrollIndicators(.hidden)
                     Button {
                         Haptics.light()

@@ -223,6 +223,7 @@ private struct SavedIdeaCard: View {
             // Starts in line with the words and scrolls out to the card's edges, never past them.
             .padding(.horizontal, cardPadding)
         }
+        .insideSideBars()
         .scrollIndicators(.hidden)
         .padding(.horizontal, -cardPadding)
     }
