@@ -187,6 +187,13 @@ jobs:
           [ -n "$APP" ] && perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl install "$DUO_UDID" "$APP" || echo "::warning::install did not finish"
           xcrun simctl privacy "$DUO_UDID" grant photos com.jonmooreai.sundae || true
           ls seed-photos/*.jpg >/dev/null 2>&1 && xcrun simctl addmedia "$DUO_UDID" seed-photos/*.jpg || true
+          # The first pass after the Duo boots has been the slow one every time (queries timing
+          # out on the first screen, the next pass fine), so the app is opened once and left for a
+          # minute while the simulator finishes settling, then put away before the tests.
+          xcrun simctl launch "$DUO_UDID" com.jonmooreai.sundae >/dev/null 2>&1 || true
+          sleep 60
+          xcrun simctl terminate "$DUO_UDID" com.jonmooreai.sundae >/dev/null 2>&1 || true
+          sleep 15
           # Every forty seconds, a sample of the app's threads: when a test cannot get an answer
           # from the app, these say what the app was doing instead.
           mkdir -p samples
