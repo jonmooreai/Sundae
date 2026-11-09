@@ -106,11 +106,11 @@ class ScreenshotTests: XCTestCase {
     private func backButton(_ app: XCUIApplication) -> XCUIElement {
         let named = app.buttons["Back"].firstMatch
         if named.waitForExistence(timeout: 3) { return named }
+        // The system's own Back in the Duo's strip: no label, the identifier BackButton.
+        let system = app.buttons["BackButton"].firstMatch
+        if system.exists { return system }
         let inBar = app.navigationBars.buttons.firstMatch
         if inBar.exists { return inBar }
-        let system = XCUIApplication(bundleIdentifier: "com.apple.springboard")
-        let strip = system.buttons.matching(NSPredicate(format: "label == 'Back' OR identifier == 'Back' OR label CONTAINS[c] 'back'")).firstMatch
-        if strip.waitForExistence(timeout: 2) { return strip }
         return named
     }
 
