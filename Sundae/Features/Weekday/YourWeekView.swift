@@ -279,7 +279,6 @@ struct IdeaPhotoPicker: View {
     @State private var selected: [String] = []
     @State private var dates: [String: Date] = [:]
 
-    private var columns: [GridItem] { Array(repeating: GridItem(.flexible(), spacing: 2), count: 3) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -333,7 +332,7 @@ struct IdeaPhotoPicker: View {
             EmptyState(glyph: Glyph.photos, message: "No photos from this week yet.")
         } else {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 2) {
+                FoldAwareGrid {
                     ForEach(Array(library.assets.reversed()), id: \.localIdentifier) { asset in
                         cell(asset)
                     }

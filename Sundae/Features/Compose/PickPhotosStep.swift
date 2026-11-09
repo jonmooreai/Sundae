@@ -6,6 +6,7 @@ import SwiftUI
 /// The Photos picker is always one tap away for anything the grid cannot show.
 struct PickPhotosStep: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
 
@@ -21,8 +22,6 @@ struct PickPhotosStep: View {
     @State private var showsCamera = false
 
     private var compose: ComposeStore { model.compose }
-    /// Three columns on a phone, five across the Duo open: as many as fit at 125 or wider.
-    private var columns: [GridItem] { [GridItem(.adaptive(minimum: 125), spacing: 2)] }
     private var total: Int { selected.count + compose.nonLibraryPhotoCount }
     private var remaining: Int { max(0, DumpDraft.maxPhotos - total) }
 
@@ -41,7 +40,8 @@ struct PickPhotosStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
+        .sideBarChrome(showsBack: !path.isEmpty, onBack: { dismiss() }, close: path.isEmpty ? { compose.dismiss() } : nil)
+        .sideBarPrimaryAction("Next", isEnabled: library.isAuthorized && total > 0, isLoading: isPreparing) { Task { await next() } }
         .safeAreaInset(edge: .bottom) {
             if library.isAuthorized {
                 FlowBottomBar(title: "Next", isEnabled: total > 0, isLoading: isPreparing) {
@@ -98,7 +98,9 @@ struct PickPhotosStep: View {
         } else {
             ScrollView {
                 VStack(spacing: 10) {
-                    LazyVGrid(columns: columns, spacing: 2) {
+                    // Three columns on a phone; across the Duo open, an even count, so the
+                    // crease falls between two photos when the phone is part open.
+                    FoldAwareGrid {
                         ForEach(library.assets, id: \.localIdentifier) { asset in
                             cell(asset)
                         }

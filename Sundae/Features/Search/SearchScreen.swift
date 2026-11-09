@@ -10,7 +10,6 @@ struct SearchScreen: View {
         NavigationStack(path: $path) {
             SearchView()
                 .environment(\.scrollToTop, scrollSignal)
-                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                 .aboveBottomBar()
                 .swipeBackEnabled()
@@ -44,6 +43,7 @@ struct SearchView: View {
             .centeredColumn()
             // The column is cream; so are the sides, edge to edge, on a screen wider than it.
             .background(Theme.background)
+            .sideBarChrome()
     }
 
     private var searchBody: some View {

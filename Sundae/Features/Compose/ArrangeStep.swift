@@ -6,6 +6,7 @@ import SwiftUI
 /// and fix the order by dragging in the strip.
 struct ArrangeStep: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
 
@@ -41,21 +42,7 @@ struct ArrangeStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            FlowHeader(title: "Arrange and tag", isRoot: path.isEmpty, onClose: { compose.dismiss() }) {
-                if compose.hasPosted {
-                    Menu {
-                        Button(role: .destructive) { confirmDelete = true } label: {
-                            Label { Text("Delete this week") } icon: { Glyph.trash.regular }
-                        }
-                    } label: {
-                        Icon(Glyph.more, weight: .bold, size: 24)
-                            .foregroundStyle(.primary)
-                            .frame(width: 40, height: 40)
-                            .contentShape(Rectangle())
-                    }
-                    .accessibilityLabel("More")
-                }
-            }
+            FlowHeader(title: "Arrange and tag", isRoot: path.isEmpty, onClose: { compose.dismiss() }) { moreMenu }
             if photos.isEmpty {
                 empty
             } else {
@@ -64,7 +51,8 @@ struct ArrangeStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
+        .sideBarChrome(showsBack: !path.isEmpty, onBack: { dismiss() }, close: path.isEmpty ? { compose.dismiss() } : nil) { moreMenu }
+        .sideBarPrimaryAction("Next", isEnabled: !photos.isEmpty) { path.append(.caption) }
         .safeAreaInset(edge: .bottom) {
             if !photos.isEmpty {
                 FlowBottomBar(title: "Next") {
@@ -229,6 +217,18 @@ struct ArrangeStep: View {
             thumbnails
 
             Spacer(minLength: 0)
+        }
+    }
+
+    /// Delete, once the week is posted. In the header on a phone, on the side strip on an iPhone Duo.
+    @ViewBuilder
+    private var moreMenu: some View {
+        if compose.hasPosted {
+            ChromeMenu {
+                Button(role: .destructive) { confirmDelete = true } label: {
+                    Label { Text("Delete this week") } icon: { Glyph.trash.regular }
+                }
+            }
         }
     }
 

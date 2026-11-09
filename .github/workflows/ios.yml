@@ -142,7 +142,7 @@ jobs:
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
             SCREENSHOT_DIR="$PWD/screenshots" \
-            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|TEST .*(SUCCEEDED|FAILED)" || true
+            2>&1 | tee test-iphone.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-iphone.log
 
       # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
@@ -186,7 +186,7 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
-            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|TEST .*(SUCCEEDED|FAILED)" || true
+            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
           kill "$SAMPLER" 2>/dev/null || true
           # The main thread of each sample, so a stuck layout shows in the log itself.
           for f in samples/*.txt; do
@@ -195,6 +195,58 @@ jobs:
             awk '/com.apple.main-thread/{p=1} p&&NF==0{exit} p' "$f" | head -40 | cut -c1-170
           done
           grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-duo.log
+
+      # The other poses. Xcode has no command of its own for folding the simulator (Device Hub's
+      # slider needs a hand on the mouse), so this uses duoctl, a small open-source tool (MIT,
+      # github.com/skarol/duoctl, pinned to a release by Homebrew's checksum) that sends the
+      # same signal the slider does and reads the angle back, so a fold that did not happen is
+      # an error rather than a quiet pass. It leans on private interfaces, verified with Xcode
+      # 27.1 and 27.2; an Xcode update may break it, which shows up here as a warning and a
+      # missing pose, never a failed build.
+      #   Open flat (180): the inner display, regular both ways. Every screen, upright.
+      #   Half open (90): the crease across the inner display. Every screen again, so the
+      #   pictures show what sits on the crease and what keeps clear of it.
+      - name: Every screen on iPhone Duo, open and half open
+        if: env.FULL == 'true' && env.DUO_UDID != ''
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          if ! brew install skarol/tap/duoctl 2>&1 | tail -3; then
+            echo "::warning::duoctl did not install; the open and half-open poses were not photographed"
+            exit 0
+          fi
+          export DUOCTL_UDID="$DUO_UDID"
+          xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
+          perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl bootstatus "$DUO_UDID" -b || true
+          duoctl state || true
+          pose() {
+            # $1: the pose's name for the files (open, half); $2: the duoctl command for it.
+            # A fold sweeps over a second rather than jumping: on iOS 27.1 a jump could leave the
+            # simulator stuck on one screen.
+            if ! perl -e 'alarm shift; exec @ARGV' 120 duoctl "$2" --duration 1.0; then
+              echo "::warning::the iPhone Duo simulator would not fold to $1; that pose was not photographed"
+              return 0
+            fi
+            duoctl state || true
+            perl -e 'alarm shift; exec @ARGV' 60 duoctl rotate portrait || true
+            # Passed the way SCREENSHOT_DIR is above, which the tests have been reading all along.
+            perl -e 'alarm shift; exec @ARGV' 1800 xcodebuild test-without-building \
+              -project Sundae.xcodeproj -scheme Sundae \
+              -destination "platform=iOS Simulator,id=$DUO_UDID" \
+              -derivedDataPath build \
+              -resultBundlePath "results/duo-$1.xcresult" \
+              -only-testing:SundaeUITests/ScreenshotTests \
+              -test-timeouts-enabled YES \
+              -default-test-execution-time-allowance 600 \
+              -maximum-test-execution-time-allowance 900 \
+              SUNDAE_POSE="$1" SCREENSHOT_DIR="$PWD/screenshots" \
+              2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|TEST .*(SUCCEEDED|FAILED)" || true
+            grep -Eq "TEST (EXECUTE )?SUCCEEDED" "test-duo-$1.log" || echo "::warning::the $1 pose had a failing screen; see test-duo-$1.log"
+          }
+          pose open open
+          pose half half
+          # Back to closed, so anything after this that expects the cover display finds it.
+          perl -e 'alarm shift; exec @ARGV' 120 duoctl close --duration 1.0 || true
 
       - name: Export screenshots from result bundles
         if: always() && env.FULL == 'true'

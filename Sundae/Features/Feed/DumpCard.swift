@@ -15,12 +15,16 @@ struct DumpCard: View {
     @State private var showComments = false
     @State private var focusComposer = false
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.sideBars) private var sideBars
+
+    /// Edge to edge on a phone; inset with soft corners where the post floats in a column.
+    private var floats: Bool { sizeClass == .regular || sideBars }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header.padding(.horizontal, Theme.pagePadding)
 
-            PhotoCarousel(photos: dump.photos, index: $page, cornerRadius: PhotoCarousel.radius(sizeClass), onTap: { position in
+            PhotoCarousel(photos: dump.photos, index: $page, cornerRadius: PhotoCarousel.radius(sizeClass, sideBars: sideBars), onTap: { position in
                 guard dump.photos.indices.contains(position) else { return }
                 open(.dump(dump.id, photo: dump.photos[position].id))
             }, onDoubleTap: {

@@ -22,6 +22,11 @@ struct PhotoCarousel: View {
     @State private var captionsHidden = false
     @State private var burst = 0
     @State private var screenFrame = ScreenFrame()
+    /// Where an iPhone Duo's crease crosses the photos when the phone is part open, in the
+    /// carousel's own space. The photo stays put (Apple asks for small adjustments, not
+    /// rearrangement); a caption floating over it steps to the side with more room.
+    @State private var fold: CGRect?
+    @State private var size: CGSize = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(PhotoZoom.self) private var zoom: PhotoZoom?
@@ -36,14 +41,33 @@ struct PhotoCarousel: View {
 
     private var hasCaptions: Bool { photos.contains { !($0.caption ?? "").isEmpty } }
 
-    /// Soft corners where a post floats in a column with room on either side (regular width: the
-    /// Duo open, an iPad); square on a phone, where the photos run edge to edge.
-    static func radius(_ sizeClass: UserInterfaceSizeClass?) -> CGFloat {
-        sizeClass == .regular ? 14 : 0
+    /// Soft corners where a post floats in a column with room beside it: regular width (the Duo
+    /// open, an iPad), and the Duo closed, where the system's bars take one side and a photo run
+    /// to the other edge would read lopsided. Square on a phone, where the photos run edge to edge.
+    static func radius(_ sizeClass: UserInterfaceSizeClass?, sideBars: Bool = false) -> CGFloat {
+        sizeClass == .regular || sideBars ? 14 : 0
     }
 
     /// A little above the page dots, or near the foot when there is only one photo and no dots.
     private var captionLift: CGFloat { photos.count > 1 ? 36 : 14 }
+
+    private struct Creased: Equatable {
+        var size: CGSize
+        var fold: CGRect?
+    }
+
+    /// With a crease down the photo, the caption keeps to the wider side of it; with a crease
+    /// across, it keeps below the crease, where the foot of the photo already is.
+    private var captionAlignment: Alignment {
+        guard let fold, fold.height > fold.width, size.width > 0 else { return .bottom }
+        return fold.midX < size.width / 2 ? .bottomTrailing : .bottomLeading
+    }
+
+    /// Room for a caption on the side of a crease it keeps to, so it never runs under the crease.
+    private var captionMaxWidth: CGFloat? {
+        guard let fold, fold.height > fold.width, size.width > 0 else { return nil }
+        return max(140, max(fold.minX, size.width - fold.maxX) - 24)
+    }
 
     var body: some View {
         TabView(selection: $index) {
@@ -55,6 +79,12 @@ struct PhotoCarousel: View {
         .aspectRatio(aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { rect in screenFrame.rect = rect }
+        .onGeometryChange(for: Creased.self) { proxy in
+            Creased(size: proxy.size, fold: Fold.frame(in: proxy))
+        } action: { creased in
+            size = creased.size
+            fold = creased.fold
+        }
         .overlay {
             if burst > 0 {
                 HeartBurst().id(burst).transition(.opacity)
@@ -102,9 +132,10 @@ struct PhotoCarousel: View {
                 MadeWithAINote().padding(10)
             }
         }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: captionAlignment) {
             if let caption = photo.caption, !caption.isEmpty, !captionsHidden {
                 FloatingCaption(text: caption)
+                    .frame(maxWidth: captionMaxWidth)
                     .padding(.horizontal, 16)
                     .padding(.bottom, captionLift)
                     .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.opacity.combined(with: .offset(y: 18)))

@@ -10,6 +10,7 @@ struct SundaeApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
+                .providesSideBars()
                 .preferredColorScheme(model.appearance.colorScheme)
                 .task { await model.start() }
                 // A Maps button on the large widget comes through here and goes straight on to

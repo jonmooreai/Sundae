@@ -84,15 +84,19 @@ struct FlowHeader<Trailing: View>: View {
     var onClose: () -> Void
     @ViewBuilder var trailing: () -> Trailing
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.sideBars) private var sideBars
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            if isRoot {
-                IconButton(glyph: Glyph.close, label: "Close", size: 22, action: onClose)
-                    .padding(.leading, -8)
-            } else {
-                IconButton(glyph: Glyph.back, label: "Back", size: 24) { dismiss() }
-                    .padding(.leading, -8)
+            // Where the system's bars run down the side, Close or Back and the chrome go there.
+            if !sideBars {
+                if isRoot {
+                    IconButton(glyph: Glyph.close, label: "Close", size: 22, action: onClose)
+                        .padding(.leading, -8)
+                } else {
+                    IconButton(glyph: Glyph.back, label: "Back", size: 24) { dismiss() }
+                        .padding(.leading, -8)
+                }
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
@@ -104,7 +108,7 @@ struct FlowHeader<Trailing: View>: View {
                 }
             }
             Spacer(minLength: 8)
-            trailing()
+            if !sideBars { trailing() }
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 6)
@@ -113,12 +117,18 @@ struct FlowHeader<Trailing: View>: View {
 }
 
 /// Bottom bar with a count on the left and the one primary action on the right.
+///
+/// On an iPhone Duo with its bars down the side, the primary action joins them as the prominent
+/// action under Back (Apple's order for the strip; the step declares it with
+/// `sideBarPrimaryAction`), and the bar keeps only its count, so the screen's photos get the
+/// height a shorter screen is short of.
 struct FlowBottomBar<Leading: View>: View {
     let title: String
     let isEnabled: Bool
     let isLoading: Bool
     let action: () -> Void
     let leading: () -> Leading
+    @Environment(\.sideBars) private var sideBars
 
     init(title: String, isEnabled: Bool = true, isLoading: Bool = false,
          action: @escaping () -> Void, @ViewBuilder leading: @escaping () -> Leading) {
@@ -133,19 +143,21 @@ struct FlowBottomBar<Leading: View>: View {
         HStack(spacing: 12) {
             leading()
             Spacer(minLength: 0)
-            Button(action: action) {
-                ZStack {
-                    Text(title).opacity(isLoading ? 0 : 1)
-                    if isLoading { ProgressView().tint(.white) }
+            if !sideBars {
+                Button(action: action) {
+                    ZStack {
+                        Text(title).opacity(isLoading ? 0 : 1)
+                        if isLoading { ProgressView().tint(.white) }
+                    }
+                    .frame(minWidth: 80)
                 }
-                .frame(minWidth: 80)
+                .buttonStyle(.pill(.primary))
+                .disabled(!isEnabled || isLoading)
+                .accessibilityIdentifier("flow-primary")
             }
-            .buttonStyle(.pill(.primary))
-            .disabled(!isEnabled || isLoading)
-            .accessibilityIdentifier("flow-primary")
         }
         .padding(.horizontal, Theme.pagePadding)
-        .padding(.vertical, 10)
+        .padding(.vertical, sideBars ? 6 : 10)
         .centeredColumn()
         .background {
             Theme.background
@@ -216,6 +228,7 @@ struct SundayPromptStep: View {
     @Environment(AppModel.self) private var model
     @Environment(\.displayScale) private var displayScale
     @Environment(\.verticalSizeClass) private var verticalSizeClass
+    @Environment(\.sideBars) private var sideBars
     let library: PhotoLibrary
     @Binding var path: [ComposeStep]
     @State private var previews: [UIImage] = []
@@ -243,9 +256,11 @@ struct SundayPromptStep: View {
                     CherryMark(size: 30)
                 }
                 Spacer()
-                Button("Not now") { notNow() }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
+                if !sideBars {
+                    Button("Not now") { notNow() }
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             // The words and the photos, then the buttons: below them upright, beside them on a
@@ -292,7 +307,13 @@ struct SundayPromptStep: View {
         .padding(24)
         .centeredColumn(Theme.columnWidth + 48)
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
+        // On the Duo's side strip, Not now is the one way out, where Close would be.
+        .toolbar(sideBars ? .visible : .hidden, for: .navigationBar)
+        .toolbar {
+            if sideBars {
+                SideBarNavigation(kind: .close) { notNow() }
+            }
+        }
         .task { await loadPreviews() }
     }
 

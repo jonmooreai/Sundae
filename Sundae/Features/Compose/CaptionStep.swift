@@ -4,6 +4,7 @@ import WidgetKit
 /// Step three: one caption for the whole week, then post.
 struct CaptionStep: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     @Binding var path: [ComposeStep]
     @FocusState private var captionFocused: Bool
 
@@ -71,7 +72,9 @@ struct CaptionStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
+        .sideBarChrome(showsBack: true, onBack: { dismiss() })
+        .sideBarPrimaryAction(compose.hasPosted ? "Save changes" : "Post your week",
+                              isEnabled: compose.canPost, isLoading: compose.isSaving) { Task { await post() } }
         .safeAreaInset(edge: .bottom) {
             FlowBottomBar(title: compose.hasPosted ? "Save changes" : "Post your week",
                           isEnabled: compose.canPost, isLoading: compose.isSaving) {

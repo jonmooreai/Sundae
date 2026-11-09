@@ -9,6 +9,7 @@ struct WeekdayView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.sideBars) private var sideBars
     @State private var showSettings = false
     @State private var showLocationConsent = false
     @State private var showWeek = false
@@ -60,6 +61,12 @@ struct WeekdayView: View {
             .padding(.bottom, 24)
             .padding(.top, 12)
             .centeredColumn(isWide ? 860 : Theme.columnWidth + 48)
+            // Nothing here scrolls and there are no bars, so on an iPhone Duo closed the idea can
+            // take the whole width of the screen, as Apple suggests for a surface like this: the
+            // strip down the side holds only the clock and the camera, and the words center on
+            // the screen rather than on what is left of it. The two buttons in the top corners
+            // stay clear of that strip through the top bar's own inset.
+            .ignoresSafeArea(.container, edges: sideBars ? .horizontal : [])
         }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             height = size.height
@@ -140,8 +147,19 @@ struct WeekdayView: View {
                 IconButton(glyph: Glyph.settings, label: "Settings", filled: true) { showSettings = true }
             }
             .padding(.horizontal, -6)
+            // With the page spanning the Duo's full width, the corner buttons alone step back
+            // from the strip with the clock and the camera.
+            .padding(.horizontal, sideBars ? stripInset : 0)
         }
         .foregroundStyle(.primary)
+    }
+
+    /// How far the Duo's side strip reaches in: the width the system keeps for the clock and the
+    /// camera, with a little room past it.
+    private var stripInset: CGFloat {
+        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let insets = scene?.windows.first?.safeAreaInsets ?? .zero
+        return max(insets.left, insets.right) + 4
     }
 
     /// How many ideas are saved, on the Your week button.
