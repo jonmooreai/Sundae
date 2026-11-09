@@ -144,6 +144,7 @@ struct FeedList: View {
             .animation(.easeOut(duration: 0.3), value: feed.dumps.count)
         }
         .scrollsToTopOnTabTap()
+        .sideBarChrome()
         // Pulled up past the end of this week: the button says to let go, and letting go loads
         // the weeks before, as a pull down refreshes.
         .onScrollGeometryChange(for: CGFloat.self) { geometry in

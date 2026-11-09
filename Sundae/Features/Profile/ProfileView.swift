@@ -29,6 +29,7 @@ struct ProfileScreen: View {
 /// the user's own photos followed by approved tagged photos with a "from Maya" chip.
 struct ProfileView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     let userID: ID
     var isRoot = false
 
@@ -47,24 +48,7 @@ struct ProfileView: View {
         ScrollView {
             VStack(spacing: 20) {
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    ScreenHeader(title: profile?.user.username ?? "", showsBack: !isRoot) {
-                        if isOwn {
-                            ChromeButton(glyph: Glyph.settings, title: "Settings") { showSettings = true }
-                                .accessibilityIdentifier("profile-settings")
-                        } else if let profile {
-                            ChromeMenu {
-                                Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
-                                Button(role: .destructive) {
-                                    Task {
-                                        try? await model.api.block(userID: userID)
-                                        await load()
-                                    }
-                                } label: {
-                                    Label { Text("Block \(profile.user.firstName)") } icon: { Glyph.block.regular }
-                                }
-                            }
-                        }
-                    }
+                    ScreenHeader(title: profile?.user.username ?? "", showsBack: !isRoot) { chrome }
                     .id(ScrollTop.id)
                     if let profile {
                         ProfileHeader(profile: profile, onFollow: { Task { await toggleFollow() } }, onEdit: { showEdit = true })
@@ -95,6 +79,7 @@ struct ProfileView: View {
         }
         .scrollsToTopOnTabTap()
         .background(Theme.background)
+        .sideBarChrome(showsBack: !isRoot, onBack: { dismiss() }) { chrome }
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
                 .presentationBackground(Theme.background)
@@ -117,6 +102,28 @@ struct ProfileView: View {
         .refreshable { await load() }
         // Someone removed, followed or unfollowed from a list opened here: the counts follow.
         .onChange(of: model.followsChanged) { _, _ in Task { await load() } }
+    }
+
+    /// Settings on your own profile, Report and Block on someone else's. In the header on a
+    /// phone, on the side strip on an iPhone Duo.
+    @ViewBuilder
+    private var chrome: some View {
+        if isOwn {
+            ChromeButton(glyph: Glyph.settings, title: "Settings") { showSettings = true }
+                .accessibilityIdentifier("profile-settings")
+        } else if let profile {
+            ChromeMenu {
+                Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
+                Button(role: .destructive) {
+                    Task {
+                        try? await model.api.block(userID: userID)
+                        await load()
+                    }
+                } label: {
+                    Label { Text("Block \(profile.user.firstName)") } icon: { Glyph.block.regular }
+                }
+            }
+        }
     }
 
     /// A private account you don't follow: its weeks stay hidden.

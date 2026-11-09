@@ -147,7 +147,42 @@ struct SideBarChrome<Trailing: View>: ViewModifier {
     }
 }
 
+/// The screen's one primary action (Next, Post your week), on the Duo's side strip as the
+/// prominent action under Back. Declared from the screen's root, like the rest of its chrome.
+private struct SideBarPrimaryAction: ViewModifier {
+    @Environment(\.sideBars) private var sideBars
+    let title: String
+    let isEnabled: Bool
+    let isLoading: Bool
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content.toolbar {
+            if sideBars {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(action: action) {
+                        if isLoading {
+                            ProgressView()
+                        } else {
+                            Text(title).fontWeight(.semibold)
+                        }
+                    }
+                    .disabled(!isEnabled || isLoading)
+                    .accessibilityIdentifier("flow-primary")
+                }
+            }
+        }
+    }
+}
+
 extension View {
+    /// The screen's primary action on the Duo's side strip. Off the Duo it adds nothing; the
+    /// screen's own bottom bar shows the button.
+    func sideBarPrimaryAction(_ title: String, isEnabled: Bool = true, isLoading: Bool = false,
+                              action: @escaping () -> Void) -> some View {
+        modifier(SideBarPrimaryAction(title: title, isEnabled: isEnabled, isLoading: isLoading, action: action))
+    }
+
     /// Puts Back (or Close) and the trailing chrome into the system's side bars on an iPhone Duo,
     /// and hides the system navigation bar everywhere else so the page's own header shows.
     func sideBarChrome<Trailing: View>(showsBack: Bool = false, onBack: (() -> Void)? = nil,

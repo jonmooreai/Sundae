@@ -55,6 +55,7 @@ struct DumpDetailView: View {
             }
         }
         .background(Theme.background)
+        .sideBarChrome(showsBack: true, onBack: { dismiss() }) { moreMenu }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
             width = size.width
             height = size.height
@@ -100,27 +101,7 @@ struct DumpDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ScreenHeader(title: dump.map { model.clock.rangeLabel(weekStart: $0.weekStart) } ?? "", showsBack: true) {
-                    if let dump {
-                        ChromeMenu {
-                            if isOwn {
-                                if model.canEdit(dump) {
-                                    Button { Task { await model.editThisWeek() } } label: {
-                                        Label { Text("Edit this week") } icon: { Glyph.edit.regular }
-                                    }
-                                }
-                                Button(role: .destructive) { confirmDelete = true } label: {
-                                    Label { Text("Delete this week") } icon: { Glyph.trash.regular }
-                                }
-                            } else {
-                                Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
-                                Button(role: .destructive) {
-                                    Task { try? await model.api.block(userID: dump.author.id) }
-                                } label: {
-                                    Label { Text("Block \(dump.author.firstName)") } icon: { Glyph.block.regular }
-                                }
-                            }
-                        }
-                    }
+                    moreMenu
                 }
                 if let dump {
                     content(dump)
@@ -132,6 +113,33 @@ struct DumpDetailView: View {
             }
             .centeredColumn(Theme.postWidth)
             .padding(.bottom, 24)
+        }
+    }
+
+    /// Report or block someone else's week, edit or delete your own. In the header on a phone,
+    /// on the side strip on an iPhone Duo.
+    @ViewBuilder
+    private var moreMenu: some View {
+        if let dump {
+            ChromeMenu {
+                if isOwn {
+                    if model.canEdit(dump) {
+                        Button { Task { await model.editThisWeek() } } label: {
+                            Label { Text("Edit this week") } icon: { Glyph.edit.regular }
+                        }
+                    }
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        Label { Text("Delete this week") } icon: { Glyph.trash.regular }
+                    }
+                } else {
+                    Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
+                    Button(role: .destructive) {
+                        Task { try? await model.api.block(userID: dump.author.id) }
+                    } label: {
+                        Label { Text("Block \(dump.author.firstName)") } icon: { Glyph.block.regular }
+                    }
+                }
+            }
         }
     }
 

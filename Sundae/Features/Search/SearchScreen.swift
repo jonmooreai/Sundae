@@ -43,6 +43,7 @@ struct SearchView: View {
             .centeredColumn()
             // The column is cream; so are the sides, edge to edge, on a screen wider than it.
             .background(Theme.background)
+            .sideBarChrome()
     }
 
     private var searchBody: some View {

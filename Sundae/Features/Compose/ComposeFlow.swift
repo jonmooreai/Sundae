@@ -113,15 +113,15 @@ struct FlowHeader<Trailing: View>: View {
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 6)
         .padding(.bottom, 6)
-        .sideBarChrome(showsBack: !isRoot, onBack: { dismiss() }, close: isRoot ? onClose : nil, trailing: trailing)
     }
 }
 
 /// Bottom bar with a count on the left and the one primary action on the right.
 ///
 /// On an iPhone Duo with its bars down the side, the primary action joins them as the prominent
-/// action under Back (Apple's order for the strip), and the bar keeps only its count, so the
-/// screen's photos get the height a shorter screen is short of.
+/// action under Back (Apple's order for the strip; the step declares it with
+/// `sideBarPrimaryAction`), and the bar keeps only its count, so the screen's photos get the
+/// height a shorter screen is short of.
 struct FlowBottomBar<Leading: View>: View {
     let title: String
     let isEnabled: Bool
@@ -163,21 +163,6 @@ struct FlowBottomBar<Leading: View>: View {
             Theme.background
                 .overlay(alignment: .top) { Hairline() }
                 .ignoresSafeArea(edges: [.bottom, .horizontal])
-        }
-        .toolbar {
-            if sideBars {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: action) {
-                        if isLoading {
-                            ProgressView()
-                        } else {
-                            Text(title).fontWeight(.semibold)
-                        }
-                    }
-                    .disabled(!isEnabled || isLoading)
-                    .accessibilityIdentifier("flow-primary")
-                }
-            }
         }
     }
 }

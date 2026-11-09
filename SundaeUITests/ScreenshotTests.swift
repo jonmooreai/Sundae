@@ -74,8 +74,16 @@ class ScreenshotTests: XCTestCase {
         if button.waitForExistence(timeout: 5) { button.tap() }
     }
 
+    /// Back wherever the system put it: the page's own header on a phone, the side strip on an
+    /// iPhone Duo (where the system may name the button by the screen it goes back to).
+    private func backButton(_ app: XCUIApplication) -> XCUIElement {
+        let named = app.buttons["Back"].firstMatch
+        if named.waitForExistence(timeout: 3) { return named }
+        return app.navigationBars.buttons.firstMatch
+    }
+
     private func back(_ app: XCUIApplication) {
-        let button = app.buttons["Back"].firstMatch
+        let button = backButton(app)
         if button.waitForExistence(timeout: 3) { button.tap() }
     }
 
@@ -244,7 +252,7 @@ class ScreenshotTests: XCTestCase {
         if comments.waitForExistence(timeout: 5) {
             comments.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             snap(app, "04-dump-detail", settle: 4)
-            XCTAssertTrue(app.buttons["Back"].firstMatch.waitForExistence(timeout: 3), "a way back on every device")
+            XCTAssertTrue(backButton(app).waitForExistence(timeout: 3), "a way back on every device")
             back(app)
         }
 

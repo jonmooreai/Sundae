@@ -6,6 +6,7 @@ import SwiftUI
 struct PeopleListView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismiss) private var dismiss
     @Namespace private var tabSpace
 
     let userID: ID
@@ -36,6 +37,7 @@ struct PeopleListView: View {
         peopleBody
             .centeredColumn()
             .background(Theme.background)
+            .sideBarChrome(showsBack: true, onBack: { dismiss() })
     }
 
     private var peopleBody: some View {

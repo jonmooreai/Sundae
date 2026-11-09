@@ -80,6 +80,7 @@ struct NotificationsView: View {
         }
         .scrollsToTopOnTabTap()
         .background(Theme.background)
+        .sideBarChrome()
         .task {
             if !opened {
                 opened = true
