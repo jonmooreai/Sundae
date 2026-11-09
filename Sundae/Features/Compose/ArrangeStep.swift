@@ -87,6 +87,17 @@ struct ArrangeStep: View {
                 compose.applyEdits(to: photo.id, edits: edits, rendered: rendered)
             }
         }
+        // A photo whose file says it was made with AI: a gentle word, and the choice stays theirs.
+        .alert(compose.madeWithAINudge.count == 1 ? "This one looks made with AI" : "These look made with AI",
+               isPresented: Binding(get: { !compose.madeWithAINudge.isEmpty },
+                                    set: { if !$0 { compose.answerMadeWithAINudge(keep: true) } })) {
+            Button(compose.madeWithAINudge.count == 1 ? "Take it out" : "Take them out") {
+                withAnimation { compose.answerMadeWithAINudge(keep: false) }
+            }
+            Button("Keep", role: .cancel) { compose.answerMadeWithAINudge(keep: true) }
+        } message: {
+            Text("Sundae is for your real week, the things you actually saw and did. Friends will see a small Made with AI note on it.")
+        }
         .confirmationDialog("Delete this week's post?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
                 Task {

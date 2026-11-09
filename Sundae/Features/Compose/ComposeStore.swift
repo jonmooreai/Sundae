@@ -49,6 +49,8 @@ final class ComposeStore {
     var errorMessage: String?
     /// The library photos in the post just saved, in its order, for the widget.
     private(set) var postedAssetIDs: [String] = []
+    /// Photos just added whose files say they were made with AI, waiting for a gentle word.
+    private(set) var madeWithAINudge: [ID] = []
 
     init(api: any SundaeAPI) {
         self.api = api
@@ -186,6 +188,7 @@ final class ComposeStore {
         guard let processed = await PhotoProcessor.processInBackground(data) else { return }
         var photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
         photo.madeWithAI = await Self.madeWithAI(data)
+        if photo.madeWithAI { madeWithAINudge.append(photo.id) }
         libraryPhotoIDs[assetID] = photo.id
         draft.photos.append(photo)
     }
@@ -223,7 +226,16 @@ final class ComposeStore {
         guard draft.canAddMore else { return }
         var photo = DraftPhoto(source: .data(processed.data), width: processed.width, height: processed.height, takenAt: takenAt)
         photo.madeWithAI = madeWithAI
+        if madeWithAI { madeWithAINudge.append(photo.id) }
         draft.photos.append(photo)
+    }
+
+    /// The nudge answered: keep them, or take them out of the post.
+    func answerMadeWithAINudge(keep: Bool) {
+        if !keep {
+            for id in madeWithAINudge { remove(id) }
+        }
+        madeWithAINudge = []
     }
 
     /// Read from the original file, off the main thread, before it is stripped.
