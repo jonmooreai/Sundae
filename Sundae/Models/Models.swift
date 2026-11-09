@@ -76,6 +76,8 @@ struct Photo: Identifiable, Hashable, Codable, Sendable {
     var tags: [Tag]
     /// Whether the server has this photo's fingerprint. Nil from a server that does not say.
     var hasFingerprint: Bool? = nil
+    /// The poster's phone found it was made with AI.
+    var madeWithAI: Bool? = nil
 
     var aspectRatio: CGFloat { height == 0 ? 1 : CGFloat(width) / CGFloat(height) }
     /// Tags that should be drawn: pending and approved. Declined and removed tags vanish everywhere.
@@ -255,6 +257,8 @@ struct DraftPhoto: Identifiable, Hashable, Codable, Sendable {
     var edits: PhotoEdits? = nil
     /// The posted photo an edited one takes the place of, so its tags and their answers carry over.
     var replaces: ID? = nil
+    /// The original file said it was made with AI. Friends see a quiet note on it.
+    var madeWithAI: Bool = false
 }
 
 /// A photo's source and size before it was edited.
@@ -346,6 +350,7 @@ extension DraftPhoto {
         original = try container.decodeIfPresent(DraftOriginal.self, forKey: .original)
         edits = try container.decodeIfPresent(PhotoEdits.self, forKey: .edits)
         replaces = try container.decodeIfPresent(ID.self, forKey: .replaces)
+        madeWithAI = try container.decodeIfPresent(Bool.self, forKey: .madeWithAI) ?? false
     }
 }
 

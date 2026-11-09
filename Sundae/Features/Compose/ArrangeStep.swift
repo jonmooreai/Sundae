@@ -134,7 +134,13 @@ struct ArrangeStep: View {
                                 .frame(maxWidth: 300, alignment: .leading)
                             }
                         }
+                        .overlay(alignment: .topLeading) {
+                            if photo.madeWithAI {
+                                MadeWithAINote().padding(12)
+                            }
+                        }
                         .overlay(alignment: .topTrailing) {
+                            HStack(spacing: 6) {
                             if Self.canEdit(photo) {
                                 Button { editing = photo } label: {
                                     HStack(spacing: 5) {
@@ -149,10 +155,11 @@ struct ArrangeStep: View {
                                     .contentShape(Capsule())
                                 }
                                 .buttonStyle(.plain)
-                                .padding(12)
                                 .accessibilityLabel("Edit photo")
                                 .accessibilityIdentifier("edit-photo")
                             }
+                            }
+                            .padding(12)
                         }
                         .padding(.horizontal, Theme.pagePadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

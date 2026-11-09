@@ -97,6 +97,11 @@ struct PhotoCarousel: View {
                 .padding(10)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if photo.madeWithAI == true {
+                MadeWithAINote().padding(10)
+            }
+        }
         .overlay(alignment: .bottom) {
             if let caption = photo.caption, !caption.isEmpty, !captionsHidden {
                 FloatingCaption(text: caption)
@@ -291,5 +296,18 @@ struct AttributionChip: View {
             .padding(.vertical, 4)
             .background(.regularMaterial, in: Capsule())
             .padding(6)
+    }
+}
+
+/// A quiet note in a photo's upper left corner when its file said it was made with AI.
+struct MadeWithAINote: View {
+    var body: some View {
+        Text("Made with AI")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8)
+            .frame(height: 22)
+            .background(.ultraThinMaterial, in: Capsule())
+            .accessibilityLabel("Made with AI")
     }
 }

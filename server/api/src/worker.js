@@ -798,6 +798,7 @@ async function photosJSON(ctx, photos) {
       id: photo.id, dump_id: photo.dump_id, order: photo.ord, url: await mediaUrl(ctx, photo.object_key),
       width: pixels(photo.width) || 1, height: pixels(photo.height) || 1, alt_text: photo.alt_text || null,
       caption: photo.caption || null, tags: photoTags, has_fingerprint: Boolean(photo.fingerprint),
+      made_with_ai: Boolean(photo.made_with_ai),
     });
   }
   return out;
@@ -947,8 +948,10 @@ async function saveDump(ctx, week) {
           // The photo's id comes from its upload's, so saves sent together that each add this
           // upload add one photo, and none of them takes the others' away.
           row = { id: `p_${uploadId.replace(/^up_/, '')}`, object_key: upload.object_key, width: pixels(upload.width) || 1, height: pixels(upload.height) || 1, upload_id: uploadId, isNew: true };
-          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption, fingerprint) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?, ?)`)
-            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption, fingerprintOf(photo.fingerprint)));
+          // Made with AI: what the poster's phone read in the file before it was stripped.
+          writes.push(db.prepare(`INSERT OR IGNORE INTO photos (id, dump_id, ord, object_key, width, height, alt_text, upload_id, caption, fingerprint, made_with_ai) VALUES (?, ${weekDump}, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(row.id, me.id, week, index, row.object_key, width || row.width, height || row.height, alt, uploadId, caption,
+              fingerprintOf(photo.fingerprint), photo.made_with_ai === true ? 1 : 0));
         }
         existing.push(row);
       }

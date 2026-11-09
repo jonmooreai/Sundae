@@ -65,14 +65,16 @@ enum DTO {
         let caption: String?
         let tags: [Tag]
         let hasFingerprint: Bool?
+        let madeWithAi: Bool?
 
         private enum CodingKeys: String, CodingKey {
-            case id, dumpId, order, url, width, height, altText, caption, tags, hasFingerprint
+            case id, dumpId, order, url, width, height, altText, caption, tags, hasFingerprint, madeWithAi
         }
 
         var model: Sundae.Photo {
             Sundae.Photo(id: id, dumpID: dumpId, order: order, source: .remote(url), width: width, height: height,
-                         altText: altText, caption: caption, tags: tags.map(\.model), hasFingerprint: hasFingerprint)
+                         altText: altText, caption: caption, tags: tags.map(\.model), hasFingerprint: hasFingerprint,
+                         madeWithAI: madeWithAi)
         }
 
         /// Width and height only shape the frame, so an odd value (a fraction, a huge number,
@@ -423,6 +425,8 @@ enum DTO {
         let taggedUserIds: [String]
         /// A new photo's fingerprint (`PhotoFingerprint`), so a tag on the same picture is not added twice.
         var fingerprint: String? = nil
+        /// Sent only when true: the original file said it was made with AI.
+        var madeWithAi: Bool? = nil
     }
 
     struct Fingerprints: Encodable {
@@ -482,6 +486,7 @@ extension DTO.Photo {
         caption = try? container.decodeIfPresent(String.self, forKey: .caption)
         tags = try container.decode([DTO.Tag].self, forKey: .tags)
         hasFingerprint = try? container.decodeIfPresent(Bool.self, forKey: .hasFingerprint)
+        madeWithAi = try? container.decodeIfPresent(Bool.self, forKey: .madeWithAi)
     }
 }
 
