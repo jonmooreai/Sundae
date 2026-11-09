@@ -264,7 +264,7 @@ class ScreenshotTests: XCTestCase {
             let hasBack = backButton(app).waitForExistence(timeout: 3)
             if !hasBack {
                 // What the test is looking at, so a miss can be read from the log alone.
-                print("[back-missing] buttons: \(app.buttons.allElementsBoundByIndex.prefix(12).map(\.label)) navbars: \(app.navigationBars.count)")
+                print("[back-missing] buttons: \(app.buttons.allElementsBoundByIndex.prefix(12).map { $0.label }) navbars: \(app.navigationBars.count)")
             }
             XCTAssertTrue(hasBack, "a way back from a post on every device")
             back(app)
