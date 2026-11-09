@@ -93,9 +93,15 @@ class ScreenshotTests: XCTestCase {
         }
     }
 
+    /// A tab, in Sundae's own bar (identified tab-feed and so on) or, where the system's bars run
+    /// down the side of an iPhone Duo, in the system tab bar, whose items carry only their titles.
     private func tab(_ app: XCUIApplication, _ name: String) {
-        let button = app.buttons["tab-\(name.lowercased())"].firstMatch
-        if button.waitForExistence(timeout: 5) { button.tap() }
+        let own = app.buttons["tab-\(name.lowercased())"].firstMatch
+        if own.waitForExistence(timeout: 5) { own.tap(); return }
+        let system = app.tabBars.buttons[name].firstMatch
+        if system.waitForExistence(timeout: 2) { system.tap(); return }
+        let labelled = app.buttons[name].firstMatch
+        if labelled.exists { labelled.tap() }
     }
 
     /// Back wherever the system put it: the page's own header on a phone, the side strip on an
@@ -323,7 +329,18 @@ class ScreenshotTests: XCTestCase {
         // Dump detail with comments. Back is there whichever edge the system put it on: the
         // page's own header on a phone, the side strip on an iPhone Duo.
         let comments = app.buttons.matching(identifier: "Comments")
-        if let comment = (0..<min(comments.count, 4)).map({ comments.element(boundBy: $0) }).first(where: { $0.isHittable }) {
+        func hittableComment() -> XCUIElement? {
+            (0..<min(comments.count, 4)).map { comments.element(boundBy: $0) }.first { $0.isHittable }
+        }
+        var comment = hittableComment()
+        if comment == nil {
+            // On a short, wide screen the first post's photo fills the page and its Comments
+            // button sits below the fold; one scroll brings it up.
+            app.swipeUp()
+            Thread.sleep(forTimeInterval: 1)
+            comment = hittableComment()
+        }
+        if let comment {
             comment.tap()
             snap(app, "04-dump-detail", settle: 4)
             let hasBack = backButton(app).waitForExistence(timeout: 3)
