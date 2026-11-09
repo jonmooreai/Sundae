@@ -43,17 +43,11 @@ struct ArrangeStep: View {
         VStack(spacing: 0) {
             FlowHeader(title: "Arrange and tag", isRoot: path.isEmpty, onClose: { compose.dismiss() }) {
                 if compose.hasPosted {
-                    Menu {
+                    ChromeMenu {
                         Button(role: .destructive) { confirmDelete = true } label: {
                             Label { Text("Delete this week") } icon: { Glyph.trash.regular }
                         }
-                    } label: {
-                        Icon(Glyph.more, weight: .bold, size: 24)
-                            .foregroundStyle(.primary)
-                            .frame(width: 40, height: 40)
-                            .contentShape(Rectangle())
                     }
-                    .accessibilityLabel("More")
                 }
             }
             if photos.isEmpty {
@@ -64,7 +58,6 @@ struct ArrangeStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             if !photos.isEmpty {
                 FlowBottomBar(title: "Next") {

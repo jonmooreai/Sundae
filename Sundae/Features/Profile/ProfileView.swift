@@ -49,10 +49,10 @@ struct ProfileView: View {
                 LazyVStack(alignment: .leading, spacing: 20) {
                     ScreenHeader(title: profile?.user.username ?? "", showsBack: !isRoot) {
                         if isOwn {
-                            IconButton(glyph: Glyph.settings, label: "Settings", size: 24) { showSettings = true }
+                            ChromeButton(glyph: Glyph.settings, title: "Settings") { showSettings = true }
                                 .accessibilityIdentifier("profile-settings")
                         } else if let profile {
-                            Menu {
+                            ChromeMenu {
                                 Button { reporting = true } label: { Label { Text("Report") } icon: { Glyph.flag.regular } }
                                 Button(role: .destructive) {
                                     Task {
@@ -62,13 +62,7 @@ struct ProfileView: View {
                                 } label: {
                                     Label { Text("Block \(profile.user.firstName)") } icon: { Glyph.block.regular }
                                 }
-                            } label: {
-                                Icon(Glyph.more, weight: .bold, size: 24)
-                                    .foregroundStyle(.primary)
-                                    .frame(width: 40, height: 40)
-                                    .contentShape(Rectangle())
                             }
-                            .accessibilityLabel("More")
                         }
                     }
                     .id(ScrollTop.id)
@@ -101,7 +95,6 @@ struct ProfileView: View {
         }
         .scrollsToTopOnTabTap()
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showSettings) {
             NavigationStack { SettingsView() }
                 .presentationBackground(Theme.background)

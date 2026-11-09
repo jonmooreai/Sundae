@@ -10,7 +10,6 @@ struct SearchScreen: View {
         NavigationStack(path: $path) {
             SearchView()
                 .environment(\.scrollToTop, scrollSignal)
-                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                 .aboveBottomBar()
                 .swipeBackEnabled()

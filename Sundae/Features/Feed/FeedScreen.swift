@@ -17,7 +17,6 @@ struct FeedScreen: View {
             NavigationSplitView {
                 FeedList(open: { selection = $0 }, onPost: onPost)
                     .environment(\.scrollToTop, scrollSignal)
-                    .toolbar(.hidden, for: .navigationBar)
                     .navigationSplitViewColumnWidth(min: 380, ideal: 460, max: 560)
             } detail: {
                 if let selection {
@@ -32,7 +31,6 @@ struct FeedScreen: View {
             NavigationStack(path: $path) {
                 FeedList(open: { path.append($0) }, onPost: onPost)
                     .environment(\.scrollToTop, scrollSignal)
-                    .toolbar(.hidden, for: .navigationBar)
                     .navigationDestination(for: Route.self) { RouteView(route: $0) }
                     .aboveBottomBar()
                     .swipeBackEnabled()
@@ -201,19 +199,21 @@ struct PostYourWeekRow: View {
                     }
             }
             VStack(alignment: .leading, spacing: 2) {
+                // Wraps to a second line on a narrow screen (the Duo closed) rather than trailing off.
                 Text(compose.hasPosted ? "Thanks for sharing your week" : "Come share your week")
                     .font(.body.weight(.semibold))
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 if !compose.hasPosted {
                     Text("\(compose.draft.photos.isEmpty ? "Pick your favorites" : "Finish your draft") from this week.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
             Button(compose.hasPosted ? "Edit" : "Post", action: onPost)
                 .buttonStyle(.pill(compose.hasPosted ? .secondary : .primary, size: .small))
+                .fixedSize()
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.vertical, 12)

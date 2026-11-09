@@ -38,9 +38,9 @@ struct SundayShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var tab: SundayTab = .feed
     /// True while the system's bars run down the side of the screen (iOS 27.1 and an iPhone Duo).
-    @State private var sideBars = false
+    @Environment(\.sideBars) private var sideBars
+    @State private var tab: SundayTab = .feed
     @State private var barHeight: CGFloat = 50
     /// The shell's width: two columns need room for two, which regular width alone does not promise.
     @State private var width: CGFloat = 0
@@ -98,11 +98,6 @@ struct SundayShell: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { barHeight = $0 }
                     // Stays at the bottom when the keyboard comes up, hidden behind it, instead of riding on top.
                     .ignoresSafeArea(.keyboard, edges: .bottom)
-            }
-        }
-        .background {
-            if #available(iOS 27.1, *) {
-                SideBarsReader { sideBars = $0 }
             }
         }
         .overlay(alignment: .top) {
@@ -219,20 +214,6 @@ private extension View {
     func tabPage(barHeight: CGFloat, systemBar: Bool) -> some View {
         toolbar(systemBar ? .automatic : .hidden, for: .tabBar)
             .environment(\.bottomBarInset, barHeight)
-    }
-}
-
-/// Says whether the system lays its bars out down the side of the screen: an iPhone Duo closed,
-/// with the clock and the camera in a strip down one edge, or open on its side.
-@available(iOS 27.1, *)
-private struct SideBarsReader: View {
-    @Environment(\.toolbarVerticalEdge) private var edge
-    let report: (Bool) -> Void
-
-    var body: some View {
-        Color.clear
-            .onAppear { report(edge != nil) }
-            .onChange(of: edge) { _, now in report(now != nil) }
     }
 }
 

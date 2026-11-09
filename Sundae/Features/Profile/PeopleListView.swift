@@ -61,7 +61,6 @@ struct PeopleListView: View {
             .refreshable { await load() }
         }
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
         .task { await load() }
         .confirmationDialog(confirmRemove.map { Self.removeTitle($0) } ?? "Remove follower?",
                             isPresented: Binding(get: { confirmRemove != nil }, set: { if !$0 { confirmRemove = nil } }),

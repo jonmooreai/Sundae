@@ -10,7 +10,6 @@ struct NotificationsScreen: View {
         NavigationStack(path: $path) {
             NotificationsView()
                 .environment(\.scrollToTop, scrollSignal)
-                .toolbar(.hidden, for: .navigationBar)
                 .navigationDestination(for: Route.self) { RouteView(route: $0) }
                 .aboveBottomBar()
                 .swipeBackEnabled()

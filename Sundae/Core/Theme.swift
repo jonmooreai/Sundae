@@ -223,16 +223,21 @@ struct IconButton: View {
 // MARK: - Headers
 
 /// The top of a root screen: a serif title, an optional line under it, and chrome on the right.
+///
+/// On an iPhone Duo closed, or open on its side, the system lays its bars down the side of the
+/// screen, and Back and the chrome go there instead (`sideBarChrome`): the title stays here on
+/// its own, with the whole width to itself.
 struct ScreenHeader<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
     var showsBack = false
     @ViewBuilder var trailing: () -> Trailing
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.sideBars) private var sideBars
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            if showsBack {
+            if showsBack, !sideBars {
                 IconButton(glyph: Glyph.back, label: "Back", size: 24) { dismiss() }
                     .padding(.leading, -8)
             }
@@ -249,11 +254,12 @@ struct ScreenHeader<Trailing: View>: View {
                 }
             }
             Spacer(minLength: 8)
-            trailing()
+            if !sideBars { trailing() }
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.top, 6)
         .padding(.bottom, 8)
+        .sideBarChrome(showsBack: showsBack, onBack: { dismiss() }, trailing: trailing)
     }
 }
 

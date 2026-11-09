@@ -230,11 +230,13 @@ class ScreenshotTests: XCTestCase {
             back(app)
         }
 
-        // Dump detail with comments.
+        // Dump detail with comments. Back is there whichever edge the system put it on: the
+        // page's own header on a phone, the side strip on an iPhone Duo.
         let comments = app.buttons["Comments"].firstMatch
         if comments.waitForExistence(timeout: 5) {
             comments.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
             snap(app, "04-dump-detail", settle: 4)
+            XCTAssertTrue(app.buttons["Back"].firstMatch.waitForExistence(timeout: 3), "a way back on every device")
             back(app)
         }
 

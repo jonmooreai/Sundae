@@ -71,7 +71,6 @@ struct CaptionStep: View {
         }
         .centeredColumn()
         .background(Theme.background)
-        .toolbar(.hidden, for: .navigationBar)
         .safeAreaInset(edge: .bottom) {
             FlowBottomBar(title: compose.hasPosted ? "Save changes" : "Post your week",
                           isEnabled: compose.canPost, isLoading: compose.isSaving) {
