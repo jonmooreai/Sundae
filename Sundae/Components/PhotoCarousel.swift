@@ -106,6 +106,7 @@ struct PhotoCarousel: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel(for: photo, position: offset))
             .accessibilityAddTraits(onTap == nil ? AccessibilityTraits() : .isButton)
+            .accessibilityIdentifier(onTap == nil ? "" : "post-photo")
             .accessibilityAction { if let onTap { onTap(offset) } else { toggleTags() } }
             .accessibilityAction(named: "Show tagged friends") { toggleTags() }
     }

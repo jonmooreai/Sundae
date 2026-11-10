@@ -46,7 +46,7 @@ jobs:
     runs-on: xcode-27
     # Normal pushes build and run the unit tests; a slow runner can spend 15 minutes on the build alone.
     # The full run also walks every screen on the iPhone Duo, upright and sideways.
-    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 75 || 35 }}
+    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 100 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -164,7 +164,10 @@ jobs:
       # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
       # pictures it takes are how the layouts get checked without a Mac. A failure here is a
       # warning on the run, and the build still ships.
-      - name: Every screen on iPhone Duo, upright and sideways
+      # Closed, the Duo's cover display does not turn: a run with the device "on its side" drew
+      # the same pictures as upright and took three times as long, with queries timing out, so
+      # the sideways tests are left out here. The open poses below turn with the phone.
+      - name: Every screen on iPhone Duo, closed
         if: env.FULL == 'true' && env.DUO_UDID != ''
         continue-on-error: true
         run: |
@@ -184,6 +187,13 @@ jobs:
           [ -n "$APP" ] && perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl install "$DUO_UDID" "$APP" || echo "::warning::install did not finish"
           xcrun simctl privacy "$DUO_UDID" grant photos com.jonmooreai.sundae || true
           ls seed-photos/*.jpg >/dev/null 2>&1 && xcrun simctl addmedia "$DUO_UDID" seed-photos/*.jpg || true
+          # The first pass after the Duo boots has been the slow one every time (queries timing
+          # out on the first screen, the next pass fine), so the app is opened once and left for a
+          # minute while the simulator finishes settling, then put away before the tests.
+          xcrun simctl launch "$DUO_UDID" com.jonmooreai.sundae >/dev/null 2>&1 || true
+          sleep 60
+          xcrun simctl terminate "$DUO_UDID" com.jonmooreai.sundae >/dev/null 2>&1 || true
+          sleep 15
           # Every forty seconds, a sample of the app's threads: when a test cannot get an answer
           # from the app, these say what the app was doing instead.
           mkdir -p samples
@@ -199,6 +209,7 @@ jobs:
             -derivedDataPath build \
             -resultBundlePath results/duo.xcresult \
             -only-testing:SundaeUITests \
+            -skip-testing:SundaeUITests/LandscapeScreenshotTests \
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 600 \
             -maximum-test-execution-time-allowance 900 \
@@ -261,8 +272,10 @@ jobs:
               2>&1 | tee "test-duo-$1.log" | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
             grep -Eq "TEST (EXECUTE )?SUCCEEDED" "test-duo-$1.log" || echo "::warning::the $1 pose had a failing screen; see test-duo-$1.log"
           }
-          pose open open
+          # Half first: from closed straight to flat, the inner display did not wake ("the inner
+          # screen did not become active"); by way of 90 degrees it does.
           pose half half
+          pose open open
           # Back to closed, so anything after this that expects the cover display finds it.
           perl -e 'alarm shift; exec @ARGV' 120 duoctl close --duration 1.0 || true
 
