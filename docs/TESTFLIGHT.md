@@ -118,7 +118,8 @@ workflows hold back on their own:
 - TestFlight builds (about 15 minutes on macOS) run only when started on purpose, as always.
 - The iOS build and unit tests (20 to 35 minutes on macOS) run on a push only when the commit
   message contains `[ios]` or `[screenshots]`, or when started by hand from the Actions tab.
-  While public they still run on every push.
+  While public they still run on every push. `[screenshots]` adds the iPhone walk through
+  every screen, and `[duo]` adds the iPhone Duo in every pose, about an hour more.
 - The server checks run on Linux in under a minute, on every push that touches the server or
   the build setup (workflows, project.yml, the Fastfile).
 - Nothing runs twice: `main` is a copy of the work branch, so workflows only watch the work

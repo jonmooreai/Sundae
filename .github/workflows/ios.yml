@@ -21,9 +21,18 @@ on:
         description: Run tests and capture screenshots
         type: boolean
         default: true
+      duo:
+        description: Also photograph every screen on the iPhone Duo, closed, half open and open (about an hour more)
+        type: boolean
+        default: false
 
+# Three sizes of run, by what the commit message says. A plain push builds and runs the unit
+# tests, about ten minutes. "[screenshots]" adds the iPhone walk through every screen, about
+# fifteen more. "[duo]" adds the iPhone Duo in every pose, which boots a second simulator and
+# folds it, about an hour more; worth it after a layout change, not for every push.
 env:
-  FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.full || contains(github.event.head_commit.message, '[screenshots]') }}
+  FULL: ${{ github.event_name == 'workflow_dispatch' && inputs.full || contains(github.event.head_commit.message, '[screenshots]') || contains(github.event.head_commit.message, '[duo]') }}
+  DUO: ${{ github.event_name == 'workflow_dispatch' && inputs.duo || contains(github.event.head_commit.message, '[duo]') }}
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -46,7 +55,7 @@ jobs:
     runs-on: xcode-27
     # Normal pushes build and run the unit tests; a slow runner can spend 15 minutes on the build alone.
     # The full run also walks every screen on the iPhone Duo, upright and sideways.
-    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[screenshots]')) && 100 || 35 }}
+    timeout-minutes: ${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[duo]')) && 100 || contains(github.event.head_commit.message, '[screenshots]') && 50 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -175,7 +184,7 @@ jobs:
       #   Half open (90): the crease across the inner display. Every screen again, so the
       #   pictures show what sits on the crease and what keeps clear of it.
       - name: Every screen on iPhone Duo, open and half open
-        if: env.FULL == 'true' && env.DUO_UDID != ''
+        if: env.DUO == 'true' && env.DUO_UDID != ''
         continue-on-error: true
         run: |
           set -o pipefail
@@ -249,7 +258,7 @@ jobs:
       # thoroughly warm. The cover display does not turn, so there is no sideways pass here; the
       # open poses above turn with the phone.
       - name: Every screen on iPhone Duo, closed
-        if: env.FULL == 'true' && env.DUO_UDID != ''
+        if: env.DUO == 'true' && env.DUO_UDID != ''
         continue-on-error: true
         run: |
           set -o pipefail
