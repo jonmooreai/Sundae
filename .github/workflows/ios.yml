@@ -164,17 +164,22 @@ jobs:
       # For looking at, never for holding a build back: the Duo simulator is new and slow, and the
       # pictures it takes are how the layouts get checked without a Mac. A failure here is a
       # warning on the run, and the build still ships.
-      # Closed, the Duo's cover display does not turn: a run with the device "on its side" drew
-      # the same pictures as upright and took three times as long, with queries timing out, so
-      # the sideways tests are left out here. The open poses below turn with the phone.
-      - name: Every screen on iPhone Duo, closed
+      # The open poses, first. Xcode has no command of its own for folding the simulator (Device Hub's
+      # slider needs a hand on the mouse), so this uses duoctl, a small open-source tool (MIT,
+      # github.com/skarol/duoctl, pinned to a release by Homebrew's checksum) that sends the
+      # same signal the slider does and reads the angle back, so a fold that did not happen is
+      # an error rather than a quiet pass. It leans on private interfaces, verified with Xcode
+      # 27.1 and 27.2; an Xcode update may break it, which shows up here as a warning and a
+      # missing pose, never a failed build.
+      #   Open flat (180): the inner display, regular both ways. Every screen, upright.
+      #   Half open (90): the crease across the inner display. Every screen again, so the
+      #   pictures show what sits on the crease and what keeps clear of it.
+      - name: Every screen on iPhone Duo, open and half open
         if: env.FULL == 'true' && env.DUO_UDID != ''
         continue-on-error: true
         run: |
           set -o pipefail
-          # Nothing here may wait forever: the first run hung for 44 minutes with no word. Each
-          # wait has a limit (perl's alarm, since macOS has no timeout command), each test is
-          # allowed ten minutes (Sunday's walk through posting takes four and a half), and the whole pass forty.
+          export DUOCTL_UDID="$DUO_UDID"
           xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
           perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl bootstatus "$DUO_UDID" -b || echo "::warning::iPhone Duo did not finish booting in 5 minutes"
           xcrun simctl list devices | grep -i "duo" || true
@@ -194,57 +199,12 @@ jobs:
           sleep 60
           xcrun simctl terminate "$DUO_UDID" com.jonmooreai.sundae >/dev/null 2>&1 || true
           sleep 15
-          # Every forty seconds, a sample of the app's threads: when a test cannot get an answer
-          # from the app, these say what the app was doing instead.
-          mkdir -p samples
-          (for i in $(seq 1 60); do
-            sleep 40
-            pid=$(pgrep -x Sundae | head -1)
-            [ -n "$pid" ] && sample "$pid" 2 -file "samples/sundae-$i.txt" >/dev/null 2>&1
-          done) &
-          SAMPLER=$!
-          perl -e 'alarm shift; exec @ARGV' 2400 xcodebuild test-without-building \
-            -project Sundae.xcodeproj -scheme Sundae \
-            -destination "platform=iOS Simulator,id=$DUO_UDID" \
-            -derivedDataPath build \
-            -resultBundlePath results/duo.xcresult \
-            -only-testing:SundaeUITests \
-            -skip-testing:SundaeUITests/LandscapeScreenshotTests \
-            -test-timeouts-enabled YES \
-            -default-test-execution-time-allowance 600 \
-            -maximum-test-execution-time-allowance 900 \
-            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
-          kill "$SAMPLER" 2>/dev/null || true
-          # The main thread of each sample, so a stuck layout shows in the log itself.
-          for f in samples/*.txt; do
-            [ -f "$f" ] || continue
-            echo "== $f"
-            awk '/com.apple.main-thread/{p=1} p&&NF==0{exit} p' "$f" | head -40 | cut -c1-170
-          done
-          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-duo.log
-
-      # The other poses. Xcode has no command of its own for folding the simulator (Device Hub's
-      # slider needs a hand on the mouse), so this uses duoctl, a small open-source tool (MIT,
-      # github.com/skarol/duoctl, pinned to a release by Homebrew's checksum) that sends the
-      # same signal the slider does and reads the angle back, so a fold that did not happen is
-      # an error rather than a quiet pass. It leans on private interfaces, verified with Xcode
-      # 27.1 and 27.2; an Xcode update may break it, which shows up here as a warning and a
-      # missing pose, never a failed build.
-      #   Open flat (180): the inner display, regular both ways. Every screen, upright.
-      #   Half open (90): the crease across the inner display. Every screen again, so the
-      #   pictures show what sits on the crease and what keeps clear of it.
-      - name: Every screen on iPhone Duo, open and half open
-        if: env.FULL == 'true' && env.DUO_UDID != ''
-        continue-on-error: true
-        run: |
-          set -o pipefail
+          # The simulator above is set up either way; without duoctl only the poses are skipped,
+          # and the closed pass below still has it.
           if ! brew install skarol/tap/duoctl 2>&1 | tail -3; then
             echo "::warning::duoctl did not install; the open and half-open poses were not photographed"
             exit 0
           fi
-          export DUOCTL_UDID="$DUO_UDID"
-          xcrun simctl boot "$DUO_UDID" 2>/dev/null || true
-          perl -e 'alarm shift; exec @ARGV' 300 xcrun simctl bootstatus "$DUO_UDID" -b || true
           duoctl state || true
           pose() {
             # $1: the pose's name for the files (open, half); $2: the duoctl command for it.
@@ -278,6 +238,47 @@ jobs:
           pose open open
           # Back to closed, so anything after this that expects the cover display finds it.
           perl -e 'alarm shift; exec @ARGV' 120 duoctl close --duration 1.0 || true
+
+      # Closed, after the open poses: the first pass after the Duo boots has timed out on its first
+      # screen every time, whatever it was, so the cover display goes last, once the simulator is
+      # thoroughly warm. The cover display does not turn, so there is no sideways pass here; the
+      # open poses above turn with the phone.
+      - name: Every screen on iPhone Duo, closed
+        if: env.FULL == 'true' && env.DUO_UDID != ''
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          # Nothing here may wait forever: the first run hung for 44 minutes with no word. Each
+          # wait has a limit (perl's alarm, since macOS has no timeout command), each test is
+          # allowed ten minutes (Sunday's walk through posting takes four and a half), and the whole pass forty.
+          # Every forty seconds, a sample of the app's threads: when a test cannot get an answer
+          # from the app, these say what the app was doing instead.
+          mkdir -p samples
+          (for i in $(seq 1 60); do
+            sleep 40
+            pid=$(pgrep -x Sundae | head -1)
+            [ -n "$pid" ] && sample "$pid" 2 -file "samples/sundae-$i.txt" >/dev/null 2>&1
+          done) &
+          SAMPLER=$!
+          perl -e 'alarm shift; exec @ARGV' 2400 xcodebuild test-without-building \
+            -project Sundae.xcodeproj -scheme Sundae \
+            -destination "platform=iOS Simulator,id=$DUO_UDID" \
+            -derivedDataPath build \
+            -resultBundlePath results/duo.xcresult \
+            -only-testing:SundaeUITests \
+            -skip-testing:SundaeUITests/LandscapeScreenshotTests \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 600 \
+            -maximum-test-execution-time-allowance 900 \
+            2>&1 | tee test-duo.log | grep -E "Test Case|error:|failed|passed|\[screens\]|\[back-missing\]|\[probe\]|TEST .*(SUCCEEDED|FAILED)" || true
+          kill "$SAMPLER" 2>/dev/null || true
+          # The main thread of each sample, so a stuck layout shows in the log itself.
+          for f in samples/*.txt; do
+            [ -f "$f" ] || continue
+            echo "== $f"
+            awk '/com.apple.main-thread/{p=1} p&&NF==0{exit} p' "$f" | head -40 | cut -c1-170
+          done
+          grep -Eq "TEST (EXECUTE )?SUCCEEDED" test-duo.log
 
       # When a test lost the app, the crash report says why: the first lines of any the
       # simulator's apps wrote during this run.
