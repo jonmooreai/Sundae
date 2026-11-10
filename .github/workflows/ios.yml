@@ -238,6 +238,11 @@ jobs:
           pose open open
           # Back to closed, so anything after this that expects the cover display finds it.
           perl -e 'alarm shift; exec @ARGV' 120 duoctl close --duration 1.0 || true
+          # Closed again, and upright: the cover display keeps whatever turn the poses left it
+          # with, and a closed pass once came out sideways for it.
+          perl -e 'alarm shift; exec @ARGV' 60 duoctl rotate portrait || true
+          sleep 5
+          duoctl state || true
 
       # Closed, after the open poses: the first pass after the Duo boots has timed out on its first
       # screen every time, whatever it was, so the cover display goes last, once the simulator is
