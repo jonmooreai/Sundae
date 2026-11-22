@@ -404,6 +404,19 @@ struct AccountSettings: Hashable, Codable, Sendable {
     var notifyLikesAndComments = true
     var notifyTagApproved = false
 
+    /// The switches that need iOS's permission to show anything.
+    private var notificationSwitches: [Bool] {
+        [notifySundayReminder, notifyLastCall, notifyTags, notifyFollowRequests, notifyLikesAndComments, notifyTagApproved]
+    }
+
+    var wantsAnyNotification: Bool { notificationSwitches.contains(true) }
+
+    /// True when a notification switch is on here that was off in `old`: the moment to ask iOS,
+    /// if it has never been asked.
+    func turnedOnANotification(since old: AccountSettings) -> Bool {
+        zip(notificationSwitches, old.notificationSwitches).contains { now, before in now && !before }
+    }
+
     /// Auto-approved people who are not among `taggable`, the people who can tag you now: neither
     /// of you follows the other any more. Their old yes would count again if one of you followed.
     func autoApprovedIDs(notIn taggable: [User]) -> [ID] {

@@ -87,6 +87,24 @@ platform :ios do
       profiles_stale = true
     end
 
+    # Push notifications the same way, for tags, comments, likes and follows (docs/SERVER.md has
+    # the key the server sends them with).
+    if app_bundle.get_capabilities.any? { |c| c.is_type?("PUSH_NOTIFICATIONS") }
+      UI.message("Push notifications are already on for #{bundle_id}")
+    else
+      UI.message("Turning on push notifications for #{bundle_id}")
+      begin
+        app_bundle.create_capability("PUSH_NOTIFICATIONS")
+      rescue => e
+        UI.user_error!(<<~MSG)
+          Could not turn on push notifications through the API (#{e.message}).
+          Turn it on by hand: developer.apple.com, Certificates, IDs & Profiles, Identifiers,
+          #{bundle_id}, tick Push Notifications, Save. Then run this workflow again.
+        MSG
+      end
+      profiles_stale = true
+    end
+
     # The distribution certificate and profiles, created on first run and kept encrypted on a
     # branch of this repository (private). GitHub ignores the username when the password is a token.
     git_url = ENV["MATCH_GIT_URL"]

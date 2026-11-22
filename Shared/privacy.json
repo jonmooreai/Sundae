@@ -1,7 +1,7 @@
 {
   "title": "Privacy",
   "summary": "Sundae is your week in photos, shared with a small group of friends and family. Here is what it uses to work, what it never asks for, and who sees what.",
-  "updated": "2026-11-02",
+  "updated": "2026-11-22",
   "sections": [
     {
       "title": "What Sundae uses",
@@ -10,7 +10,8 @@
         "Your name, username, bio and profile photo, if you add them.",
         "The photos you post, with their captions and tags, so the people you choose can see them.",
         "Who you follow, your likes and comments, and which ideas you did, once one has photos.",
-        "Your settings, your time zone so Sunday starts at your midnight, and any reports you send."
+        "Your settings, your time zone so Sunday starts at your midnight, and any reports you send.",
+        "A push token for each phone you sign in on, so Sundae can tell you about tags, comments, likes and follows when you ask it to. Each switch is yours in Settings, and the token goes when you sign out."
       ]
     },
     {

@@ -79,6 +79,9 @@ protocol SundaeAPI: Sendable {
     func markSuggestionDone(id: String, on day: Date) async throws
     func block(userID: ID) async throws
     func report(_ report: Report) async throws
+    /// This phone's push token, for tags, comments, likes and follows. `environment` is
+    /// "sandbox" for a build Xcode installed and "production" otherwise (PushEnvironment).
+    func registerDevice(token: String, environment: String) async throws
 }
 
 extension SundaeAPI {
@@ -86,4 +89,7 @@ extension SundaeAPI {
     func signOutEverywhere() async throws {
         try await signOut()
     }
+
+    /// Demo data has no server to tell.
+    func registerDevice(token: String, environment: String) async throws {}
 }

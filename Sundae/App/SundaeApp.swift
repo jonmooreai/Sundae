@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct SundaeApp: App {
+    // For the push token and tapped notifications only (PushDelegate).
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL

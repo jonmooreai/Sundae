@@ -46,6 +46,8 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 | DELETE | `me/followers/{user_id}` | removes that person's follow of the caller, or their request; 204, and 204 again if there is nothing to remove. Following again is a new request while the caller is private. Photos they already loaded, and photo addresses already sent (up to seven hours), are not taken back |
 | GET | `me/tag-requests` | pending tag requests, every day |
 | PUT | `me/fingerprints` | `{photos: [{id, fingerprint}]}`: fingerprints for the caller's own photos posted without one (see Saving a dump); a photo that has one keeps it, anyone else's is ignored. 204. The app sends them for this week's post when it opens |
+| PUT | `me/devices` | `{token, environment?}`: this phone's push token (hex), with `environment` `production` (the default: TestFlight and the App Store) or `sandbox` (a build Xcode installed). 204. Kept with the session that sent it, so signing out stops that phone's notifications; `everywhere` stops every phone's. The app sends it on every open |
+| DELETE | `me/devices/{token}` | forgets that token. 204 |
 | GET | `me/activity` | `[activity]`, newest first, every day: the last four weeks, up to 60, never from anyone blocked either way, and only about weeks the caller can still open. 404 from a server older than this, which the app treats as nothing yet |
 | GET | `me/suggestions/done?week_start=` | `[{suggestion_id, done_on}]` |
 | PUT | `me/suggestions/{id}/done` | `{done_on}` |
@@ -53,6 +55,8 @@ A session is `{access_token, refresh_token, expires_in, user}`. App Attest asser
 Going public (`is_public: true`) accepts every request still waiting. Going private keeps the followers there are; anyone new asks first.
 
 Settings: `is_public`, `auto_approve_user_ids`, `comments_enabled`, `hide_challenges`, `notify_sunday_reminder`, `notify_last_call`, `notify_tags`, `notify_follow_requests`, `notify_likes_and_comments`, `notify_tag_approved`. `auto_approve_user_ids` keeps only user ids, each once; anything else in the list is dropped.
+
+Push notifications go to every device registered for a person, when their settings allow: `notify_likes_and_comments` covers a like on their week, a comment on it, a reply to their comment, an @mention in a comment on a week they can see, and a like on their comment; `notify_tags` a tag in a photo (whether it waits for their yes or is in their week already); `notify_tag_approved` a yes to a tag they made; `notify_follow_requests` a request to follow them, a new follower while public, and a yes to a request of theirs. Never the person who did it, and each person once per thing; a like given again after being taken back replaces its earlier banner (`apns-collapse-id`) rather than adding one. Each carries `kind` and, where there is one, `dump_id`, `comment_id` or `user_id`. The server sends them only once it has an APNs key (docs/SERVER.md).
 
 `PUT me/settings` changes only the fields it is sent and keeps the rest. The client loads them fresh whenever Settings opens, sends only the fields that changed, one save at a time, keeps a change only once the server has taken it, and puts the switch back when a save fails. `auto_approve_user_ids` is replaced whole, so two devices editing that list at the same moment keep whichever saved last.
 
