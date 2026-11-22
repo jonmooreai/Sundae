@@ -13,7 +13,8 @@
 //    posted themselves that week (COLUMNS).
 // 9: which of their own photos that is (tags.duplicate_of), so the tag shows on it (COLUMNS).
 // 10: whether a photo was made with AI, as the poster's phone read it from the file (COLUMNS).
-export const SCHEMA_VERSION = '10';
+// 11: the phones to tell about tags, comments, likes and follows (devices).
+export const SCHEMA_VERSION = '11';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -76,6 +77,12 @@ export const SCHEMA = [
      id TEXT PRIMARY KEY, reporter_id TEXT NOT NULL, target_type TEXT NOT NULL, target_id TEXT NOT NULL,
      reason TEXT NOT NULL, note TEXT, created_at TEXT NOT NULL)`,
   // Photos live here, in chunks, unless an R2 bucket is bound as PHOTOS.
+  // Each phone signed in, by the token Apple gave it for push notifications. The family is the
+  // session that registered it, so signing that session out stops its notifications too.
+  `CREATE TABLE IF NOT EXISTS devices (
+     token TEXT PRIMARY KEY, user_id TEXT NOT NULL, family TEXT NOT NULL DEFAULT '', environment TEXT NOT NULL DEFAULT 'production',
+     created_at TEXT NOT NULL, seen_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS devices_user ON devices (user_id)`,
   `CREATE TABLE IF NOT EXISTS blob_chunks (key TEXT NOT NULL, idx INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (key, idx))`,
 ];
 

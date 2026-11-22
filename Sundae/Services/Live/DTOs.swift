@@ -323,6 +323,12 @@ enum DTO {
 
     // MARK: Requests
 
+    /// This phone, for push notifications: `PUT me/devices`.
+    struct Device: Encodable {
+        let token: String
+        let environment: String
+    }
+
     /// Only the settings that changed. A nil field is left out of the JSON, and the server
     /// keeps what it has for it.
     struct SettingsPatch: Encodable {

@@ -26,5 +26,8 @@ changing the server.
 
 There is no Swift compiler in the cloud session. GitHub Actions builds and tests every push to
 the work branch; read results with the GitHub tools and fix what they report before calling
-anything done. The ios-app-setup skill (`.claude/skills/ios-app-setup`) has the pitfalls that
+anything done. A plain push builds and runs the unit tests (about ten minutes). `[screenshots]`
+in the commit message adds the iPhone walk through every screen (about fifteen more), and
+`[duo]` adds the iPhone Duo in every pose (about an hour more): use it after a layout change,
+not on every push. The ios-app-setup skill (`.claude/skills/ios-app-setup`) has the pitfalls that
 broke the build before, in references/pitfalls.md.

@@ -105,9 +105,9 @@ online. Onboarding offers "Continue in demo
 mode", and Settings has a Demo section with "Pretend it's Sunday" so you can see every screen on
 any day of the week.
 
-The lane turns Sign in with Apple on for the App ID through the API key, and makes new profiles
-on the run that does it. Push notifications still need their capability, so that entitlement is
-left out of this build.
+The lane turns Sign in with Apple and push notifications on for the App ID through the API key,
+and makes new profiles on the run that does either. The server needs its own key to send a push
+(docs/SERVER.md, Push notifications); without it the app simply never hears one.
 
 ## Costs
 
@@ -118,7 +118,8 @@ workflows hold back on their own:
 - TestFlight builds (about 15 minutes on macOS) run only when started on purpose, as always.
 - The iOS build and unit tests (20 to 35 minutes on macOS) run on a push only when the commit
   message contains `[ios]` or `[screenshots]`, or when started by hand from the Actions tab.
-  While public they still run on every push.
+  While public they still run on every push. `[screenshots]` adds the iPhone walk through
+  every screen, and `[duo]` adds the iPhone Duo in every pose, about an hour more.
 - The server checks run on Linux in under a minute, on every push that touches the server or
   the build setup (workflows, project.yml, the Fastfile).
 - Nothing runs twice: `main` is a copy of the work branch, so workflows only watch the work

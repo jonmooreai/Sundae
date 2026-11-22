@@ -7,6 +7,7 @@ import { ensureSchema } from './schema.js';
 import { storage } from './storage.js';
 import { PRIVACY_HTML } from './privacy.js';
 import { stripJpegMetadata } from './jpeg.js';
+import { pushConfigured, sendPush } from './push.js';
 
 const ACCESS_SECONDS = 15 * 60;
 const REFRESH_SECONDS = 30 * 24 * 3600;
@@ -84,8 +85,8 @@ async function body(request) {
 // MARK: - Entry
 
 export default {
-  async fetch(request, env) {
-    return handle(request, env);
+  async fetch(request, env, context) {
+    return handle(request, env, context);
   },
   // Daily, from the cron in the repository's wrangler.jsonc.
   async scheduled(_event, env, context) {
@@ -93,7 +94,7 @@ export default {
   },
 };
 
-export async function handle(request, env) {
+export async function handle(request, env, context = null) {
   try {
     const url = new URL(request.url);
     if (request.method === 'GET' && (url.pathname === '/privacy' || url.pathname === '/privacy/')) {
@@ -108,7 +109,10 @@ export async function handle(request, env) {
     await ensureSchema(env.DB);
     // env.CLOCK exists only in tests, to stand on a Sunday or a Wednesday.
     const now = typeof env.CLOCK === 'function' ? env.CLOCK() : new Date();
-    const ctx = { env, db: env.DB, url, origin: url.origin, request, now, me: null, blocked: null, secret: await tokenSecret(env), media: new Map() };
+    // `after` runs work once the reply is on its way (telling Apple about a like, say), where the
+    // platform offers that; in tests, which pass no context, it runs before the reply instead.
+    const after = context && typeof context.waitUntil === 'function' ? (promise) => context.waitUntil(promise) : null;
+    const ctx = { env, db: env.DB, url, origin: url.origin, request, now, me: null, blocked: null, secret: await tokenSecret(env), media: new Map(), after, newTags: [] };
     return await route(ctx, request.method, url.pathname.slice(4).split('/').filter(Boolean));
   } catch (error) {
     if (error instanceof HttpError) return json({ error: { code: error.code, message: error.message } }, error.status);
@@ -170,6 +174,8 @@ async function route(ctx, method, parts) {
     case 'GET me/tag-requests': return tagRequests(ctx);
     case 'GET me/activity': return activity(ctx);
     case 'PUT me/fingerprints': return setFingerprints(ctx);
+    case 'PUT me/devices': return registerDevice(ctx);
+    case 'DELETE me/devices/:': return removeDevice(ctx, c);
     case 'GET me/suggestions/done': return suggestionsDone(ctx);
     case 'PUT me/suggestions/:/done': return markDone(ctx, c);
     case 'POST tags/:/respond': return respondToTag(ctx, b);
@@ -212,7 +218,7 @@ function isParam(parts, i) {
   if (['me', 'auth', 'ideas'].includes(before) && i === 1) return false;
   if (before === 'users' && ['search', 'suggested'].includes(parts[i])) return false;
   if (before === 'suggestions' && parts[i] === 'done') return false;
-  return ['uploads', 'media', 'dumps', 'photos', 'comments', 'users', 'tags', 'follow-requests', 'followers', 'suggestions'].includes(before);
+  return ['uploads', 'media', 'dumps', 'photos', 'comments', 'users', 'tags', 'follow-requests', 'followers', 'suggestions', 'devices'].includes(before);
 }
 
 // MARK: - Auth
@@ -346,12 +352,102 @@ async function refresh(ctx) {
  * 15 minutes, since nothing can renew them. */
 async function signOut(ctx) {
   const input = await ctx.request.json().catch(() => ({}));
+  const db = ctx.db;
+  // A phone signed out hears nothing more: its push token goes with its session.
   if (input?.everywhere === true) {
-    await ctx.db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?').bind(ctx.me.id).run();
+    await db.batch([
+      db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE user_id = ?').bind(ctx.me.id),
+      db.prepare('DELETE FROM devices WHERE user_id = ?').bind(ctx.me.id),
+    ]);
   } else {
-    await ctx.db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE family = ?').bind(ctx.family || '').run();
+    await db.batch([
+      db.prepare('UPDATE refresh_tokens SET revoked = 1 WHERE family = ?').bind(ctx.family || ''),
+      db.prepare('DELETE FROM devices WHERE family = ?').bind(ctx.family || ''),
+    ]);
   }
   return empty();
+}
+
+// MARK: - Push notifications
+
+// Apple's device tokens are 32 bytes as hex; room is left for longer ones.
+const DEVICE_TOKEN = /^[0-9a-f]{64,200}$/i;
+
+/** The phone's push token, kept with the session that sent it. Sent on every open, so a token
+ * Apple changed, or a phone signed in by someone else, is always the one on file. */
+async function registerDevice(ctx) {
+  const input = await body(ctx.request);
+  const token = String(input.token || '').toLowerCase();
+  if (!DEVICE_TOKEN.test(token)) fail(400, 'bad_request', 'That device token does not look right.');
+  const environment = input.environment === 'sandbox' ? 'sandbox' : 'production';
+  const now = ctx.now.toISOString();
+  await ctx.db.prepare(`INSERT INTO devices (token, user_id, family, environment, created_at, seen_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+    ON CONFLICT (token) DO UPDATE SET user_id = excluded.user_id, family = excluded.family, environment = excluded.environment, seen_at = excluded.seen_at`)
+    .bind(token, ctx.me.id, ctx.family || '', environment, now).run();
+  return empty();
+}
+
+async function removeDevice(ctx, token) {
+  await ctx.db.prepare('DELETE FROM devices WHERE token = ? AND user_id = ?').bind(String(token).toLowerCase(), ctx.me.id).run();
+  return empty();
+}
+
+// Which switch in Settings each kind of notification answers to.
+const PUSH_SWITCH = {
+  like: 'notify_likes_and_comments', comment: 'notify_likes_and_comments', reply: 'notify_likes_and_comments',
+  mention: 'notify_likes_and_comments', comment_like: 'notify_likes_and_comments',
+  tag: 'notify_tags', tag_approved: 'notify_tag_approved',
+  follow_request: 'notify_follow_requests', follow: 'notify_follow_requests', follow_accepted: 'notify_follow_requests',
+};
+
+const whoName = (user) => user.name || user.username;
+
+/** A comment on one line, short enough for a banner. */
+function snippet(text) {
+  const line = String(text || '').replace(/\s+/g, ' ').trim();
+  return line.length > 140 ? `${line.slice(0, 139)}…` : line;
+}
+
+/** Tells each of these people (user rows) about one thing, on every phone they have signed in,
+ * when their settings say so. Never the person who did it. Where the platform allows, Apple is
+ * told after the reply has gone, so nobody waits on it; a token Apple says is gone is dropped. */
+async function notify(ctx, recipients, kind, alert, data = {}) {
+  const wanted = [];
+  for (const user of [recipients].flat()) {
+    if (!user || user.id === ctx.me.id || wanted.some((u) => u.id === user.id)) continue;
+    if (settingsOf(user)[PUSH_SWITCH[kind]]) wanted.push(user);
+  }
+  if (!wanted.length || !pushConfigured(ctx.env)) return;
+  const { results: devices } = await ctx.db.prepare('SELECT user_id, token, environment FROM devices WHERE user_id IN (SELECT value FROM json_each(?))')
+    .bind(JSON.stringify(wanted.map((u) => u.id))).all();
+  if (!devices.length) return;
+  const thread = kind.startsWith('follow') ? 'follows' : data.dump_id || kind;
+  // A like given again after being taken back replaces its earlier banner instead of adding one.
+  const collapse = kind === 'like' || kind === 'comment_like' ? `${kind}:${data.comment_id || data.dump_id}:${ctx.me.id}` : null;
+  const work = (async () => {
+    const gone = await sendPush(ctx.env, devices, { alert, data: { kind, ...data }, thread, collapse }, ctx.now.getTime());
+    if (gone.length) await ctx.db.prepare('DELETE FROM devices WHERE token IN (SELECT value FROM json_each(?))').bind(JSON.stringify(gone)).run();
+  })();
+  if (ctx.after) ctx.after(work); else await work;
+}
+
+/** The same, for people known only by id. */
+async function notifyIds(ctx, ids, kind, alert, data = {}) {
+  const unique = [...new Set([ids].flat().filter((id) => id && id !== ctx.me.id))];
+  if (!unique.length || !pushConfigured(ctx.env)) return;
+  const people = await usersById(ctx, unique);
+  await notify(ctx, [...people.values()], kind, alert, data);
+}
+
+/** People named with an @ in a comment who can see the week it is on: the poster and the
+ * poster's followers. */
+async function mentioned(ctx, text, dump) {
+  const handles = [...new Set((String(text).match(/@([a-z0-9._]{2,24})/gi) || []).map((h) => h.slice(1).toLowerCase()))];
+  if (!handles.length) return [];
+  const { results } = await ctx.db.prepare(`SELECT * FROM users WHERE lower(username) IN (SELECT value FROM json_each(?1))
+      AND (id = ?2 OR id IN (SELECT follower_id FROM follows WHERE followee_id = ?2 AND status = 'accepted'))`)
+    .bind(JSON.stringify(handles), dump.author_id).all();
+  return results;
 }
 
 // MARK: - People
@@ -498,6 +594,7 @@ async function deleteMe(ctx) {
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
     db.prepare('DELETE FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(me),
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?1').bind(me),
+    db.prepare('DELETE FROM devices WHERE user_id = ?1').bind(me),
     db.prepare("UPDATE uploads SET user_id = '', expires_at = 0 WHERE user_id = ?1").bind(me),
     db.prepare('DELETE FROM suggestions_done WHERE user_id = ?1').bind(me),
     db.prepare('DELETE FROM users WHERE id = ?1').bind(me),
@@ -586,8 +683,9 @@ async function followRequests(ctx) {
 async function respondToFollow(ctx, userId) {
   const input = await body(ctx.request);
   if (input.accept) {
-    await ctx.db.prepare(`UPDATE follows SET status = 'accepted', accepted_at = ? WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`)
+    const accepted = await ctx.db.prepare(`UPDATE follows SET status = 'accepted', accepted_at = ? WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`)
       .bind(ctx.now.toISOString(), userId, ctx.me.id).run();
+    if (accepted.meta?.changes) await notifyIds(ctx, userId, 'follow_accepted', { title: `${whoName(ctx.me)} said yes`, body: 'You follow them now.' }, { user_id: ctx.me.id });
   } else {
     await ctx.db.prepare(`DELETE FROM follows WHERE follower_id = ? AND followee_id = ? AND status = 'requested'`).bind(userId, ctx.me.id).run();
   }
@@ -625,12 +723,18 @@ async function follow(ctx, userId) {
   const user = await ctx.db.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
   if (!user || (await isBlockedBetween(ctx, ctx.me.id, userId))) fail(404, 'not_found');
   const now = ctx.now.toISOString();
+  const before = await followStatus(ctx, ctx.me.id, userId);
   await ctx.db.prepare(`
     INSERT INTO follows (follower_id, followee_id, status, created_at) VALUES (?1, ?2, ?3, ?4)
     ON CONFLICT (follower_id, followee_id) DO UPDATE SET status = 'accepted', accepted_at = excluded.created_at
       WHERE follows.status = 'requested' AND excluded.status = 'accepted'`)
     .bind(ctx.me.id, userId, user.is_public ? 'accepted' : 'requested', now).run();
   const status = await followStatus(ctx, ctx.me.id, userId);
+  if (status !== before) {
+    const name = whoName(ctx.me);
+    if (status === 'accepted') await notify(ctx, user, 'follow', { title: `${name} follows you now` }, { user_id: ctx.me.id });
+    else await notify(ctx, user, 'follow_request', { title: `${name} asked to follow you`, body: 'Say yes, or not now, whenever you like.' }, { user_id: ctx.me.id });
+  }
   return json({ relationship: status === 'accepted' ? 'following' : 'requested' });
 }
 
@@ -996,6 +1100,7 @@ async function saveDump(ctx, week) {
   ]);
   await storage(ctx.env).deleteMany(removed.map((p) => p.object_key));
   await markDuplicates(ctx, week);
+  await notifyNewTags(ctx, dumpId);
   return json(await dumpJSON(ctx, await db.prepare('SELECT * FROM dumps WHERE author_id = ? AND week_start = ?').bind(me.id, week).first()));
 }
 
@@ -1085,8 +1190,27 @@ function tagWrites(ctx, photoId, current, requested, allowed) {
     const auto = settingsOf(allowed.get(userId)).auto_approve_user_ids.includes(ctx.me.id);
     writes.push(ctx.db.prepare('INSERT OR IGNORE INTO tags (id, photo_id, tagger_id, tagged_user_id, status, responded_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(newId('t'), photoId, ctx.me.id, userId, auto ? 'approved' : 'pending', auto ? ctx.now.toISOString() : null, ctx.now.toISOString()));
+    ctx.newTags.push({ user: allowed.get(userId), auto });
   }
   return writes;
+}
+
+/** Everyone newly tagged by this save, once each, however many photos they are in: told the
+ * tag is in their week, or waiting for their yes. */
+async function notifyNewTags(ctx, dumpId) {
+  if (!ctx.newTags.length) return;
+  const name = whoName(ctx.me);
+  const seen = new Set();
+  const waiting = [];
+  const added = [];
+  for (const { user, auto } of ctx.newTags) {
+    if (!user || seen.has(user.id)) continue;
+    seen.add(user.id);
+    (auto ? added : waiting).push(user);
+  }
+  ctx.newTags = [];
+  await notify(ctx, added, 'tag', { title: `${name} tagged you in a photo`, body: 'It is in your week now.' }, { dump_id: dumpId });
+  await notify(ctx, waiting, 'tag', { title: `${name} tagged you in a photo`, body: 'Have a look, and say yes if you would like it in your week.' }, { dump_id: dumpId });
 }
 
 async function deleteDump(ctx, id) {
@@ -1110,7 +1234,9 @@ async function likeDump(ctx, id) {
   const dump = await readableDump(ctx, id);
   const input = await body(ctx.request);
   if (input.liked) {
-    await ctx.db.prepare('INSERT OR IGNORE INTO likes (dump_id, user_id, created_at) VALUES (?, ?, ?)').bind(dump.id, ctx.me.id, ctx.now.toISOString()).run();
+    const added = await ctx.db.prepare('INSERT OR IGNORE INTO likes (dump_id, user_id, created_at) VALUES (?, ?, ?)').bind(dump.id, ctx.me.id, ctx.now.toISOString()).run();
+    // A like already there (a tap that landed twice) says nothing more.
+    if (added.meta?.changes) await notifyIds(ctx, dump.author_id, 'like', { title: `${whoName(ctx.me)} liked your week` }, { dump_id: dump.id });
   } else {
     await ctx.db.prepare('DELETE FROM likes WHERE dump_id = ? AND user_id = ?').bind(dump.id, ctx.me.id).run();
   }
@@ -1161,10 +1287,12 @@ async function addComment(ctx, dumpId) {
   // A reply goes under the comment it answers; a reply to a reply goes under the same one, so
   // there is only ever one level.
   let parentId = null;
+  let answered = null;
   if (input.parent_id) {
-    const parent = await ctx.db.prepare('SELECT id, parent_id FROM comments WHERE id = ? AND dump_id = ?').bind(clean(input.parent_id, 80), dump.id).first();
+    const parent = await ctx.db.prepare('SELECT id, parent_id, author_id FROM comments WHERE id = ? AND dump_id = ?').bind(clean(input.parent_id, 80), dump.id).first();
     if (!parent) fail(400, 'bad_request', 'That comment is gone.');
     parentId = parent.parent_id || parent.id;
+    answered = parent.author_id;
   }
   const id = newId('c');
   // Counted and written in one statement, so comments sent together cannot pass the limit.
@@ -1174,6 +1302,14 @@ async function addComment(ctx, dumpId) {
     .bind(id, dump.id, ctx.me.id, text, ctx.now.toISOString(), MAX_COMMENTS, parentId).run();
   if (!inserted.meta?.changes) fail(429, 'too_many_comments', 'That is a lot of comments for one week. Up to 30 each.');
   const row = await ctx.db.prepare('SELECT * FROM comments WHERE id = ?').bind(id).first();
+  // The week's poster hears of every comment, the person answered of the reply, and anyone
+  // named with an @ of the mention; each person once, by the closest of those.
+  const name = whoName(ctx.me);
+  const where = { dump_id: dump.id, comment_id: id };
+  await notifyIds(ctx, dump.author_id, 'comment', { title: `${name} commented on your week`, body: snippet(text) }, where);
+  if (answered && answered !== dump.author_id) await notifyIds(ctx, answered, 'reply', { title: `${name} replied to your comment`, body: snippet(text) }, where);
+  const named = (await mentioned(ctx, text, dump)).filter((u) => u.id !== dump.author_id && u.id !== answered);
+  await notify(ctx, named, 'mention', { title: `${name} mentioned you`, body: snippet(text) }, where);
   return json((await commentsJSON(ctx, [row]))[0]);
 }
 
@@ -1209,8 +1345,12 @@ async function deleteComment(ctx, id) {
 
 async function likeComment(ctx, id, liked) {
   const { row } = await commentFor(ctx, id);
-  if (liked) await ctx.db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id, created_at) VALUES (?, ?, ?)').bind(id, ctx.me.id, ctx.now.toISOString()).run();
-  else await ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?').bind(id, ctx.me.id).run();
+  if (liked) {
+    const added = await ctx.db.prepare('INSERT OR IGNORE INTO comment_likes (comment_id, user_id, created_at) VALUES (?, ?, ?)').bind(id, ctx.me.id, ctx.now.toISOString()).run();
+    if (added.meta?.changes) await notifyIds(ctx, row.author_id, 'comment_like', { title: `${whoName(ctx.me)} liked your comment`, body: snippet(row.body) }, { dump_id: row.dump_id, comment_id: id });
+  } else {
+    await ctx.db.prepare('DELETE FROM comment_likes WHERE comment_id = ? AND user_id = ?').bind(id, ctx.me.id).run();
+  }
   return json((await commentsJSON(ctx, [row]))[0]);
 }
 
@@ -1248,6 +1388,7 @@ async function respondToTag(ctx, id) {
   const input = await body(ctx.request);
   await ctx.db.prepare('UPDATE tags SET status = ?, responded_at = ? WHERE id = ?')
     .bind(input.approve ? 'approved' : 'declined', ctx.now.toISOString(), tag.id).run();
+  if (input.approve && tag.status === 'pending') await notifyIds(ctx, tag.tagger_id, 'tag_approved', { title: `${whoName(ctx.me)} said yes to your tag` });
   return empty();
 }
 
@@ -1457,6 +1598,8 @@ export async function cleanUp(env, now = new Date()) {
     env.DB.prepare('DELETE FROM uploads WHERE id IN (SELECT value FROM json_each(?))').bind(JSON.stringify(results.map((r) => r.id))),
     env.DB.prepare('DELETE FROM refresh_tokens WHERE expires_at < ?').bind(nowSeconds),
     env.DB.prepare('DELETE FROM used_nonces WHERE expires_at < ?').bind(nowSeconds),
+    // A phone not heard from in three months: the app registers again on every open.
+    env.DB.prepare('DELETE FROM devices WHERE seen_at < ?').bind(new Date(now.getTime() - 90 * 24 * 3600 * 1000).toISOString()),
   ]);
   return { uploads: results.length };
 }

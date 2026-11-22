@@ -649,6 +649,7 @@ struct OnboardingView: View {
             _ = await model.saveAccountSettings(from: settings, to: wanted)
         }
         model.scheduleReminders()
+        model.registerForPush()
         next()
     }
 }

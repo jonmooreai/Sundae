@@ -170,6 +170,28 @@ the database instead, add a secret named `TOKEN_SECRET` (any long random text) u
 Worker's **Settings**, then **Variables and Secrets**; everyone is signed out once when it
 changes.
 
+## Push notifications
+
+Tags, comments, likes and follows reach phones through Apple's push service. The Worker signs
+each request with a key from the developer account; until the key is there, the Worker keeps
+every device token it is given and sends nothing, and the app still shows everything in its
+Notifications tab.
+
+1. In the Apple developer account, **Certificates, IDs & Profiles**, then **Keys**, add a key
+   with **Apple Push Notifications service (APNs)** ticked. Download the `.p8` file (Apple
+   offers it once) and note the **Key ID** on that page and the **Team ID** at the top right.
+2. Under the Worker's **Settings**, then **Variables and Secrets**, add three secrets:
+   `APNS_KEY` (the whole text of the `.p8` file, `BEGIN PRIVATE KEY` to `END PRIVATE KEY`),
+   `APNS_KEY_ID` and `APNS_TEAM_ID`. The Worker picks them up on its next request; no deploy
+   is needed.
+3. The app's App ID needs the Push Notifications capability, which the TestFlight lane turns
+   on by itself (docs/TESTFLIGHT.md), and the phone needs to have said yes to notifications.
+
+One key serves both of Apple's push environments. TestFlight and App Store builds use the
+production one; a build installed from Xcode uses the sandbox, and the app says which when
+it registers (`PUT me/devices`). A token Apple reports gone is dropped on the spot, and one
+not heard from in three months goes with the daily clean-up.
+
 ## Testing it here
 
 ```bash

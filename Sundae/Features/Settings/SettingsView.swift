@@ -79,24 +79,20 @@ struct SettingsView: View {
                     SettingsToggle(title: "Comments on my weeks", isOn: $settings.commentsEnabled)
                 }
 
-                SettingsGroup(title: "Notifications", footer: model.isUsingMock ? nil : "Just these two, and only on Sundaes.") {
+                SettingsGroup(title: "Notifications", footer: "Only about your week and your friends, never anything else.") {
                     SettingsToggle(title: "Sundae reminder", detail: "9:00 am", isOn: $settings.notifySundayReminder)
                     SettingsToggle(title: "Evening nudge", detail: "8:00 pm, only if you haven't shared yet", isOn: $settings.notifyLastCall)
+                    SettingsToggle(title: "Tags", detail: "When a friend tags you in a photo", isOn: $settings.notifyTags)
+                    SettingsToggle(title: "Likes and comments", detail: "Replies and mentions too", isOn: $settings.notifyLikesAndComments)
+                    SettingsToggle(title: "Follows", detail: "Requests, new followers, and a yes to yours", isOn: $settings.notifyFollowRequests)
+                    SettingsToggle(title: "Approved tags", detail: "When someone says yes to your tag", isOn: $settings.notifyTagApproved)
                     // A switch that is on but can't deliver says how to fix it.
-                    if settings.notifySundayReminder || settings.notifyLastCall {
+                    if settings.wantsAnyNotification {
                         if notificationStatus == .notDetermined {
                             SettingsActionRow(title: "Allow notifications") { Task { await allowNotifications() } }
                         } else if notificationStatus == .denied {
                             SettingsActionRow(title: "Turn on Notifications in iOS Settings") { openSystemSettings() }
                         }
-                    }
-                    // These need push notifications, which the friends and family server does not send
-                    // yet. Shown with demo data only, so no switch here promises something that never comes.
-                    if model.isUsingMock {
-                        SettingsToggle(title: "Tags", isOn: $settings.notifyTags)
-                        SettingsToggle(title: "Follow requests", isOn: $settings.notifyFollowRequests)
-                        SettingsToggle(title: "Likes and comments", detail: "Sundaes only", isOn: $settings.notifyLikesAndComments)
-                        SettingsToggle(title: "Approved tags", isOn: $settings.notifyTagApproved)
                     }
                 }
             }
@@ -151,9 +147,8 @@ struct SettingsView: View {
             // Loading, or a failed save going back: nothing to send or ask.
             guard let base = saved, new != base else { return }
             Task { await save() }
-            // Switching a reminder on is the moment to ask iOS, if it has never been asked.
-            let switchedOn = (new.notifySundayReminder && !old.notifySundayReminder) || (new.notifyLastCall && !old.notifyLastCall)
-            if switchedOn, notificationStatus == .notDetermined { Task { await allowNotifications() } }
+            // Switching a notification on is the moment to ask iOS, if it has never been asked.
+            if new.turnedOnANotification(since: old), notificationStatus == .notDetermined { Task { await allowNotifications() } }
         }
         .onChange(of: model.accountSettings) { _, fresh in
             // Saved in another window, or loaded again: shown here too.
@@ -243,6 +238,7 @@ struct SettingsView: View {
         await NotificationScheduler.requestAuthorizationIfNeeded()
         notificationStatus = await NotificationScheduler.authorizationStatus()
         model.scheduleReminders()
+        model.registerForPush()
     }
 
     private func openSystemSettings() {

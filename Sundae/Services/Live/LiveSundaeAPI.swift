@@ -95,6 +95,10 @@ actor LiveSundaeAPI: SundaeAPI {
         await client.clearTokens()
     }
 
+    func registerDevice(token: String, environment: String) async throws {
+        let _: HTTPClient.Empty = try await client.put("v1/me/devices", body: DTO.Device(token: token, environment: environment))
+    }
+
     // MARK: - Feed and dumps
 
     func feed(olderThan: Date?, limit: Int) async throws -> [Dump] {

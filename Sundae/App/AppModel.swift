@@ -111,6 +111,8 @@ final class AppModel {
     private var isSigningOut = false
 
     private enum Keys {
+        static let pushRegistered = "push.registered"
+        static let pushRegisteredAt = "push.registered.at"
         static let appearance = "appearance"
         static let debugDay = "debugDay"
         static let session = "session.token"
@@ -236,6 +238,7 @@ final class AppModel {
         clearSessionLeftByAnEarlierInstall()
         refreshPhase()
         watchForEndedSession()
+        listenForPush()
         network.onChange = { [weak self] online in
             guard online else { return }
             Task { await self?.networkReturned() }
@@ -331,6 +334,8 @@ final class AppModel {
     func becameActive() async {
         refreshPhase()
         if isSignedIn, accountSettings == nil { await loadAccountSettings() }
+        // iOS can hand out a new token any time; the server hears of it on each open.
+        registerForPush()
         // A week posted early skips its last call; a new week brings the weekly one back.
         if isSignedIn { scheduleReminders() }
         // Photos taken at saved places since the last look, matched on the phone.
@@ -403,6 +408,54 @@ final class AppModel {
         // Scheduling shows nothing until iOS has a yes. That question is asked only with its reason
         // on screen: in onboarding, or when a reminder is switched on in Settings.
         scheduleReminders()
+        registerForPush()
+    }
+
+    // MARK: - Push notifications
+
+    /// Asks iOS for this phone's push token once notifications are allowed, and sends it to the
+    /// server, so tags, comments, likes and follows reach this phone. Nothing happens before iOS
+    /// has a yes, and the demo data has no server to tell.
+    func registerForPush() {
+        guard isSignedIn, !isUsingMock else { return }
+        Task {
+            let status = await NotificationScheduler.authorizationStatus()
+            guard status == .authorized || status == .provisional || status == .ephemeral else { return }
+            UIApplication.shared.registerForRemoteNotifications()
+            if let token = PushTokens.shared.token { await registerDevice(token) }
+        }
+    }
+
+    private func listenForPush() {
+        PushTokens.shared.onToken = { [weak self] token in Task { await self?.registerDevice(token) } }
+        // One arriving while Sundae is open: the heart's count moves with it.
+        PushTokens.shared.onArrived = { [weak self] _ in Task { await self?.refreshPendingCount() } }
+        PushTokens.shared.onOpen = { [weak self] info in self?.open(info) }
+        if let waiting = PushTokens.shared.takePendingOpen() { open(waiting) }
+    }
+
+    /// A tapped notification lands on the Notifications tab, where every kind of it is listed.
+    private func open(_ info: PushInfo) {
+        requestedTab = .notifications
+        Task { await refreshPendingCount() }
+    }
+
+    /// The token goes up once a day for each account and token: iOS gives the same one on every
+    /// launch, and the server keeps the day it last heard.
+    private func registerDevice(_ token: String) async {
+        guard isSignedIn, !isUsingMock, let userID = currentUser?.id else { return }
+        let stamp = "\(userID):\(token):\(PushEnvironment.current)"
+        let defaults = UserDefaults.standard
+        if defaults.string(forKey: Keys.pushRegistered) == stamp,
+           let at = defaults.object(forKey: Keys.pushRegisteredAt) as? Date,
+           at >= Calendar.current.startOfDay(for: Date()) { return }
+        do {
+            try await api.registerDevice(token: token, environment: PushEnvironment.current)
+            defaults.set(stamp, forKey: Keys.pushRegistered)
+            defaults.set(Date(), forKey: Keys.pushRegisteredAt)
+        } catch {
+            // Offline, or a server older than this. The next open tries again.
+        }
     }
 
     func scheduleReminders() {
@@ -436,6 +489,8 @@ final class AppModel {
         savedIdeas.signedOut()
         NotificationScheduler.cancelAll()
         finishOnboarding()
+        UserDefaults.standard.removeObject(forKey: Keys.pushRegistered)
+        // The server drops this phone's push token with the session.
         try? await api.signOut()
         Keychain.delete(Keys.session)
         cacheUser(nil)
