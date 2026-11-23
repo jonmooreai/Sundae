@@ -102,6 +102,33 @@ struct FeedAndNotificationsTests {
         }
     }
 
+    /// The Sunday wrap counts this week's friends, each once, and never the earlier weeks the feed
+    /// has loaded: two people in the app read "3 friends posted" before.
+    @Test func theSundayWrapCountsThisWeeksFriendsOnce() {
+        func user(_ id: String, _ name: String) -> User {
+            User(id: id, username: id, name: name, bio: "", avatar: nil, isPublic: false, timezone: "UTC")
+        }
+        let me = user("u_pat", "Pat Doe"), sam = user("u_sam", "Sam Doe")
+        func week(_ id: String, by author: User, tagging tagged: [User] = [], likedBy: [User] = []) -> Dump {
+            let tags = tagged.map { Tag(id: "t_\($0.id)", photoID: "p_\(id)", taggerID: author.id, taggedUser: $0, status: .approved, respondedAt: nil) }
+            let photo = Photo(id: "p_\(id)", dumpID: id, order: 0, source: .remote(URL(string: "https://example.com/p.jpg")!),
+                              width: 1, height: 1, altText: nil, tags: tags)
+            return Dump(id: id, author: author, weekStart: Date(), caption: "", createdAt: Date(), lockedAt: nil, photos: [photo],
+                        commentsEnabled: true, likedBy: likedBy, likedByMe: false, commentCount: 0)
+        }
+        // Sam's week twice over (once more as a photo shared onto Pat's), plus Pat's own.
+        let thisWeek = [week("d_sam", by: sam, tagging: [me]), week("d_sam2", by: sam, tagging: [me]), week("d_pat", by: me, likedBy: [sam])]
+        let wrap = WrapSummary(thisWeek: thisWeek, me: me.id, tomorrowsIdea: nil)
+        #expect(wrap.friendsPosted == 1)
+        #expect(wrap.taggedIn == 1)
+        #expect(wrap.firstLiker == "Sam")
+        #expect(wrap.posted)
+        #expect(wrap.lines.prefix(3) == ["One friend posted their week.", "You were in it.", "Sam was first to like yours."])
+        let quiet = WrapSummary(thisWeek: [], me: me.id, tomorrowsIdea: nil)
+        #expect(quiet.lines.first == "A quiet Sundae. Nobody you follow posted.")
+        #expect(quiet.lines.last == "Yours is still open until midnight.")
+    }
+
     /// The large widget shows only the post's photos: a week's library photos never.
     @Test func theLargeWidgetShowsOnlyPostedPhotos() {
         var snapshot = WidgetSnapshot.placeholder

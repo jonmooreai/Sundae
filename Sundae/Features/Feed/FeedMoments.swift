@@ -60,16 +60,9 @@ struct FeedMoments: View {
         let now = model.clock.now()
         guard model.clock.calendar.component(.hour, from: now) >= 20 else { return nil }
         if let shown = MomentMemory.wrapShownWeekStart, shown == model.currentWeekStart { return nil }
-        let me = model.currentUser?.id
-        let friends = feed.dumps.filter { $0.author.id != me }
-        let mine = feed.dumps.first { $0.author.id == me }
         let tomorrow = model.clock.calendar.date(byAdding: .day, value: 1, to: now) ?? now
-        return WrapSummary(
-            friendsPosted: friends.count,
-            taggedIn: friends.filter { dump in dump.taggedUsers.contains { $0.id == me } }.count,
-            firstLiker: mine?.likedBy.first { $0.id != me }?.firstName,
-            posted: mine != nil,
-            tomorrowsIdea: model.suggestions.suggestion(forDay: tomorrow, calendar: model.clock.calendar)?.text)
+        return WrapSummary(thisWeek: feed.thisWeek(model.currentWeekStart), me: model.currentUser?.id,
+                           tomorrowsIdea: model.suggestions.suggestion(forDay: tomorrow, calendar: model.clock.calendar)?.text)
     }
 
     /// Your own week from exactly a year ago, if there was one, on Sunday only.
@@ -88,6 +81,29 @@ struct WrapSummary: Equatable {
     let posted: Bool
     let tomorrowsIdea: String?
 
+    init(friendsPosted: Int, taggedIn: Int, firstLiker: String?, posted: Bool, tomorrowsIdea: String?) {
+        self.friendsPosted = friendsPosted
+        self.taggedIn = taggedIn
+        self.firstLiker = firstLiker
+        self.posted = posted
+        self.tomorrowsIdea = tomorrowsIdea
+    }
+
+    /// From this week's posts only, never the earlier weeks the feed has loaded, and each friend
+    /// once: the feed can hold a friend's week more than once (a photo they shared with you shows
+    /// on your week too), and a count of posts would count them twice.
+    init(thisWeek dumps: [Dump], me: ID?, tomorrowsIdea: String?) {
+        var seen = Set<ID>()
+        let friends = dumps.filter { $0.author.id != me && seen.insert($0.author.id).inserted }
+        let mine = dumps.first { $0.author.id == me }
+        let taggers = Set(dumps.filter { dump in dump.author.id != me && dump.taggedUsers.contains { $0.id == me } }.map(\.author.id))
+        self.init(friendsPosted: friends.count,
+                  taggedIn: taggers.count,
+                  firstLiker: mine?.likedBy.first { $0.id != me }?.firstName,
+                  posted: mine != nil,
+                  tomorrowsIdea: tomorrowsIdea)
+    }
+
     var lines: [String] {
         var lines: [String] = []
         switch friendsPosted {
@@ -95,7 +111,11 @@ struct WrapSummary: Equatable {
         case 1: lines.append("One friend posted their week.")
         default: lines.append("\(friendsPosted) friends posted their weeks.")
         }
-        if taggedIn > 0 { lines.append(taggedIn == 1 ? "You were in one of them." : "You were in \(taggedIn) of them.") }
+        if taggedIn > 0 {
+            // "One of them" only reads right when there were several.
+            if friendsPosted == 1 { lines.append("You were in it.") }
+            else { lines.append(taggedIn == 1 ? "You were in one of them." : "You were in \(taggedIn) of them.") }
+        }
         if let firstLiker { lines.append("\(firstLiker) was first to like yours.") }
         if !posted { lines.append("Yours is still open until midnight.") }
         return lines
