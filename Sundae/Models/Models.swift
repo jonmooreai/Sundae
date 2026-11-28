@@ -189,8 +189,13 @@ struct ActivityItem: Identifiable, Hashable, Sendable {
         /// To your comment, or naming you, on someone else's week.
         case reply, mention
         case commentLike = "comment_like"
+        /// Someone tagged you in a photo, once you have answered (a tag waiting for a yes is a
+        /// tag request, at the top of Notifications).
+        case tag
         /// A new follower who needed no yes.
         case follow
+        /// Someone asked to follow you, and you said yes.
+        case followRequest = "follow_request"
         /// Your request to follow someone, said yes to.
         case followAccepted = "follow_accepted"
         /// Someone you tagged said yes.

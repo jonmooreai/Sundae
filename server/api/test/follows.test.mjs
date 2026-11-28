@@ -188,6 +188,7 @@ test('activity: likes, comments, replies, mentions, follows and tags, newest fir
     ['like', 'maya'],
     ['tag_approved', 'maya'],
     ['follow_accepted', 'maya'],
+    ['follow_request', 'maya'],
   ]);
   const byKind = Object.fromEntries(activity.map((a) => [a.kind, a]));
   assert.equal(byKind.comment.comment_body, 'Love this, @jon');
@@ -200,7 +201,8 @@ test('activity: likes, comments, replies, mentions, follows and tags, newest fir
   assert.equal(byKind.like.relationship, 'following');
   assert.equal(new Set(activity.map((a) => a.id)).size, activity.length, 'each has its own id');
 
-  // Jo's request, accepted, shows on Jo's side as accepted, and not as a new follower on Jon's.
+  // Jo's request, accepted, shows on Jo's side as accepted, and on Jon's as a request he said
+  // yes to, never as a follower who needed no yes.
   await s.call('PUT', 'v1/me/settings', { token: jon.token, json: { is_public: false } });
   tick();
   await s.call('POST', `v1/users/${jon.user.id}/follow`, { token: jo.token });
@@ -208,17 +210,18 @@ test('activity: likes, comments, replies, mentions, follows and tags, newest fir
   await s.call('POST', `v1/me/follow-requests/${jo.user.id}`, { token: jon.token, json: { accept: true } });
   const jos = (await s.call('GET', 'v1/me/activity', { token: jo.token })).body;
   assert.deepEqual(jos.map((a) => [a.kind, a.actor.username]), [['follow_accepted', 'jon']]);
-  assert.ok(!(await s.call('GET', 'v1/me/activity', { token: jon.token })).body.some((a) => a.actor.username === 'jo'));
+  const jonsJo = (await s.call('GET', 'v1/me/activity', { token: jon.token })).body.filter((a) => a.actor.username === 'jo');
+  assert.deepEqual(jonsJo.map((a) => a.kind), ['follow_request']);
   assert.deepEqual((await s.call('GET', 'v1/me/activity', { token: pat.token })).body, [], 'nothing for Pat');
 
-  // Blocking Maya takes everything of hers out; a month on, the rest has aged out too.
+  // Blocking Maya takes everything of hers out; months on, the rest is all still there.
   await s.call('POST', `v1/users/${maya.user.id}/block`, { token: jon.token });
-  assert.deepEqual((await s.call('GET', 'v1/me/activity', { token: jon.token })).body.map((a) => a.actor.username), ['pat']);
-  for (const days of [20, 40]) {
+  assert.deepEqual((await s.call('GET', 'v1/me/activity', { token: jon.token })).body.map((a) => a.actor.username), ['jo', 'pat']);
+  for (const days of [20, 40, 60, 80, 100]) {
     s.setNow(new Date(WEDNESDAY.getTime() + days * 86_400_000));
     await refresh(s, jon);
   }
-  assert.deepEqual((await s.call('GET', 'v1/me/activity', { token: jon.token })).body, []);
+  assert.deepEqual((await s.call('GET', 'v1/me/activity', { token: jon.token })).body.map((a) => a.actor.username), ['jo', 'pat']);
 });
 
 test('activity is every day, and only about weeks that can still be opened', async () => {
@@ -229,10 +232,58 @@ test('activity is every day, and only about weeks that can still be opened', asy
   await s.call('PUT', `v1/comments/${jonsComment.id}/like`, { token: maya.token });
   s.setNow(WEDNESDAY);
   const kinds = async () => (await s.call('GET', 'v1/me/activity', { token: jon.token })).body.map((a) => a.kind);
-  assert.deepEqual(await kinds(), ['comment_like', 'follow_accepted']);
-  // Maya removes Jon as a follower: her week, and what happened on it, are closed to him now.
+  assert.deepEqual(await kinds(), ['comment_like', 'follow_accepted', 'follow_request']);
+  // Maya removes Jon as a follower: her week, and what happened on it, are closed to him now. Her
+  // asking to follow him, which he said yes to, stays.
   await s.call('DELETE', `v1/me/followers/${jon.user.id}`, { token: maya.token });
-  assert.deepEqual(await kinds(), []);
+  assert.deepEqual(await kinds(), ['follow_request']);
+});
+
+test('activity keeps tags of you once they are answered, one line a week, and pages back through everything', async () => {
+  const s = await server();
+  const { jon, maya } = await friends(s);
+  // Maya tags Jon in two photos of one week. Waiting for his yes, it is a tag request, not a line.
+  const up1 = await uploadPhoto(s, maya);
+  const up2 = await uploadPhoto(s, maya);
+  const saved = await s.call('PUT', 'v1/me/dumps/2026-10-19', { token: maya.token, json: { caption: '', photos: [
+    { upload_id: up1, tagged_user_ids: [jon.user.id] }, { upload_id: up2, tagged_user_ids: [jon.user.id] },
+  ] } });
+  assert.equal(saved.status, 200);
+  const kinds = async (path = 'v1/me/activity') => (await s.call('GET', path, { token: jon.token })).body;
+  assert.ok(!(await kinds()).some((a) => a.kind === 'tag'));
+  const requests = (await s.call('GET', 'v1/me/tag-requests', { token: jon.token })).body;
+  for (const r of requests) await s.call('POST', `v1/tags/${r.tag.id}/respond`, { token: jon.token, json: { approve: true } });
+  const tags = (await kinds()).filter((a) => a.kind === 'tag');
+  assert.deepEqual(tags.map((a) => [a.actor.username, a.dump_id]), [['maya', saved.body.id]], 'one line for the week');
+  assert.ok(tags[0].photo_url.includes('/v1/media/'));
+
+  // Seventy likes, ten seconds apart; the first page is the newest sixty, the next picks up there.
+  const week = saved.body;
+  const people = [];
+  for (let i = 0; i < 70; i++) {
+    const who = await s.signUp(`apple-p${i}`, `p${i}`, `P ${i}`);
+    await s.call('POST', `v1/users/${maya.user.id}/follow`, { token: who.token });
+    await s.call('POST', `v1/me/follow-requests/${who.user.id}`, { token: maya.token, json: { accept: true } });
+    people.push(who);
+  }
+  const likers = [];
+  for (const [i, who] of people.entries()) {
+    s.setNow(new Date(SUNDAY.getTime() + (i + 1) * 10_000));
+    // A like on Maya's week is Maya's to hear about; she reads the log here.
+    await s.call('PUT', `v1/dumps/${week.id}/like`, { token: who.token, json: { liked: true } });
+    likers.push(who.user.username);
+  }
+  const first = (await s.call('GET', 'v1/me/activity', { token: maya.token })).body;
+  assert.equal(first.length, 60);
+  assert.deepEqual(first.slice(0, 3).map((a) => a.actor.username), ['p69', 'p68', 'p67'], 'newest first');
+  const oldest = first[first.length - 1];
+  const next = (await s.call('GET', `v1/me/activity?before=${encodeURIComponent(oldest.at)}`, { token: maya.token })).body;
+  assert.equal(next[0].id, oldest.id, 'the page starts at the moment the last one ended, that moment included');
+  const all = [...first, ...next.filter((a) => !first.some((f) => f.id === a.id))];
+  assert.deepEqual(all.filter((a) => a.kind === 'like').map((a) => a.actor.username), likers.slice().reverse(), 'every like, once');
+  assert.equal(new Set(all.map((a) => a.id)).size, all.length);
+  // A nonsense before is the newest page.
+  assert.deepEqual((await s.call('GET', 'v1/me/activity?before=soon', { token: maya.token })).body.map((a) => a.id), first.map((a) => a.id));
 });
 
 test('an edited photo, sent as a new upload in place of the old one, keeps its tags and their answers', async () => {

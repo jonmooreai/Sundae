@@ -1,9 +1,10 @@
 import Foundation
 import Observation
 
-/// Everything behind the heart: people asking to follow, photos you were tagged in, and what
-/// happened around you lately. The badge counts what is waiting on you and what is new since you
-/// last looked; what you have seen is remembered on this phone only.
+/// Everything behind the heart: people asking to follow, photos you were tagged in, and the log of
+/// everything that happened around you, all the way back, a page at a time. The badge counts what
+/// is waiting on you and what is new since you last looked; what you have seen is remembered on
+/// this phone only.
 @MainActor
 @Observable
 final class NotificationsStore {
@@ -11,6 +12,9 @@ final class NotificationsStore {
     private(set) var followRequests: [ListedPerson] = []
     private(set) var tagRequests: [TagRequest] = []
     private(set) var activity: [ActivityItem] = []
+    /// Whether older activity may be left to load.
+    private(set) var hasMoreActivity = true
+    private(set) var isLoadingMore = false
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     var errorMessage: String?
@@ -33,13 +37,22 @@ final class NotificationsStore {
     var isEmpty: Bool { followRequests.isEmpty && tagRequests.isEmpty && activity.isEmpty }
 
     func isNew(_ item: ActivityItem) -> Bool {
-        seenThrough.map { item.at > $0 } ?? true
+        item.at > Self.unreadAfter(seenThrough: seenThrough, activity: activity)
+    }
+
+    /// Activity after this moment is unread. Before Notifications has ever been opened, that is
+    /// the last week of it, never the whole history, so a first look isn't a wall of new.
+    static func unreadAfter(seenThrough: Date?, activity: [ActivityItem]) -> Date {
+        if let seenThrough { return seenThrough }
+        guard let newest = activity.map(\.at).max() else { return .distantFuture }
+        return newest.addingTimeInterval(-7 * 86_400)
     }
 
     func reset() {
         followRequests = []
         tagRequests = []
         activity = []
+        hasMoreActivity = true
         answered = []
         hasLoaded = false
         errorMessage = nil
@@ -52,7 +65,9 @@ final class NotificationsStore {
         UserDefaults.standard.removeObject(forKey: Self.seenKey)
     }
 
-    func load() async {
+    /// The requests, and the newest page of activity. What older pages were already loaded stays
+    /// below it, unless `fresh` (a pull to refresh), which starts the log over.
+    func load(fresh: Bool = false) async {
         guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
@@ -69,8 +84,36 @@ final class NotificationsStore {
             if !error.isCancellation { errorMessage = error.localizedDescription }
         }
         // Activity is extra: when it cannot load, what was there stays.
-        if let items = try? await recent { activity = items }
+        if let items = try? await recent {
+            activity = fresh ? items : Self.merged(newest: items, into: activity)
+            if fresh || activity.count == items.count { hasMoreActivity = !items.isEmpty }
+        }
         hasLoaded = true
+    }
+
+    /// The next page back, from the oldest loaded. Asked for as the end of the list comes on screen.
+    func loadMoreActivity() async {
+        guard hasMoreActivity, !isLoadingMore, !isLoading, let oldest = activity.last else { return }
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let page = try await api.activity(before: oldest.at)
+            let known = Set(activity.map(\.id))
+            let older = page.filter { !known.contains($0.id) }
+            activity += older
+            hasMoreActivity = !older.isEmpty
+        } catch {
+            // Scrolling back to the end tries again.
+        }
+    }
+
+    /// A fresh newest page on top of what was loaded: everything in it, then what was already
+    /// here from before it began, each once.
+    static func merged(newest: [ActivityItem], into current: [ActivityItem]) -> [ActivityItem] {
+        // Nothing at all now (everyone blocked, say): nothing older either.
+        guard let start = newest.last?.at else { return [] }
+        let ids = Set(newest.map(\.id))
+        return newest + current.filter { $0.at <= start && !ids.contains($0.id) }
     }
 
     /// Everything showing has been looked at, so the badge drops to what is waiting on you.

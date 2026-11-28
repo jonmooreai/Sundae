@@ -555,8 +555,9 @@ actor MockSundaeAPI: SundaeAPI {
     }
 
     /// Built from the demo world as the server builds it: likes and comments on your weeks,
-    /// replies to your comments, and new followers you have not followed back.
-    func activity() async throws -> [ActivityItem] {
+    /// replies to your comments, tags of you once answered, and new followers you have not
+    /// followed back. All the way back, sixty at a time.
+    func activity(before: Date?) async throws -> [ActivityItem] {
         let me = try requireSignedIn()
         let now = clock.now()
         var items: [ActivityItem] = []
@@ -574,6 +575,8 @@ actor MockSundaeAPI: SundaeAPI {
                 for (i, user) in dump.likedBy.enumerated() { item(.like, user, at: dump.createdAt.addingTimeInterval(Double(i + 1) * 420), dump: dump) }
                 for comment in list { item(.comment, comment.author, at: comment.createdAt, dump: dump, comment: comment) }
             } else if canRead(dump, as: me.id) {
+                let answered = dump.photos.flatMap(\.tags).filter { $0.taggedUser.id == me.id && $0.status != .pending }
+                if !answered.isEmpty { item(.tag, dump.author, at: dump.createdAt, dump: dump) }
                 let mine = Set(list.filter { $0.author.id == me.id }.map(\.id))
                 for comment in list where comment.parentID.map(mine.contains) == true {
                     item(.reply, comment.author, at: comment.createdAt, dump: dump, comment: comment)
@@ -583,8 +586,8 @@ actor MockSundaeAPI: SundaeAPI {
         for follow in follows where follow.followeeID == me.id && follow.status == .accepted && relationship(of: me.id, to: follow.followerID) == .notFollowing {
             if let user = users[follow.followerID] { item(.follow, user, at: now.addingTimeInterval(-2 * 3600)) }
         }
-        let monthAgo = now.addingTimeInterval(-28 * 86_400)
-        return Array(items.filter { $0.at <= now && $0.at > monthAgo }.sorted { $0.at > $1.at }.prefix(60))
+        let end = min(now, before ?? now)
+        return Array(items.filter { $0.at <= end }.sorted { $0.at > $1.at }.prefix(60))
     }
 
     /// The demo has no pictures to compare.

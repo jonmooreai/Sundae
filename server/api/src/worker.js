@@ -1400,49 +1400,70 @@ async function removeTag(ctx, id) {
 
 // MARK: - Activity
 
-const ACTIVITY_DAYS = 28;
+// One page of the log; the app asks for the next with ?before= as it scrolls.
 const MAX_ACTIVITY = 60;
 
-/** What happened around the caller lately, newest first: likes and comments on their weeks,
- * replies to their comments, mentions, likes on their comments, new followers, requests of theirs
- * that were accepted, and tags of theirs that were said yes to. Four weeks back, up to sixty,
- * never from anyone blocked either way, and only on weeks the caller can still open. Seven
- * queries however much there is. */
+/** Everything that happened around the caller, newest first, all the way back, a page at a time:
+ * likes and comments on their weeks, replies to their comments, mentions, likes on their comments,
+ * tags of them (once answered: a tag waiting for a yes is in tag-requests), new followers,
+ * requests to follow them that they said yes to, requests of theirs that were accepted, and tags
+ * of theirs that were said yes to. Never from anyone blocked either way, and only on weeks the
+ * caller can still open. `before` (an ISO time) gives the page ending there, that moment
+ * included, so nothing tied with the last item of a page is skipped; the app drops what it
+ * already has. Seven queries however much there is. */
 async function activity(ctx) {
   const me = ctx.me.id;
-  const since = new Date(ctx.now.getTime() - ACTIVITY_DAYS * 86_400_000).toISOString();
-  const { results: rows } = await ctx.db.prepare(`
+  const raw = ctx.url.searchParams.get('before');
+  const parsed = raw ? new Date(raw) : null;
+  const before = parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : '9999-12-31T00:00:00.000Z';
+  const { results: found } = await ctx.db.prepare(`
     SELECT * FROM (
-      SELECT 'like' AS kind, l.user_id AS actor_id, l.dump_id AS dump_id, NULL AS comment_id, NULL AS photo_id, l.created_at AS at
-        FROM likes l JOIN dumps d ON d.id = l.dump_id WHERE d.author_id = ?1 AND l.user_id != ?1 AND l.created_at >= ?2
+      SELECT 'like' AS kind, l.user_id AS actor_id, l.dump_id AS dump_id, NULL AS comment_id, NULL AS photo_id, NULL AS status, l.created_at AS at
+        FROM likes l JOIN dumps d ON d.id = l.dump_id WHERE d.author_id = ?1 AND l.user_id != ?1
       UNION ALL
-      SELECT 'comment', c.author_id, c.dump_id, c.id, NULL, c.created_at
-        FROM comments c JOIN dumps d ON d.id = c.dump_id WHERE d.author_id = ?1 AND c.author_id != ?1 AND c.created_at >= ?2
+      SELECT 'comment', c.author_id, c.dump_id, c.id, NULL, NULL, c.created_at
+        FROM comments c JOIN dumps d ON d.id = c.dump_id WHERE d.author_id = ?1 AND c.author_id != ?1
       UNION ALL
-      SELECT 'reply', c.author_id, c.dump_id, c.id, NULL, c.created_at
+      SELECT 'reply', c.author_id, c.dump_id, c.id, NULL, NULL, c.created_at
         FROM comments c JOIN comments parent ON parent.id = c.parent_id JOIN dumps d ON d.id = c.dump_id
-        WHERE parent.author_id = ?1 AND c.author_id != ?1 AND d.author_id != ?1 AND c.created_at >= ?2
+        WHERE parent.author_id = ?1 AND c.author_id != ?1 AND d.author_id != ?1
       UNION ALL
-      SELECT 'mention', c.author_id, c.dump_id, c.id, NULL, c.created_at
+      SELECT 'mention', c.author_id, c.dump_id, c.id, NULL, NULL, c.created_at
         FROM comments c JOIN dumps d ON d.id = c.dump_id
-        WHERE instr(lower(c.body), '@' || ?3) > 0 AND c.author_id != ?1 AND d.author_id != ?1 AND c.created_at >= ?2
+        WHERE instr(lower(c.body), '@' || ?3) > 0 AND c.author_id != ?1 AND d.author_id != ?1
           AND (c.parent_id IS NULL OR c.parent_id NOT IN (SELECT id FROM comments WHERE author_id = ?1))
       UNION ALL
-      SELECT 'comment_like', cl.user_id, c.dump_id, c.id, NULL, cl.created_at
+      SELECT 'comment_like', cl.user_id, c.dump_id, c.id, NULL, NULL, cl.created_at
         FROM comment_likes cl JOIN comments c ON c.id = cl.comment_id
-        WHERE c.author_id = ?1 AND cl.user_id != ?1 AND cl.created_at >= ?2
+        WHERE c.author_id = ?1 AND cl.user_id != ?1
       UNION ALL
-      SELECT 'follow', f.follower_id, NULL, NULL, NULL, f.created_at FROM follows f
-        WHERE f.followee_id = ?1 AND f.status = 'accepted' AND f.accepted_at IS NULL AND f.created_at >= ?2
+      SELECT 'tag', t.tagger_id, p.dump_id, NULL, t.photo_id, t.status, t.created_at
+        FROM tags t JOIN photos p ON p.id = t.photo_id WHERE t.tagged_user_id = ?1 AND t.tagger_id != ?1 AND t.status != 'pending'
       UNION ALL
-      SELECT 'follow_accepted', f.followee_id, NULL, NULL, NULL, f.accepted_at FROM follows f
-        WHERE f.follower_id = ?1 AND f.status = 'accepted' AND f.accepted_at >= ?2
+      SELECT 'follow', f.follower_id, NULL, NULL, NULL, NULL, f.created_at FROM follows f
+        WHERE f.followee_id = ?1 AND f.status = 'accepted' AND f.accepted_at IS NULL
       UNION ALL
-      SELECT 'tag_approved', t.tagged_user_id, p.dump_id, NULL, t.photo_id, t.responded_at
-        FROM tags t JOIN photos p ON p.id = t.photo_id WHERE t.tagger_id = ?1 AND t.status = 'approved' AND t.responded_at >= ?2
-    ) WHERE actor_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
+      SELECT 'follow_request', f.follower_id, NULL, NULL, NULL, NULL, f.created_at FROM follows f
+        WHERE f.followee_id = ?1 AND f.status = 'accepted' AND f.accepted_at IS NOT NULL
+      UNION ALL
+      SELECT 'follow_accepted', f.followee_id, NULL, NULL, NULL, NULL, f.accepted_at FROM follows f
+        WHERE f.follower_id = ?1 AND f.status = 'accepted' AND f.accepted_at IS NOT NULL
+      UNION ALL
+      SELECT 'tag_approved', t.tagged_user_id, p.dump_id, NULL, t.photo_id, NULL, t.responded_at
+        FROM tags t JOIN photos p ON p.id = t.photo_id WHERE t.tagger_id = ?1 AND t.status = 'approved' AND t.responded_at IS NOT NULL
+    ) WHERE at <= ?2
+        AND actor_id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id = ?1)
         AND actor_id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id = ?1)
-    ORDER BY at DESC LIMIT ?4`).bind(me, since, ctx.me.username.toLowerCase(), MAX_ACTIVITY).all();
+    ORDER BY at DESC, kind, actor_id LIMIT ?4`).bind(me, before, ctx.me.username.toLowerCase(), MAX_ACTIVITY).all();
+  // One line for a week someone tagged you in, or said yes to tags on, however many photos.
+  const once = new Set();
+  const rows = found.filter((r) => {
+    if (r.kind !== 'tag' && r.kind !== 'tag_approved') return true;
+    const key = `${r.kind}:${r.actor_id}:${r.dump_id}`;
+    if (once.has(key)) return false;
+    once.add(key);
+    return true;
+  });
   if (!rows.length) return json([]);
   // "@jo" is in "@jon": a mention is the whole username, then something that cannot be part of one.
   const mention = new RegExp(`@${ctx.me.username.replace(/[.]/g, '\\.')}(?![a-z0-9._])`, 'i');
@@ -1464,7 +1485,9 @@ async function activity(ctx) {
     const actor = people.get(row.actor_id);
     if (!actor) continue;
     const dump = row.dump_id ? dumpMap.get(row.dump_id) : null;
-    if (row.dump_id && (!dump || !readable.has(dump.author_id))) continue;
+    // A tag said yes to opens its week even from someone whose other weeks the caller can't read.
+    const opens = dump && (readable.has(dump.author_id) || (row.kind === 'tag' && row.status === 'approved'));
+    if (row.dump_id && !opens) continue;
     const body = row.comment_id ? comments.find((c) => c.id === row.comment_id)?.body : null;
     if (row.comment_id && body == null) continue;
     if (row.kind === 'mention' && !mention.test(body)) continue;
