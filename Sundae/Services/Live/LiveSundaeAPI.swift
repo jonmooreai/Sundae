@@ -265,9 +265,10 @@ actor LiveSundaeAPI: SundaeAPI {
         return requests.elements.map(\.model)
     }
 
-    func activity() async throws -> [ActivityItem] {
+    func activity(before: Date?) async throws -> [ActivityItem] {
+        let query = before.map { [URLQueryItem(name: "before", value: $0.formatted(Date.ISO8601FormatStyle(includingFractionalSeconds: true)))] } ?? []
         do {
-            let items: DTO.LossyList<DTO.Activity> = try await client.get("v1/me/activity")
+            let items: DTO.LossyList<DTO.Activity> = try await client.get("v1/me/activity", query: query)
             return items.elements.compactMap { try? $0.model() }
         } catch SundaeError.notFound {
             // A server from before Notifications: nothing to show yet.

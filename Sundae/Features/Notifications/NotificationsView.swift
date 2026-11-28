@@ -20,9 +20,11 @@ struct NotificationsScreen: View {
     }
 }
 
-/// The heart: people asking to follow you, photos you were tagged in, then what happened around
-/// you lately. Saying yes to a request lets them follow you and never follows them back; Follow
-/// back is its own button, there for you to choose.
+/// The heart: people asking to follow you and photos you were tagged in, waiting on you, then the
+/// log of everything that happened around you, all the way back, by day and then by month. What
+/// you haven't seen yet wears a soft sage wash and a small dot until you next come back. Saying
+/// yes to a request lets them follow you and never follows them back; Follow back is its own
+/// button, there for you to choose.
 struct NotificationsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -36,15 +38,14 @@ struct NotificationsView: View {
     /// What was already seen when the screen opened, so the new stays marked new while you look.
     @State private var seenAtOpen: Date?
     @State private var opened = false
+    @State private var isShowing = false
 
     private var store: NotificationsStore { model.notifications }
 
-    private var fresh: [ActivityItem] {
-        store.activity.filter { item in seenAtOpen.map { item.at > $0 } ?? true }
-    }
-
-    private var earlier: [ActivityItem] {
-        store.activity.filter { item in seenAtOpen.map { item.at <= $0 } ?? false }
+    /// Unread is judged against what was seen when the screen opened, so it stays marked while
+    /// you look, and anything arriving while you are here is marked too.
+    private func isUnread(_ item: ActivityItem) -> Bool {
+        item.at > NotificationsStore.unreadAfter(seenThrough: seenAtOpen, activity: store.activity)
     }
 
     private var isEmpty: Bool { store.isEmpty && accepted.isEmpty }
@@ -62,13 +63,12 @@ struct NotificationsView: View {
                     }
                     followRequests
                     tagRequests
-                    activitySection(fresh.isEmpty ? nil : "New", fresh)
-                    activitySection(fresh.isEmpty ? "Recent" : "Earlier", earlier)
+                    activityLog
                 }
                 if isEmpty {
                     if store.hasLoaded {
                         EmptyState("All caught up", glyph: Glyph.notifications,
-                                   message: "Likes, comments and new followers show up here, along with anything waiting on you.")
+                                   message: "Likes, comments, tags and new followers show up here and stay, along with anything waiting on you.")
                     } else if store.errorMessage == nil {
                         LoadingState()
                     }
@@ -82,6 +82,7 @@ struct NotificationsView: View {
         .background(Theme.background)
         .sideBarChrome()
         .task {
+            isShowing = true
             if !opened {
                 opened = true
                 seenAtOpen = store.seenThrough
@@ -92,12 +93,17 @@ struct NotificationsView: View {
         .refreshable {
             seenAtOpen = store.seenThrough
             accepted = []
-            await store.load()
+            await store.load(fresh: true)
             store.markSeen()
         }
+        .onChange(of: store.activity.first?.id) { _, _ in
+            // Something arrived while you are looking: it's seen, and stays marked until you leave.
+            if isShowing { store.markSeen() }
+        }
         .onDisappear {
-            // Next time, what was new now is earlier.
+            // Next time, what was new now is read.
             opened = false
+            isShowing = false
         }
     }
 
@@ -213,14 +219,31 @@ struct NotificationsView: View {
     // MARK: - Activity
 
     @ViewBuilder
-    private func activitySection(_ title: String?, _ items: [ActivityItem]) -> some View {
-        if let title, !items.isEmpty {
-            sectionHeader(title)
-            ForEach(items) { item in
+    private var activityLog: some View {
+        let sections = ActivityLog.sections(store.activity, now: model.clock.now(), calendar: model.clock.calendar)
+        ForEach(sections) { section in
+            sectionHeader(section.title)
+            ForEach(section.items) { item in
                 ActivityRow(item: item, relationship: changed[item.actor.id] ?? item.relationship,
-                            isWorking: working.contains(item.actor.id)) {
+                            isUnread: isUnread(item), isWorking: working.contains(item.actor.id)) {
                     tapFollow(item.actor, changed[item.actor.id] ?? item.relationship)
                 }
+            }
+        }
+        if !store.activity.isEmpty {
+            if store.hasMoreActivity {
+                // Comes on screen near the end of what is loaded, and asks for the page before it.
+                Group {
+                    if store.isLoadingMore { ProgressView() } else { Color.clear }
+                }
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .task(id: store.activity.count) { await store.loadMoreActivity() }
+            } else {
+                Text("That's everything, all the way back.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 20)
             }
         }
     }
@@ -272,6 +295,8 @@ struct ActivityRow: View {
     @Environment(AppModel.self) private var model
     let item: ActivityItem
     let relationship: Relationship
+    /// Not seen yet: a soft sage wash behind the row and a small dot at its edge.
+    var isUnread = false
     var isWorking = false
     let onFollow: () -> Void
 
@@ -282,7 +307,7 @@ struct ActivityRow: View {
 
     /// A new follower gets Follow back until you follow them; nobody else gets a button.
     private var showsFollow: Bool {
-        item.kind == .follow && relationship != .me && relationship != .blocked
+        (item.kind == .follow || item.kind == .followRequest) && relationship != .me && relationship != .blocked
     }
 
     var body: some View {
@@ -306,6 +331,7 @@ struct ActivityRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityValue(isUnread ? Text("New") : Text(""))
             if showsFollow {
                 FollowButton(relationship: relationship, followsYou: true, action: onFollow)
                     .disabled(isWorking)
@@ -313,14 +339,34 @@ struct ActivityRow: View {
         }
         .padding(.horizontal, Theme.pagePadding)
         .padding(.vertical, 8)
+        .background {
+            if isUnread { Color.accentColor.opacity(0.08) }
+        }
+        .overlay(alignment: .leading) {
+            if isUnread {
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 6, height: 6)
+                    .padding(.leading, 5)
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
     private var sentence: Text {
         let name = Text(item.actor.username).fontWeight(.semibold)
-        let when = Text(relativeTime(item.at, now: model.clock.now())).foregroundStyle(.secondary)
+        let when = Text(Self.when(item.at, now: model.clock.now(), calendar: model.clock.calendar)).foregroundStyle(.secondary)
         let phrase = Self.phrase(for: item)
         let line: LocalizedStringKey = "\(name) \(phrase) \(when)"
         return Text(line)
+    }
+
+    /// "3h" for the last week; a date further back, where the log goes by month: "Oct 12".
+    static func when(_ date: Date, now: Date, calendar: Calendar) -> String {
+        guard now.timeIntervalSince(date) >= 7 * 86_400 else { return relativeTime(date, now: now) }
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        let style = Date.FormatStyle(locale: Locale(identifier: "en_US"), calendar: calendar, timeZone: calendar.timeZone).month(.abbreviated).day()
+        return date.formatted(sameYear ? style : style.year())
     }
 
     /// What they did, after their name: "liked your week."
@@ -332,9 +378,41 @@ struct ActivityRow: View {
         case .reply: return "replied: \(said)"
         case .mention: return "mentioned you: \(said)"
         case .commentLike: return "liked your comment: \(said)"
+        case .tag: return "tagged you in a photo."
         case .follow: return "started following you."
+        case .followRequest: return "asked to follow you, and you said yes."
         case .followAccepted: return "said yes. You're following them now."
         case .tagApproved: return "said yes to your tag. It's on their week now."
         }
+    }
+}
+
+/// The log by when it happened: today, yesterday, the rest of the last week, then each month,
+/// with the year once it isn't this one.
+enum ActivityLog {
+    struct Section: Identifiable, Equatable {
+        let title: String
+        var items: [ActivityItem]
+        var id: String { title }
+    }
+
+    /// Items newest first, as the server sends them, in sections in the same order.
+    static func sections(_ items: [ActivityItem], now: Date, calendar: Calendar) -> [Section] {
+        var out: [Section] = []
+        for item in items {
+            let title = title(for: item.at, now: now, calendar: calendar)
+            if out.last?.title == title { out[out.count - 1].items.append(item) } else { out.append(Section(title: title, items: [item])) }
+        }
+        return out
+    }
+
+    static func title(for date: Date, now: Date, calendar: Calendar) -> String {
+        let today = calendar.startOfDay(for: now)
+        if date >= today { return "Today" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today), date >= yesterday { return "Yesterday" }
+        if let weekAgo = calendar.date(byAdding: .day, value: -7, to: today), date >= weekAgo { return "This week" }
+        let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
+        let style = Date.FormatStyle(locale: Locale(identifier: "en_US"), calendar: calendar, timeZone: calendar.timeZone).month(.wide)
+        return date.formatted(sameYear ? style : style.year())
     }
 }

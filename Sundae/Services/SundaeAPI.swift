@@ -72,7 +72,9 @@ protocol SundaeAPI: Sendable {
     func setFingerprints(_ fingerprints: [ID: String]) async throws
     /// What happened around the user lately, newest first: four weeks back, up to sixty. Empty
     /// from a server that does not have it yet.
-    func activity() async throws -> [ActivityItem]
+    /// The log of what happened around you, newest first, a page at a time. `before` gives the
+    /// page ending at that moment, included, so the caller drops what it already has.
+    func activity(before: Date?) async throws -> [ActivityItem]
     func respondToTag(id: ID, approve: Bool) async throws
     func removeTaggedPhoto(tagID: ID) async throws
     func suggestionsDone(weekStart: Date) async throws -> [SuggestionDone]
@@ -92,4 +94,9 @@ extension SundaeAPI {
 
     /// Demo data has no server to tell.
     func registerDevice(token: String, environment: String) async throws {}
+
+    /// The newest page of the log.
+    func activity() async throws -> [ActivityItem] {
+        try await activity(before: nil)
+    }
 }

@@ -97,9 +97,53 @@ struct FeedAndNotificationsTests {
         #expect(ActivityRow.phrase(for: item(.like)) == "liked your week.")
         #expect(ActivityRow.phrase(for: item(.comment, "So good")) == "commented: \u{201C}So good\u{201D}")
         #expect(ActivityRow.phrase(for: item(.follow)) == "started following you.")
-        for kind in [ActivityItem.Kind.like, .comment, .reply, .mention, .commentLike, .follow, .followAccepted, .tagApproved] {
+        #expect(ActivityRow.phrase(for: item(.tag)) == "tagged you in a photo.")
+        #expect(ActivityRow.phrase(for: item(.followRequest)) == "asked to follow you, and you said yes.")
+        for kind in [ActivityItem.Kind.like, .comment, .reply, .mention, .commentLike, .tag, .follow, .followRequest, .followAccepted, .tagApproved] {
             #expect(!ActivityRow.phrase(for: item(kind, "Hi")).contains("!"), "no exclamation marks")
         }
+    }
+
+    /// The log goes by day for the last week, then by month, with the year once it isn't this one.
+    @Test func theLogIsInSectionsByDayThenMonth() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = zone
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 28, hour: 15))!
+        let pat = User(id: "u_pat", username: "patdoe", name: "Pat Doe", bio: "", avatar: nil, isPublic: false, timezone: "UTC")
+        func at(_ month: Int, _ day: Int, _ year: Int = 2026) -> ActivityItem {
+            let date = calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 9))!
+            return ActivityItem(id: "\(year)-\(month)-\(day)", kind: .like, actor: pat, at: date, dumpID: nil, weekStart: nil,
+                                photo: nil, commentID: nil, commentBody: nil, relationship: .following)
+        }
+        let items = [at(11, 28), at(11, 27), at(11, 24), at(11, 3), at(10, 30), at(10, 2), at(12, 25, 2025)]
+        let sections = ActivityLog.sections(items, now: now, calendar: calendar)
+        #expect(sections.map(\.title) == ["Today", "Yesterday", "This week", "November", "October", "December 2025"])
+        #expect(sections.map(\.items.count) == [1, 1, 1, 1, 2, 1])
+        #expect(ActivityRow.when(at(11, 28).at, now: now, calendar: calendar) == "6h")
+        #expect(ActivityRow.when(at(10, 30).at, now: now, calendar: calendar) == "Oct 30")
+        #expect(ActivityRow.when(at(12, 25, 2025).at, now: now, calendar: calendar) == "Dec 25, 2025")
+    }
+
+    /// Unread is what came after the last look; before any look, only the last week of it, so a
+    /// first visit to a long history isn't all marked new. A fresh newest page keeps older pages.
+    @Test func unreadIsSinceTheLastLookAndOlderPagesStayOnARefresh() {
+        let pat = User(id: "u_pat", username: "patdoe", name: "Pat Doe", bio: "", avatar: nil, isPublic: false, timezone: "UTC")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func item(_ id: String, daysAgo: Double) -> ActivityItem {
+            ActivityItem(id: id, kind: .like, actor: pat, at: now.addingTimeInterval(-daysAgo * 86_400), dumpID: nil, weekStart: nil,
+                         photo: nil, commentID: nil, commentBody: nil, relationship: .following)
+        }
+        let log = [item("a", daysAgo: 0), item("b", daysAgo: 3), item("c", daysAgo: 30)]
+        let firstLook = NotificationsStore.unreadAfter(seenThrough: nil, activity: log)
+        #expect(log.filter { $0.at > firstLook }.map(\.id) == ["a", "b"])
+        let later = NotificationsStore.unreadAfter(seenThrough: now.addingTimeInterval(-86_400), activity: log)
+        #expect(log.filter { $0.at > later }.map(\.id) == ["a"])
+        #expect(NotificationsStore.unreadAfter(seenThrough: nil, activity: []) == .distantFuture)
+
+        let older = [item("b", daysAgo: 3), item("c", daysAgo: 30), item("d", daysAgo: 60)]
+        let fresh = [item("new", daysAgo: 0), item("a", daysAgo: 0.5), item("b", daysAgo: 3)]
+        #expect(NotificationsStore.merged(newest: fresh, into: older).map(\.id) == ["new", "a", "b", "c", "d"])
+        #expect(NotificationsStore.merged(newest: [], into: older).isEmpty, "nothing now means nothing older either")
     }
 
     /// The Sunday wrap counts this week's friends, each once, and never the earlier weeks the feed
